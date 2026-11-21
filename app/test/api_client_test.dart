@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:bloodline/core/api_client.dart';
 import 'package:bloodline/core/features.dart';
 import 'package:bloodline/core/slots.dart';
+import 'package:bloodline/core/providers/notifications_provider.dart';
 
 void main() {
   group('ApiClient Factory & Architecture', () {
@@ -123,6 +124,35 @@ void main() {
       final fulfilled = await client.fulfillRequest(created.request.id);
       expect(fulfilled.status, 'fulfilled');
       expect(fulfilled.isFulfilled, isTrue);
+    });
+
+    test('Notifications API and NotificationsProvider polling', () async {
+      MockApiClient.resetMockNotifications();
+      final notifications = await client.getNotifications();
+      expect(notifications.length, 3);
+      expect(notifications.first['id'], 'n1');
+      expect(notifications.first['title'], 'Ready to save lives again?');
+      expect(notifications.first['read'], isFalse);
+
+      final provider = NotificationsProvider(apiClient: client);
+      await provider.fetchNotifications();
+      expect(provider.notifications.length, 3);
+      expect(provider.unreadCount, 2);
+      expect(provider.hasUnread, isTrue);
+      expect(provider.activeBanner?.title, 'Ready to save lives again?');
+
+      // Dismiss banner
+      provider.dismissBanner();
+      expect(provider.activeBanner, isNull);
+
+      // Mark read
+      await provider.markAsRead('n1');
+      expect(provider.unreadCount, 1);
+      await provider.markAllAsRead();
+      expect(provider.unreadCount, 0);
+      expect(provider.hasUnread, isFalse);
+
+      provider.dispose();
     });
   });
 }

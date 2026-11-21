@@ -37,3 +37,12 @@
   3. Added donor 'I donated' action in `RequestSummaryHeader`, `BloodRequestChatScreen`, and `DonorScreen` (for joined requests), invoking `RequestsProvider.recordDonation(id)` (POST /requests/{id}/donated) and updating state to 'Donated'.
   4. Added `donated` field support to `BloodRequest` model and synchronized in-memory mock state in `MockApiClient`.
   5. Added comprehensive widget tests for fulfill and donation flows in `test/core_screens_test.dart` (30/30 tests passing, gate clean).
+
+## D-APP-5 — Notifications: 10s polling, in-app banner, notifications list with server-driven copy
+- Context: Task B8 requires polling GET /notifications every 10 s, in-app banner and a notifications list with copy coming strictly from the server (not hardcoded).
+- Decision:
+  1. Implemented `InAppNotification` model in `lib/core/models/in_app_notification.dart` mapping `id`, `type`, `title`, `body`, `created_at`, `read` while ignoring unknown fields.
+  2. Implemented `NotificationsProvider` in `lib/core/providers/notifications_provider.dart` with periodic 10-second polling (`Timer.periodic`), immediate fetch, unread count tracking, active banner management with dismissal, and `markAsRead` / `markAllAsRead` calling `POST /notifications/{id}/read`.
+  3. Created `NotificationBanner` in `lib/features/notifications/notification_banner.dart` integrated at the top of `HomeScreen` dashboard, presenting server-provided title and body with "Mark read", "View All", and dismiss actions.
+  4. Created `NotificationsScreen` in `lib/features/notifications/notifications_screen.dart` displaying the full notification feed with unread indicators, pull-to-refresh, empty state, and one-tap read actions. Added notification bell icon with dynamic unread badge in `HomeScreen` AppBar.
+  5. Added comprehensive widget and unit tests covering polling, banner server copy rendering, dismiss, empty state, and read actions (35/35 tests green, gate clean).

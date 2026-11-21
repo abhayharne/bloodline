@@ -666,7 +666,62 @@ class MockApiClient implements ApiClient {
       'created_at': DateTime.now().toIso8601String(),
       'read': false,
     },
+    {
+      'id': 'n2',
+      'type': 'match_nearby',
+      'title': 'Urgent: O- needed nearby',
+      'body':
+          'Someone 3.2 km away needs O-. That\'s your type. Got 10 minutes?',
+      'created_at': DateTime.now().subtract(const Duration(minutes: 15)).toIso8601String(),
+      'read': false,
+    },
+    {
+      'id': 'n3',
+      'type': 'thanks',
+      'title': 'Thank you from Anil\'s family',
+      'body':
+          'Anil Kumar\'s family says thank you. You just helped up to 3 people.',
+      'created_at': DateTime.now().subtract(const Duration(hours: 3)).toIso8601String(),
+      'read': true,
+    },
   ];
+
+  static void addMockNotification(Map<String, dynamic> notification) {
+    _mockNotifications.insert(0, Map<String, dynamic>.from(notification));
+  }
+
+  static void resetMockNotifications() {
+    _mockNotifications.clear();
+    _mockNotifications.addAll([
+      {
+        'id': 'n1',
+        'type': 'eligible_again',
+        'title': 'Ready to save lives again?',
+        'body':
+            'Your blood has had 90 days to recharge. Ready to be somebody\'s hero again?',
+        'created_at': DateTime.now().toIso8601String(),
+        'read': false,
+      },
+      {
+        'id': 'n2',
+        'type': 'match_nearby',
+        'title': 'Urgent: O- needed nearby',
+        'body':
+            'Someone 3.2 km away needs O-. That\'s your type. Got 10 minutes?',
+        'created_at': DateTime.now().subtract(const Duration(minutes: 15)).toIso8601String(),
+        'read': false,
+      },
+      {
+        'id': 'n3',
+        'type': 'thanks',
+        'title': 'Thank you from Anil\'s family',
+        'body':
+            'Anil Kumar\'s family says thank you. You just helped up to 3 people.',
+        'created_at': DateTime.now().subtract(const Duration(hours: 3)).toIso8601String(),
+        'read': true,
+      },
+    ]);
+  }
 
   @override
   Future<bool> checkHealth() async => true;

@@ -10,6 +10,7 @@ import 'core/providers/auth_provider.dart';
 import 'core/providers/requests_provider.dart';
 import 'core/providers/bank_stock_provider.dart';
 import 'core/providers/config_provider.dart';
+import 'core/providers/notifications_provider.dart';
 
 import 'features/auth/register.dart';
 import 'features/requester/register.dart';
@@ -18,6 +19,7 @@ import 'features/bank/register.dart';
 import 'features/chat/register.dart';
 import 'features/home/register.dart';
 import 'features/debug/register.dart';
+import 'features/notifications/register.dart';
 
 import 'features/auth/login_screen.dart';
 import 'features/home/home_screen.dart';
@@ -33,6 +35,7 @@ void main() async {
   registerChatFeature();
   registerHomeFeature();
   registerDebugFeature();
+  registerNotificationsFeature();
 
   // App key from dart-define, with fallback to .env default
   const appKey = String.fromEnvironment(
@@ -80,6 +83,13 @@ void main() async {
               final cfg = ConfigProvider(apiClient: apiClient);
               cfg.fetchConfig();
               return cfg;
+            },
+          ),
+          ChangeNotifierProvider<NotificationsProvider>(
+            create: (_) {
+              final notif = NotificationsProvider(apiClient: apiClient);
+              notif.startPolling();
+              return notif;
             },
           ),
         ],

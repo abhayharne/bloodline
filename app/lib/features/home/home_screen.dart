@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/slot_registry.dart';
 import '../../core/providers/auth_provider.dart';
+import '../../core/providers/notifications_provider.dart';
 import '../requester/requester_screen.dart';
 import '../donor/donor_screen.dart';
 import '../bank/bank_screen.dart';
 import '../chat/channel_inbox_screen.dart';
 import '../auth/profile_screen.dart';
 import '../debug/debug_screen.dart';
+import '../notifications/notification_banner.dart';
+import '../notifications/notifications_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -42,6 +45,9 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // In-app notification banner (server-driven copy)
+          const NotificationBanner(),
+
           // SlotRegistry homeCards (empty in core build)
           if (homeCards.isNotEmpty) ...[
             Padding(
@@ -102,6 +108,28 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         actions: [
+          // Notifications bell with unread badge
+          Consumer<NotificationsProvider>(
+            builder: (context, notifProv, _) {
+              final unread = notifProv.unreadCount;
+              return IconButton(
+                icon: Badge(
+                  isLabelVisible: unread > 0,
+                  label: Text('$unread'),
+                  child: const Icon(Icons.notifications_outlined),
+                ),
+                tooltip: 'Notifications',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const NotificationsScreen(),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
           // Role switch quick popup menu
           PopupMenuButton<String>(
             tooltip: 'Switch Role',

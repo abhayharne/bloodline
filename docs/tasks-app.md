@@ -11,7 +11,7 @@ Every screen gets at least one widget test using the mock client.
 - [x] B5 Bank: stock editor for the 8 groups (PUT /banks/me/stock), open requests list, open chat.
 - [x] B6 Chat: ChannelPage inbox and ChatPage wrapper with a request-summary header (group, units, hospital, status) and room header slot. Keep the Nexconn SDK calls isolated in nexconn_service.dart so the rest is testable with fakes.
 - [x] B7 Fulfill and donated: requester "Mark fulfilled" button, closed-room read-only banner, donor "I donated" button (POST /requests/{id}/donated).
-- [ ] B8 Notifications: poll GET /notifications every 10 s, in-app banner and a notifications list; copy comes from the server, do not hardcode.
+- [x] B8 Notifications: poll GET /notifications every 10 s, in-app banner and a notifications list; copy comes from the server, do not hardcode.
 - [ ] B9 Feature ranks (flag ranks): rank badge section in profile and a home card ("{n} donations, {rank}"), registered via slots only when features contains ranks.
 - [ ] B10 Feature reminders (flag reminders): home card "You may be eligible again" from /me derived fields, registered via slots only when enabled.
 - [ ] B11 Accessibility: large-font toggle (textScaler) in settings. Voice-to-text only if a package works without extra platform setup; otherwise mark [!].

@@ -12,17 +12,22 @@ import 'package:bloodline/features/requester/requester_screen.dart';
 import 'package:bloodline/features/donor/donor_screen.dart';
 import 'package:bloodline/features/bank/bank_screen.dart';
 import 'package:bloodline/core/models/blood_request.dart';
+import 'package:bloodline/core/providers/notifications_provider.dart';
 import 'package:bloodline/features/chat/blood_request_chat_screen.dart';
+import 'package:bloodline/features/home/home_screen.dart';
+import 'package:bloodline/features/notifications/notifications_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 Widget createTestApp(
   Widget child, {
   AuthProvider? authProvider,
   RequestsProvider? requestsProvider,
+  NotificationsProvider? notificationsProvider,
 }) {
   final apiClient = ApiClient(mockMode: true);
   final auth = authProvider ?? AuthProvider(apiClient: apiClient);
   final requests = requestsProvider ?? RequestsProvider(apiClient: apiClient);
+  final notif = notificationsProvider ?? NotificationsProvider(apiClient: apiClient);
   return MultiProvider(
     providers: [
       Provider<ApiClient>.value(value: apiClient),
@@ -31,6 +36,7 @@ Widget createTestApp(
       ChangeNotifierProvider<BankStockProvider>(
         create: (_) => BankStockProvider(apiClient: apiClient),
       ),
+      ChangeNotifierProvider<NotificationsProvider>.value(value: notif),
     ],
     child: MaterialApp(home: child),
   );
@@ -39,6 +45,7 @@ Widget createTestApp(
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+    MockApiClient.resetMockNotifications();
   });
   testWidgets('LoginScreen renders phone input, role selector, and mock OTP trigger', (tester) async {
     await tester.pumpWidget(createTestApp(const LoginScreen()));
@@ -314,5 +321,113 @@ void main() {
     expect(find.text('Mark Request Fulfilled?'), findsOneWidget);
     await tester.tap(find.text('Yes, Mark Fulfilled'));
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('HomeScreen renders NotificationBanner with server copy, dismisses, and bell opens NotificationsScreen', (tester) async {
+    final client = ApiClient(mockMode: true);
+    final auth = AuthProvider(apiClient: client);
+    await auth.login(name: 'Asha', role: 'donor');
+    final notif = NotificationsProvider(apiClient: client);
+    await notif.fetchNotifications();
+
+    await tester.pumpWidget(createTestApp(
+      const HomeScreen(),
+      authProvider: auth,
+      notificationsProvider: notif,
+    ));
+    await tester.pumpAndSettle();
+
+    // Verify copy is displayed directly from server response (not hardcoded)
+    expect(find.text('Ready to save lives again?'), findsOneWidget);
+    expect(
+      find.text('Your blood has had 90 days to recharge. Ready to be somebody\'s hero again?'),
+      findsOneWidget,
+    );
+    expect(find.text('Mark read'), findsOneWidget);
+    expect(find.text('View All'), findsOneWidget);
+
+    // Verify bell icon has unread count badge (2 unread: n1 and n2)
+    expect(find.byIcon(Icons.notifications_outlined), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+
+    // Tapping View All navigates to NotificationsScreen
+    await tester.tap(find.text('View All'));
+    await tester.pumpAndSettle();
+    expect(find.text('Notifications'), findsOneWidget);
+
+    // Go back to HomeScreen
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    // Dismiss banner
+    await tester.tap(find.byTooltip('Dismiss'));
+    await tester.pumpAndSettle();
+
+    // Banner is dismissed
+    expect(find.text('Ready to save lives again?'), findsNothing);
+  });
+
+  testWidgets('NotificationsScreen displays list of notifications, marks individual read, and marks all read', (tester) async {
+    final client = ApiClient(mockMode: true);
+    final notif = NotificationsProvider(apiClient: client);
+    await notif.fetchNotifications();
+
+    expect(notif.unreadCount, 2);
+
+    await tester.pumpWidget(createTestApp(
+      const NotificationsScreen(),
+      notificationsProvider: notif,
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Notifications'), findsOneWidget);
+    expect(find.text('Ready to save lives again?'), findsOneWidget);
+    expect(find.text('Urgent: O- needed nearby'), findsOneWidget);
+    expect(find.text('Thank you from Anil\'s family'), findsOneWidget);
+    expect(find.byTooltip('Mark as read'), findsNWidgets(2));
+
+    // Tap first Mark as read
+    await tester.tap(find.byTooltip('Mark as read').first);
+    await tester.pumpAndSettle();
+
+    expect(notif.unreadCount, 1);
+    expect(find.byTooltip('Mark as read'), findsOneWidget);
+
+    // Tap Mark all read
+    expect(find.text('Mark all read'), findsOneWidget);
+    await tester.tap(find.text('Mark all read'));
+    await tester.pumpAndSettle();
+
+    expect(notif.unreadCount, 0);
+    expect(find.byTooltip('Mark as read'), findsNothing);
+    expect(find.text('Mark all read'), findsNothing);
+  });
+
+  testWidgets('NotificationsProvider polling every 10s starts and stops timer', (tester) async {
+    final client = ApiClient(mockMode: true);
+    final notif = NotificationsProvider(apiClient: client);
+    expect(notif.isPolling, false);
+
+    notif.startPolling(interval: const Duration(seconds: 10));
+    expect(notif.isPolling, true);
+
+    await tester.pumpAndSettle();
+
+    notif.stopPolling();
+    expect(notif.isPolling, false);
+    notif.dispose();
+  });
+
+  testWidgets('NotificationsScreen displays empty state when no notifications exist', (tester) async {
+    final client = ApiClient(mockMode: true);
+    final notif = NotificationsProvider(apiClient: client);
+    // Provider starts empty before fetch or with empty list
+    await tester.pumpWidget(createTestApp(
+      const NotificationsScreen(),
+      notificationsProvider: notif,
+    ));
+    await tester.pump();
+
+    expect(find.text('No notifications yet'), findsOneWidget);
   });
 }
