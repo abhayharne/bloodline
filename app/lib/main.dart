@@ -22,6 +22,7 @@ import 'features/home/register.dart';
 import 'features/debug/register.dart';
 import 'features/notifications/register.dart';
 import 'features/ranks/register.dart';
+import 'features/reminders/register.dart';
 
 import 'features/auth/login_screen.dart';
 import 'features/home/home_screen.dart';
@@ -42,6 +43,8 @@ void main() async {
   registerDebugFeature();
   registerNotificationsFeature();
   registerRanksFeature(features: features);
+  registerRemindersFeature(features: features);
+  registerRemindersFeature(features: features);
 
   // App key from dart-define, with fallback to .env default
   const appKey = String.fromEnvironment(

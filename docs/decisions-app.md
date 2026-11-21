@@ -56,3 +56,12 @@
   4. Implemented `registerRanksFeature({features, config, registry})` in `lib/features/ranks/register.dart` which registers cards into `SlotRegistry.instance.homeCards` and `profileSections` only when the `'ranks'` feature flag is active, ensuring idempotency.
   5. Hooked dynamic configuration triggers in `ConfigProvider.fetchConfig()` and `AuthProvider.fetchMe()`, allowing real-time slot appearance upon config loading and instant rank progression updates when donations are recorded.
   6. Added comprehensive unit and widget tests in `test/ranks_test.dart` and `test/models_test.dart` (45/45 tests passing, gate clean).
+
+## D-APP-7 — Feature reminders: home card via slots and eligibility pure rules
+- Context: Task B10 requires feature reminders (flag `reminders`) registering a home card "You may be eligible again" from `/me` derived fields via slots only when enabled.
+- Decision:
+  1. Implemented pure donor eligibility functions in `lib/core/rules/eligibility.dart` and `lib/core/rules/reminders.dart` matching `docs/API-addendum-v2.md` specifications (age 18..65, weight >= 45 kg, explicit available check, male cooldown 90 days, female cooldown 120 days, permissive defaults for null values).
+  2. Implemented `RemindersHomeCard` in `lib/features/reminders/reminders_home_card.dart` reading `derived.eligible` and `derived.nextEligibleAt` from `AuthProvider`, following `docs/COPY.md` tone ("You may be eligible again", recharge days display, soft snooze with "No pressure. We'll check back next month.", and "I'm ready" CTA).
+  3. Implemented `registerRemindersFeature({features, config, registry})` in `lib/features/reminders/register.dart`, registering into `SlotRegistry.instance.homeCards` only when `features.hasReminders` or `config.hasFeature('reminders')` is active.
+  4. Hooked `registerRemindersFeature` into `ConfigProvider.fetchConfig()` and `main.dart`, dynamically activating reminders slot upon config load.
+  5. Added comprehensive unit and widget tests in `test/reminders_test.dart` and `test/eligibility_test.dart` (65/65 tests passing, gate clean).
