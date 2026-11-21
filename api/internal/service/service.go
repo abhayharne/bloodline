@@ -3,7 +3,10 @@
 package service
 
 import (
+	"context"
+
 	"bloodline/internal/auth"
+	"bloodline/internal/events"
 	"bloodline/internal/nexconn"
 	"bloodline/internal/store"
 )
@@ -15,6 +18,7 @@ type Service struct {
 	jwt      *auth.Issuer
 	demoOTP  string
 	features []string
+	bus      *events.Bus
 }
 
 // Option customises a Service without breaking existing callers.
@@ -28,6 +32,19 @@ func WithDemoOTP(code string) Option {
 // WithFeatures exposes the client-safe feature list from GET /config.
 func WithFeatures(features []string) Option {
 	return func(s *Service) { s.features = features }
+}
+
+// WithBus injects the event bus used for lifecycle notifications.
+func WithBus(bus *events.Bus) Option {
+	return func(s *Service) { s.bus = bus }
+}
+
+// Publish emits an event when a bus is configured.
+func (s *Service) Publish(ctx context.Context, name string, payload any) {
+	if s == nil || s.bus == nil {
+		return
+	}
+	s.bus.Publish(ctx, events.Event{Name: name, Payload: payload})
 }
 
 // New wires the service dependencies.

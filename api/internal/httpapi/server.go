@@ -32,23 +32,32 @@ func New(svc *service.Service, jwt *auth.Issuer) http.Handler {
 	mux.HandleFunc("POST /auth/login", s.login)
 	mux.Handle("GET /banks/me/stock", s.requireBank(s.getBankStock))
 	mux.Handle("PUT /banks/me/stock", s.requireBank(s.putBankStock))
+	mux.Handle("GET /notifications", s.requireAuth(s.getNotifications))
 	return mux
 }
 
 type claimsContextKey struct{}
 
-func (s *Server) requireBank(next http.HandlerFunc) http.Handler {
+// requireAuth accepts any valid role and stores the claims in the context.
+func (s *Server) requireAuth(next http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims, err := s.claimsFromRequest(r)
 		if err != nil {
 			writeError(w, http.StatusUnauthorized, "missing or invalid token")
 			return
 		}
+		next(w, r.WithContext(context.WithValue(r.Context(), claimsContextKey{}, claims)))
+	})
+}
+
+func (s *Server) requireBank(next http.HandlerFunc) http.Handler {
+	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
+		claims, _ := claimsFromContext(r.Context())
 		if claims.Role != "bank" {
 			writeError(w, http.StatusForbidden, "bank role required")
 			return
 		}
-		next(w, r.WithContext(context.WithValue(r.Context(), claimsContextKey{}, claims)))
+		next(w, r)
 	})
 }
 

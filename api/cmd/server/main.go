@@ -7,8 +7,10 @@ import (
 
 	"bloodline/internal/auth"
 	"bloodline/internal/config"
+	"bloodline/internal/events"
 	"bloodline/internal/httpapi"
 	"bloodline/internal/nexconn"
+	"bloodline/internal/notify"
 	"bloodline/internal/service"
 	"bloodline/internal/store"
 )
@@ -51,9 +53,16 @@ func run() error {
 		return err
 	}
 
+	bus := events.New()
+	notifier := notify.New(st)
+	bus.Subscribe(events.RequestCreated, notifier.Handle)
+	bus.Subscribe(events.RequestAccepted, notifier.Handle)
+	bus.Subscribe(events.RequestFulfilled, notifier.Handle)
+
 	svc := service.New(st, chat, issuer,
 		service.WithDemoOTP(cfg.DemoOTP),
 		service.WithFeatures(cfg.Features),
+		service.WithBus(bus),
 	)
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

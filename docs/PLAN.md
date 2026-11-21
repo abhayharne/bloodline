@@ -37,6 +37,7 @@ Stretch only if all else is done: AI summary pinned in room; push notifications 
 - [ ] T1.7 `POST /requests/{id}/fulfill` (requester only): post system message, close/disable room, status=fulfilled
 - [ ] T1.8 `db/seed.sql` loaded by `scripts` or boot flag: 5 donors, 2 banks with stock, 1 open request
 - [ ] T1.9 Tests for matching (distance, group, stock), handlers happy paths
+- [x] T1.10 (D11 extension base) events bus with panic-safe subscribers, Notifier -> notifications, GET /notifications
 
 ## P2 — App (AG)
 - [ ] T2.1 `flutter create`, add deps, theme, routing, API client with base URL setting

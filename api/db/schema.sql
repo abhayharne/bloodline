@@ -64,13 +64,15 @@ CREATE TABLE IF NOT EXISTS donations (
 );
 
 -- In-app notification feed written by the Notifier from request events.
+-- Notification rows keep plain ids (no FK) so a notification survives a
+-- rolled-back or deleted request; the feed is best-effort by design.
 CREATE TABLE IF NOT EXISTS notifications (
   id         TEXT PRIMARY KEY,
-  user_id    TEXT NOT NULL REFERENCES users(id),
+  user_id    TEXT NOT NULL,
   type       TEXT NOT NULL,
   title      TEXT NOT NULL,
   body       TEXT NOT NULL,
-  request_id TEXT REFERENCES requests(id),
+  request_id TEXT,
   read_at    TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

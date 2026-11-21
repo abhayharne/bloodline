@@ -44,6 +44,7 @@ type testAPI struct {
 	store   *store.Store
 	chat    *fakeChat
 	issuer  *auth.Issuer
+	svc     *service.Service
 }
 
 func newTestAPI(t *testing.T, opts ...service.Option) *testAPI {
@@ -67,6 +68,7 @@ func newTestAPI(t *testing.T, opts ...service.Option) *testAPI {
 		store:   st,
 		chat:    chat,
 		issuer:  issuer,
+		svc:     svc,
 	}
 }
 
