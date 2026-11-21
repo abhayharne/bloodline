@@ -38,19 +38,9 @@ func run() error {
 	}
 	defer st.Close()
 
-	var chat nexconn.Client
-	if cfg.NexconnMock {
-		chat = nexconn.NoopClient{}
-	} else {
-		chat, err = nexconn.New(
-			cfg.NexconnAppKey,
-			cfg.NexconnAppSecret,
-			cfg.NexconnAPIBase,
-			cfg.NexconnAPIBaseBackup,
-		)
-		if err != nil {
-			return err
-		}
+	chat, err := newChatClient(cfg)
+	if err != nil {
+		return err
 	}
 
 	issuer, err := auth.NewIssuer(cfg.JWTSecret, jwtTTL)
@@ -78,4 +68,23 @@ func run() error {
 
 	log.Printf("BloodLine API listening on :%s (db %s)", cfg.Port, cfg.DBPath)
 	return srv.ListenAndServe()
+}
+
+// newChatClient selects the Nexconn implementation. Real mode is the default;
+// offline modes never call the network. Fake (in-memory, stateful) takes
+// precedence over the legacy no-op mock when both flags are set.
+func newChatClient(cfg config.Config) (nexconn.Client, error) {
+	switch {
+	case cfg.NexconnFake:
+		return nexconn.NewFakeClient(), nil
+	case cfg.NexconnMock:
+		return nexconn.NoopClient{}, nil
+	default:
+		return nexconn.New(
+			cfg.NexconnAppKey,
+			cfg.NexconnAppSecret,
+			cfg.NexconnAPIBase,
+			cfg.NexconnAPIBaseBackup,
+		)
+	}
 }

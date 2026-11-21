@@ -24,6 +24,7 @@ type Config struct {
 	DemoOTP              string
 	Features             []string
 	NexconnMock          bool
+	NexconnFake          bool
 }
 
 // Load reads configuration from the process environment and validates it.
@@ -40,6 +41,7 @@ func Load() (Config, error) {
 		DemoOTP:              getenv("DEMO_OTP", "123456"),
 		Features:             parseFeatures(os.Getenv("FEATURES")),
 		NexconnMock:          os.Getenv("NEXCONN_MOCK") == "1",
+		NexconnFake:          os.Getenv("NEXCONN_FAKE") == "1",
 	}
 
 	radiusRaw := getenv("MATCH_RADIUS_KM", "10")
@@ -60,7 +62,9 @@ func (c Config) validate() error {
 	if c.JWTSecret == "" {
 		missing = append(missing, "JWT_SECRET")
 	}
-	if !c.NexconnMock {
+	// Both offline modes skip real Nexconn credentials. Fake takes precedence
+	// over the legacy no-op mock when the server picks a client.
+	if !c.NexconnMock && !c.NexconnFake {
 		if c.NexconnAppKey == "" {
 			missing = append(missing, "NEXCONN_APP_KEY")
 		}

@@ -12,6 +12,8 @@ func setRequiredEnv(t *testing.T) {
 	t.Setenv("NEXCONN_APP_SECRET", "test-app-secret")
 	t.Setenv("NEXCONN_API_BASE", "https://api.example.test")
 	t.Setenv("NEXCONN_API_BASE_BACKUP", "https://api-b.example.test")
+	t.Setenv("NEXCONN_MOCK", "")
+	t.Setenv("NEXCONN_FAKE", "")
 }
 
 func TestLoadDefaults(t *testing.T) {
@@ -82,6 +84,44 @@ func TestLoadMockModeSkipsNexconnCredentials(t *testing.T) {
 	}
 	if !cfg.NexconnMock {
 		t.Error("NexconnMock = false, want true")
+	}
+}
+
+func TestLoadFakeModeSkipsNexconnCredentials(t *testing.T) {
+	t.Setenv("JWT_SECRET", "test-secret")
+	t.Setenv("NEXCONN_APP_KEY", "")
+	t.Setenv("NEXCONN_APP_SECRET", "")
+	t.Setenv("NEXCONN_API_BASE", "")
+	t.Setenv("NEXCONN_API_BASE_BACKUP", "")
+	t.Setenv("NEXCONN_MOCK", "")
+	t.Setenv("NEXCONN_FAKE", "1")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.NexconnFake {
+		t.Error("NexconnFake = false, want true")
+	}
+	if cfg.NexconnMock {
+		t.Error("NexconnMock = true, want false")
+	}
+}
+
+func TestLoadFakeAndMockFlagsAreIndependent(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("NEXCONN_MOCK", "1")
+	t.Setenv("NEXCONN_FAKE", "")
+	cfg, err := Load()
+	if err != nil || !cfg.NexconnMock || cfg.NexconnFake {
+		t.Fatalf("mock-only config = %+v, err = %v", cfg, err)
+	}
+
+	t.Setenv("NEXCONN_MOCK", "1")
+	t.Setenv("NEXCONN_FAKE", "1")
+	cfg, err = Load()
+	if err != nil || !cfg.NexconnMock || !cfg.NexconnFake {
+		t.Fatalf("both-flags config = %+v, err = %v", cfg, err)
 	}
 }
 
