@@ -92,3 +92,15 @@ forwards every argument except the trailing label to jq, and failures redact
 (OTP send/verify, idempotent mark-read, SQLite donation-row check, post-flow
 config check). Rule retained: with duplicate loops, commit small atomic changes,
 re-read files before each write, verify the gate, and never revert a peer's work.
+
+## D18 — A10 duplicate-loop convergence (operational)
+Iteration 3 had two api loops writing A10 at once (D15/D17 recurrence). The
+peer's `db/seed.sql` (extra `request_members` rows, full donor profiles) and
+`db/embed.go` Seed embed were kept; my duplicate Seed declaration was removed
+in place, never reverted. The store method raced between `Reset` and `Reseed`,
+so `api/internal/store/seed.go` now defines `Reset` plus a `Reseed` alias,
+which keeps every caller compiling regardless of which name a loop used.
+The dev route is registered only via `httpapi.WithDevRoutes()` when `DEV=1`;
+`POST /dev/reset` is unauthenticated so the demo can reset before login.
+The transaction wipes notifications, donations, request_members, requests,
+bank_stock and users before inserting the seed, so resets are repeatable.

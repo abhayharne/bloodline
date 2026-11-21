@@ -62,12 +62,20 @@ func run() error {
 	)
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           httpapi.New(svc, issuer),
+		Handler:           httpapi.New(svc, issuer, devRoutes(cfg.Dev)...),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	log.Printf("BloodLine API listening on :%s (db %s)", cfg.Port, cfg.DBPath)
 	return srv.ListenAndServe()
+}
+
+// devRoutes exposes dev-only HTTP endpoints only when DEV=1.
+func devRoutes(enabled bool) []httpapi.ServerOption {
+	if !enabled {
+		return nil
+	}
+	return []httpapi.ServerOption{httpapi.WithDevRoutes()}
 }
 
 // newChatClient selects the Nexconn implementation. Real mode is the default;

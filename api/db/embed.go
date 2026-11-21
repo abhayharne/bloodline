@@ -1,4 +1,4 @@
-// Package db exposes the SQL schema used to initialise the SQLite database.
+// Package db exposes the SQL used to initialise and reset the SQLite database.
 package db
 
 import _ "embed"
@@ -7,3 +7,9 @@ import _ "embed"
 //
 //go:embed schema.sql
 var Schema string
+
+// Seed is the demo dataset used by POST /dev/reset when DEV=1. It clears all
+// mutable tables before inserting users, stock and one open request.
+//
+//go:embed seed.sql
+var Seed string

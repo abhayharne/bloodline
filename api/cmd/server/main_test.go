@@ -7,6 +7,15 @@ import (
 	"bloodline/internal/nexconn"
 )
 
+func TestDevRoutesOnlyWhenEnabled(t *testing.T) {
+	if got := devRoutes(false); len(got) != 0 {
+		t.Errorf("devRoutes(false) has %d options, want 0", len(got))
+	}
+	if got := devRoutes(true); len(got) != 1 {
+		t.Errorf("devRoutes(true) has %d options, want 1", len(got))
+	}
+}
+
 func TestNewChatClientSelectsMode(t *testing.T) {
 	tests := []struct {
 		name    string

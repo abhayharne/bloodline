@@ -125,6 +125,28 @@ func TestLoadFakeAndMockFlagsAreIndependent(t *testing.T) {
 	}
 }
 
+func TestLoadDevFlag(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("DEV", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Dev {
+		t.Error("Dev = true, want false by default")
+	}
+
+	t.Setenv("DEV", "1")
+	cfg, err = Load()
+	if err != nil {
+		t.Fatalf("Load with DEV=1: %v", err)
+	}
+	if !cfg.Dev {
+		t.Error("Dev = false, want true when DEV=1")
+	}
+}
+
 func TestLoadMissingRequired(t *testing.T) {
 	setRequiredEnv(t)
 	t.Setenv("JWT_SECRET", "")

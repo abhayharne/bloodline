@@ -18,11 +18,24 @@ import (
 type Server struct {
 	svc *service.Service
 	jwt *auth.Issuer
+	dev bool
+}
+
+// ServerOption customises the HTTP handler without breaking existing callers.
+type ServerOption func(*Server)
+
+// WithDevRoutes registers dev-only endpoints (POST /dev/reset). Never use in
+// production; main only passes it when DEV=1.
+func WithDevRoutes() ServerOption {
+	return func(s *Server) { s.dev = true }
 }
 
 // New returns the API handler.
-func New(svc *service.Service, jwt *auth.Issuer) http.Handler {
+func New(svc *service.Service, jwt *auth.Issuer, opts ...ServerOption) http.Handler {
 	s := &Server{svc: svc, jwt: jwt}
+	for _, opt := range opts {
+		opt(s)
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health)
@@ -39,6 +52,9 @@ func New(svc *service.Service, jwt *auth.Issuer) http.Handler {
 	mux.Handle("GET /requests", s.requireRole("requester", "donor", "bank")(s.listRequests))
 	mux.Handle("POST /requests/{id}/accept", s.requireRole("donor", "bank")(s.acceptRequest))
 	mux.Handle("POST /requests/{id}/fulfill", s.requireRole("requester")(s.fulfillRequest))
+	if s.dev {
+		mux.HandleFunc("POST /dev/reset", s.devReset)
+	}
 	return mux
 }
 

@@ -12,7 +12,7 @@ Use docs/API-addendum-v2.md as the contract. Nexconn calls go behind the existin
 - [x] A7 POST /requests/{id}/accept: join the channel, idempotent, 409 if not open, publish request.accepted.
 - [x] A8 POST /requests/{id}/fulfill (requester only): freeze the channel (freeze-list/add), set status, publish request.fulfilled. In real mode the freeze call is UNVERIFIED: implement it, then add "UNVERIFIED-REAL: freeze" to docs/decisions-api.md for the human to check.
 - [x] A9 scripts/smoke.sh: on a random free port, start the server with NEXCONN_FAKE=1, curl the whole flow (signup requester/donor/bank, bank stock, create request, donor feed, accept, donated, fulfill) and assert HTTP codes and key fields. Must pass with FEATURES= and FEATURES=ranks,reminders. Make it executable.
-- [ ] A10 Seed and POST /dev/reset (only when DEV=1): 5 donors, 2 banks with stock, 1 open request, all with phones and alphanumeric ids.
+- [x] A10 Seed and POST /dev/reset (only when DEV=1): 5 donors, 2 banks with stock, 1 open request, all with phones and alphanumeric ids.
 - [ ] A11 GET/PUT /me and POST /requests/{id}/donated with derived eligibility and donation_count; publish donation.recorded.
 - [ ] A12 Feature ranks (flag ranks): subscriber on donation.recorded computes rank; /me returns it; rank_up notification using docs/COPY.md.
 - [ ] A13 Feature reminders (flag reminders): enable isAvailable and isEligible filters; hourly ticker plus POST /dev/run-reminders (DEV=1) that writes eligible_again notifications using docs/COPY.md, once per eligibility period; match_nearby notifications on request.created.

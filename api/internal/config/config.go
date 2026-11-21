@@ -25,6 +25,8 @@ type Config struct {
 	Features             []string
 	NexconnMock          bool
 	NexconnFake          bool
+	// Dev enables dev-only routes such as POST /dev/reset. Never set in prod.
+	Dev bool
 }
 
 // Load reads configuration from the process environment and validates it.
@@ -42,6 +44,7 @@ func Load() (Config, error) {
 		Features:             parseFeatures(os.Getenv("FEATURES")),
 		NexconnMock:          os.Getenv("NEXCONN_MOCK") == "1",
 		NexconnFake:          os.Getenv("NEXCONN_FAKE") == "1",
+		Dev:                  os.Getenv("DEV") == "1",
 	}
 
 	radiusRaw := getenv("MATCH_RADIUS_KM", "10")
