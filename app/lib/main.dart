@@ -1,31 +1,44 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:ai_nexconn_chat_plugin/ai_nexconn_chat_plugin.dart';
 import 'package:ai_nexconn_chatui_plugin/ai_nexconn_chatui_plugin.dart';
-import 'package:bloodline/features/debug/debug_screen.dart';
+
+import 'core/config.dart';
+import 'core/api_client.dart';
+import 'core/nexconn_service.dart';
+import 'core/providers/auth_provider.dart';
+import 'core/providers/requests_provider.dart';
+import 'core/providers/bank_stock_provider.dart';
+import 'core/providers/config_provider.dart';
+
+import 'features/auth/register.dart';
+import 'features/requester/register.dart';
+import 'features/donor/register.dart';
+import 'features/bank/register.dart';
+import 'features/chat/register.dart';
+import 'features/home/register.dart';
+import 'features/debug/register.dart';
+
+import 'features/auth/login_screen.dart';
+import 'features/home/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Initialize features (registers extension slots if any)
+  registerAuthFeature();
+  registerRequesterFeature();
+  registerDonorFeature();
+  registerBankFeature();
+  registerChatFeature();
+  registerHomeFeature();
+  registerDebugFeature();
+
   // App key from dart-define, with fallback to .env default
   const appKey = String.fromEnvironment(
     'NEXCONN_APP_KEY',
-    defaultValue: 'qf3d5gbjqvm5h',
+    defaultValue: ConfigConstants.defaultAppKey,
   );
-
-  if (appKey.isEmpty) {
-    runApp(const MaterialApp(
-      home: Scaffold(
-        body: Center(
-          child: Text(
-            'Missing NEXCONN_APP_KEY.\n'
-            'Run with: flutter run --dart-define=NEXCONN_APP_KEY=<key>',
-            textAlign: TextAlign.center,
-          ),
-        ),
-      ),
-    ));
-    return;
-  }
 
   final initParams = InitParams(
     appKey: appKey,
@@ -35,10 +48,45 @@ void main() async {
   final engineProvider = EngineProvider();
   await engineProvider.initialize(initParams);
 
+  // Initialize NexconnService singleton
+  await NexconnService.instance.initialize(
+    appKey: appKey,
+    areaCode: AreaCode.sg,
+  );
+
+  final apiClient = ApiClient(
+    baseUrl: ConfigConstants.localHostBaseUrl,
+  );
+
   runApp(
     NexconnChatUIProviders(
       engineProvider: engineProvider,
-      child: const BloodLineApp(),
+      child: MultiProvider(
+        providers: [
+          Provider<ApiClient>.value(value: apiClient),
+          ChangeNotifierProvider<AuthProvider>(
+            create: (_) {
+              final auth = AuthProvider(apiClient: apiClient);
+              auth.init();
+              return auth;
+            },
+          ),
+          ChangeNotifierProvider<RequestsProvider>(
+            create: (_) => RequestsProvider(apiClient: apiClient),
+          ),
+          ChangeNotifierProvider<BankStockProvider>(
+            create: (_) => BankStockProvider(apiClient: apiClient),
+          ),
+          ChangeNotifierProvider<ConfigProvider>(
+            create: (_) {
+              final cfg = ConfigProvider(apiClient: apiClient);
+              cfg.fetchConfig();
+              return cfg;
+            },
+          ),
+        ],
+        child: const BloodLineApp(),
+      ),
     ),
   );
 }
@@ -55,8 +103,25 @@ class BloodLineApp extends StatelessWidget {
         colorSchemeSeed: Colors.red,
         useMaterial3: true,
         brightness: Brightness.light,
+        cardTheme: CardThemeData(
+          elevation: 1,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
       ),
-      home: const DebugScreen(),
+      home: const RootGate(),
     );
+  }
+}
+
+class RootGate extends StatelessWidget {
+  const RootGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    if (auth.isAuthenticated) {
+      return const HomeScreen();
+    }
+    return const LoginScreen();
   }
 }

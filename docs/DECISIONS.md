@@ -92,3 +92,20 @@ is correctly named `AiNexconnChatUIPlugin`.
 During P0, the app starts on a DebugScreen where you paste a Nexconn user token and connect.
 This will be replaced by the login flow in T2.2. The screen also has a shortcut to open the
 spike room `blspike1795251938` for quick end-to-end verification.
+
+## D11 — App Extensibility Architecture & SlotRegistry
+`SlotRegistry` singleton provides extension slots (`homeCards`, `profileSections`, `roomHeaderBadges`).
+Each feature folder (`lib/features/<name>/`) provides a `register.dart`. In the core build, the registry
+is empty by default so core screens render cleanly without clutter, while extension packages can register
+rich widgets, cards, and room badges dynamically.
+
+## D12 — Resilient ApiClient with In-Memory Mock Store
+`ApiClient` conforms to `docs/API.md` contract. When backend is offline or `mockMode` is enabled,
+it provides stateful mock data (users, requests, matches, bank stocks) to enable offline testing and
+parallel UI development. All JSON model `fromJson` factories safely ignore unknown fields to prevent breaking changes.
+
+## D13 — Phone + Mock OTP & Demographic Form Flow
+Authentication uses phone number with 6-digit mock OTP (default 123456) and quick demo profiles.
+Profile form captures name, age, weight, height, sex, previous donation history, and location via device GPS
+with typed-area fallback (preset popular areas).
+

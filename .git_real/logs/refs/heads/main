@@ -1,0 +1,4 @@
+0000000000000000000000000000000000000000 c9c500d01cbfa6f6a5af6047405d74f2e6711697 antigravity <antigravity@bloodline.internal> 1795292384 +0530	commit (initial): [antigravity] initial tree state at 78076c7
+c9c500d01cbfa6f6a5af6047405d74f2e6711697 a83a8dae003e7b4d7464f84a89085cc4da428adc antigravity <antigravity@bloodline.internal> 1795293654 +0530	commit: [antigravity] structure app for extension (lib/core, SlotRegistry, feature register.dart, core screens, mock API, test suite)
+a83a8dae003e7b4d7464f84a89085cc4da428adc 31d987f7bbd64408dd01bb7464a916e7486a6615 antigravity <antigravity@bloodline.internal> 1795293760 +0530	commit: [antigravity] update PLAN.md (tick T2.1-T2.6, T2.8) and append DECISIONS.md (D11-D13)
+31d987f7bbd64408dd01bb7464a916e7486a6615 24ae0950385a5f11540f5ab25e2f21da285b2f08 antigravity <antigravity@bloodline.internal> 1795293817 +0530	commit: [antigravity] handoff app to opencode / user

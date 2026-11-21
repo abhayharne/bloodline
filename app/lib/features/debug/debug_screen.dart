@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:ai_nexconn_chat_plugin/ai_nexconn_chat_plugin.dart';
 import 'package:ai_nexconn_chatui_plugin/ai_nexconn_chatui_plugin.dart';
+import '../../core/nexconn_service.dart';
+import '../../core/providers/auth_provider.dart';
+import '../auth/login_screen.dart';
 
-/// Debug screen for the P0 spike:
-/// – Paste a Nexconn user token (test1 or test2)
-/// – Connect to the cluster
-/// – Open the ChannelPage (conversation list)
-/// – Or jump directly into the spike channel blspike1795251938
+/// Debug & Development tools screen
 class DebugScreen extends StatefulWidget {
   const DebugScreen({super.key});
 
@@ -16,20 +16,32 @@ class DebugScreen extends StatefulWidget {
 
 class _DebugScreenState extends State<DebugScreen> {
   final _tokenController = TextEditingController();
-  String _status = 'Disconnected';
-  bool _connected = false;
+  final _urlController = TextEditingController();
   bool _connecting = false;
+  String _status = 'Ready';
+
+  @override
+  void initState() {
+    super.initState();
+    final auth = context.read<AuthProvider>();
+    _urlController.text = auth.apiClient.baseUrl;
+    _tokenController.text = auth.nexconnToken ?? '';
+    _status = NexconnService.instance.isConnected
+        ? 'Connected as: ${NexconnService.instance.connectedUserId}'
+        : 'Disconnected';
+  }
 
   @override
   void dispose() {
     _tokenController.dispose();
+    _urlController.dispose();
     super.dispose();
   }
 
-  Future<void> _connect() async {
+  Future<void> _connectToken() async {
     final token = _tokenController.text.trim();
     if (token.isEmpty) {
-      _setStatus('Paste a user token first');
+      setState(() => _status = 'Paste a user token first');
       return;
     }
 
@@ -38,176 +50,157 @@ class _DebugScreenState extends State<DebugScreen> {
       _status = 'Connecting…';
     });
 
-    try {
-      await NCEngine.connect(
-        ConnectParams(token: token),
-        (String? userId, NCError? error) {
-          if (!mounted) return;
-          if (error?.isSuccess == true) {
-            setState(() {
-              _connected = true;
-              _connecting = false;
-              _status = 'Connected as: $userId';
-            });
-          } else {
-            setState(() {
-              _connecting = false;
-              _status = 'Failed: code=${error?.code}, msg=${error?.message}';
-            });
-          }
-        },
-      );
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _connecting = false;
-          _status = 'Error: $e';
-        });
-      }
-    }
-  }
-
-  void _setStatus(String s) => setState(() => _status = s);
-
-  void _openChannelList() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => Scaffold(
-          appBar: AppBar(title: const Text('Channels')),
-          body: ChannelPage(
-            onItemTap: (channel, index, ctx) {
-              Navigator.push(
-                ctx,
-                MaterialPageRoute(
-                  builder: (_) => ChatPage(channel: channel),
-                ),
-              );
-            },
-          ),
-        ),
-      ),
-    );
+    final ok = await NexconnService.instance.connect(token);
+    if (!mounted) return;
+    setState(() {
+      _connecting = false;
+      _status = ok
+          ? 'Connected: ${NexconnService.instance.connectedUserId}'
+          : 'Failed to connect';
+    });
   }
 
   void _openSpikeChannel() {
-    // Open the channel created by the backend spike directly
     final channel = BaseChannel(ChannelType.group, 'blspike1795251938');
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ChatPage(channel: channel),
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: const Text('Spike Room (blspike1795251938)')),
+          body: ChatPage(channel: channel),
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    final isConnected = NexconnService.instance.isConnected;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('BloodLine Debug'),
-        centerTitle: true,
+        title: const Text('Developer & Debug Tools'),
+        actions: [
+          if (auth.isAuthenticated)
+            IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: 'Log Out',
+              onPressed: () async {
+                await auth.logout();
+                if (!context.mounted) return;
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  (route) => false,
+                );
+              },
+            ),
+        ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Status chip
+            // Status Card
             Container(
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: _connected
-                    ? Colors.green.shade50
-                    : Colors.orange.shade50,
+                color: isConnected ? Colors.green.shade50 : Colors.orange.shade50,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: _connected ? Colors.green : Colors.orange,
-                ),
+                border: Border.all(color: isConnected ? Colors.green : Colors.orange),
               ),
               child: Text(
                 _status,
                 style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: _connected
-                      ? Colors.green.shade800
-                      : Colors.orange.shade800,
+                  fontWeight: FontWeight.bold,
+                  color: isConnected ? Colors.green.shade900 : Colors.orange.shade900,
                 ),
                 textAlign: TextAlign.center,
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
-            // Token input
+            // Backend API Base URL
             TextField(
-              controller: _tokenController,
-              decoration: const InputDecoration(
-                labelText: 'Nexconn user token',
-                hintText: 'Paste test1 or test2 token here',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.vpn_key),
+              controller: _urlController,
+              decoration: InputDecoration(
+                labelText: 'Backend Base URL',
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.save),
+                  onPressed: () {
+                    auth.apiClient.baseUrl = _urlController.text.trim();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Base URL updated')),
+                    );
+                  },
+                ),
               ),
-              maxLines: 2,
-              enabled: !_connected,
             ),
 
             const SizedBox(height: 16),
 
-            // Connect button
-            if (!_connected)
-              FilledButton.icon(
-                onPressed: _connecting ? null : _connect,
-                icon: _connecting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.power),
-                label: Text(_connecting ? 'Connecting…' : 'Connect'),
+            // Mock Mode Switch
+            SwitchListTile(
+              title: const Text('Force In-Memory Mock Mode'),
+              subtitle: const Text('Simulate all backend API endpoints locally'),
+              value: auth.apiClient.mockMode,
+              onChanged: (val) {
+                setState(() => auth.apiClient.mockMode = val);
+              },
+            ),
+
+            const Divider(height: 32),
+
+            // Nexconn Token Tester
+            const Text(
+              'Nexconn Token Connection Test',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _tokenController,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Nexconn user token',
+                hintText: 'Paste token issued by backend spike',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.key),
               ),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: _connecting ? null : _connectToken,
+              icon: _connecting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    )
+                  : const Icon(Icons.power),
+              label: Text(_connecting ? 'Connecting…' : 'Connect Token'),
+            ),
 
-            if (_connected) ...[
-              const SizedBox(height: 8),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _openSpikeChannel,
+              icon: const Icon(Icons.science),
+              label: const Text('Open Spike Room (blspike1795251938)'),
+            ),
 
-              // Channel list button
-              FilledButton.icon(
-                onPressed: _openChannelList,
-                icon: const Icon(Icons.list),
-                label: const Text('Open Channel List'),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Spike channel shortcut
-              OutlinedButton.icon(
-                onPressed: _openSpikeChannel,
-                icon: const Icon(Icons.science),
-                label: const Text('Open Spike Room (blspike1795251938)'),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Disconnect
+            const SizedBox(height: 24),
+            if (isConnected)
               TextButton.icon(
                 onPressed: () async {
-                  await NCEngine.disconnect();
-                  if (mounted) {
-                    setState(() {
-                      _connected = false;
-                      _status = 'Disconnected';
-                      _tokenController.clear();
-                    });
-                  }
+                  await NexconnService.instance.disconnect();
+                  setState(() => _status = 'Disconnected');
                 },
-                icon: const Icon(Icons.logout),
-                label: const Text('Disconnect'),
+                icon: const Icon(Icons.power_off, color: Colors.red),
+                label: const Text('Disconnect SDK', style: TextStyle(color: Colors.red)),
               ),
-            ],
           ],
         ),
       ),

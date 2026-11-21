@@ -1,36 +1,37 @@
 # App Handoff
-**From:** antigravity  **To:** opencode / user  **Time:** 2026-11-21 16:45 IST
-**Branch:** main  **Last commit:** 78076c7
+**From:** antigravity  **To:** opencode / user  **Time:** 2026-11-22 02:15 IST
+**Branch:** main  **Last commit:** 31d987f
 
 ## Current task
-T0.2 spike is DONE. Flutter app is created, builds, installs, and runs on connected Android device.
+T2.1-T2.6, T2.8 are DONE. Extensible app core and all screens built against docs/API.md.
 
 ## Done this session
-- Initialized Flutter project under `app/` with package `bloodline` (`com.bloodline`).
-- Added dependencies: `ai_nexconn_chat_plugin: ^26.2.6`, `ai_nexconn_chatui_plugin: ^26.2.8`, `provider`, `http`, `geolocator`, `shared_preferences`.
-- Initialized Nexconn Chat SDK with `areaCode: AreaCode.sg` and `NEXCONN_APP_KEY` from dart-define (`.env` fallback). Wrapped root in `NexconnChatUIProviders`.
-- Implemented `DebugScreen` allowing login as `test1`/`test2` with pasted user token, navigation to `ChannelPage`, and direct navigation to backend spike room `blspike1795251938` via `ChatPage`.
-- Resolved Gradle OOM killer by tuning `org.gradle.jvmargs` in `android/gradle.properties` (`-Xmx3G -XX:MaxMetaspaceSize=1G`).
-- Enabled core library desugaring in `android/app/build.gradle.kts` for `flutter_local_notifications`.
-- Fixed `ai_nexconn_chatui_plugin` Linux file casing bug via rename. Documented in `docs/DECISIONS.md` (D9, D10).
-- Installed APK via adb and launched on `motorola edge 50 fusion` (Android 16).
-- Ran `flutter test`: all tests pass.
+- Built `lib/core`:
+  - `api_client.dart`: Full HTTP client matching docs/API.md with automatic in-memory mock fallback.
+  - `slot_registry.dart`: `SlotRegistry` with `homeCards`, `profileSections`, `roomHeaderBadges` (empty in core build).
+  - `nexconn_service.dart`: Wraps Nexconn Chat SDK lifecycle & connection state.
+  - `location_service.dart`: GPS detection via `geolocator` with typed-area fallback.
+  - Models (`User`, `AuthResponse`, `BloodRequest`, `BloodStockItem`, `AppConfig`): `fromJson` safely ignores unknown fields.
+  - Providers: `AuthProvider`, `RequestsProvider`, `BankStockProvider`, `ConfigProvider`.
+- Built `lib/features/<name>/` with `register.dart` per feature:
+  - `auth`: Phone + 6-digit mock OTP, one-tap demo profiles, demographic form (age, weight, height, sex, previous donation, GPS + typed area fallback), renders `profileSections` slot.
+  - `requester`: New request broadcast form (group, units, hospital, urgency) and "My Requests" list.
+  - `donor`: Emergency feed filtered by group with "I Can Help" accept button calling POST /requests/{id}/accept.
+  - `bank`: 8 blood group inventory stock editor (GET/PUT /banks/me/stock) + open requests list.
+  - `chat`: ChannelPage inbox + ChatPage with `RequestSummaryHeader`, fulfill button for requester, and closed-room banner when fulfilled. Renders `roomHeaderBadges` slot.
+  - `home`: Role-aware dashboard, bottom navigation, renders `homeCards` slot.
+  - `debug`: Token connector, mock mode switcher, and base URL config.
+- Added comprehensive unit & widget test suite in `app/test/` (19 tests, 100% passing).
+- Updated `docs/PLAN.md` (ticked T2.1-T2.6, T2.8) and logged D11-D13 in `docs/DECISIONS.md`.
 
 ## State of the code
-- App builds and installs: `cd app && flutter build apk --debug` OK.
-- App tests: `cd app && flutter test` OK (100% passing).
-- App is running on connected Android phone with live IM engine waiting for token login.
+- Tests: `cd app && flutter test` passes 19/19 tests (100% passing).
+- App is structured for extension without modifying core screens.
 
 ## Next action
-- Paste user tokens issued by the backend (`test1` / `test2`) into the app's DebugScreen on device.
-- Connect and open `blspike1795251938` or `ChannelPage` to verify live message exchange across devices.
-- Begin P1 backend (`api/`) tasks (T1.1 - T1.9) or app feature screens (T2.1+).
-
-## Gotchas / things I learned
-- `AreaCode.sg` is lowercase in the Dart SDK enum.
-- `ai_nexconn_chatui_plugin` on pub.dev has a Kotlin filename `AiNexconnChatuiPlugin.kt` that must be renamed to `AiNexconnChatUIPlugin.kt` in the pub cache on case-sensitive Linux filesystems.
-- Machine RAM is 11 GB (5.4 GB free); Gradle heap must stay <= 3 GB to prevent OOM termination.
-- `flutter_local_notifications` requires `isCoreLibraryDesugaringEnabled = true` and `desugar_jdk_libs`.
+- T2.7: Add location pin message in chat (send current location / hospital pin).
+- T2.9: In-app banner / polling when matching request arrives.
+- P1 backend integration (opencode finishing T1.4 - T1.9).
 
 ## Do NOT touch
-- `api/` and `docs/API.md` (owned by opencode).
+- `api/` (owned by opencode).

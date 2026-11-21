@@ -39,14 +39,14 @@ Stretch only if all else is done: AI summary pinned in room; push notifications 
 - [ ] T1.9 Tests for matching (distance, group, stock), handlers happy paths
 
 ## P2 — App (AG)
-- [ ] T2.1 `flutter create`, add deps, theme, routing, API client with base URL setting
-- [ ] T2.2 Signup/login with role picker, blood group, location (device GPS or manual lat/lng fallback)
-- [ ] T2.3 Requester: new request form (group, units, hospital, urgency) + "My requests" list
-- [ ] T2.4 Donor: feed of matching open requests + "I can help" (calls accept, opens chat)
-- [ ] T2.5 Bank: stock editor (8 groups) + open requests list + open chat
-- [ ] T2.6 Chat: wire `ChannelPage` (inbox) and `ChatPage` with custom header showing request summary chip (group, units, hospital, status)
+- [x] T2.1 `flutter create`, add deps, theme, routing, API client with base URL setting
+- [x] T2.2 Signup/login with role picker, blood group, location (device GPS or manual lat/lng fallback)
+- [x] T2.3 Requester: new request form (group, units, hospital, urgency) + "My requests" list
+- [x] T2.4 Donor: feed of matching open requests + "I can help" (calls accept, opens chat)
+- [x] T2.5 Bank: stock editor (8 groups) + open requests list + open chat
+- [x] T2.6 Chat: wire `ChannelPage` (inbox) and `ChatPage` with custom header showing request summary chip (group, units, hospital, status)
 - [ ] T2.7 Location pin message in chat (send current location / hospital location)
-- [ ] T2.8 Fulfill button for requester; closed rooms show read-only banner
+- [x] T2.8 Fulfill button for requester; closed rooms show read-only banner
 - [ ] T2.9 Notification: in-app banner when new matching request arrives (poll `GET /requests` every 10s as fallback; push if time)
 
 ## P3 — Integration
