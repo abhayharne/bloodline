@@ -74,3 +74,17 @@
   3. Implemented `SettingsScreen` in `lib/features/settings/settings_screen.dart` featuring 'Large Text (1.3x)' toggle, live legibility preview card, and a voice-to-text info tile. Accessible via AppBar action in `HomeScreen` and OutlinedButton in `ProfileScreen`.
   4. Voice-to-text package assessment: Any speech-to-text plugin requires platform-specific manifest permissions (`RECORD_AUDIO`, `NSSpeechRecognitionUsageDescription`), platform recognition engine bindings, and physical microphone hardware, which cannot function in an unattended, headless environment without extra platform setup. Marked B11 as `[!]` with BLOCKED notice per rule 3.
   5. Added comprehensive unit and widget tests in `test/settings_test.dart` verifying state toggle, `SharedPreferences` persistence, `textScaler` propagation to `MediaQuery`, preview updates, and screen navigation (75/75 tests passing, gate clean).
+
+
+## D-APP-9 — B12 Final pass: widget test suite verification, runtime documentation, and physical device verification inventory
+- Context: Task B12 requires verifying all widget tests green, adding a README section for running the app against the real API (`flutter run --dart-define=API_BASE=... --dart-define=NEXCONN_APP_KEY=...`), tidying handoff, and listing all items requiring a real device.
+- Decision:
+  1. Updated `app/test/widget_test.dart` to assert that `BloodLineApp` root gate properly mounts `LoginScreen` in the unauthenticated state. All 75 tests across unit and widget suites pass cleanly.
+  2. Enhanced `app/README.md` with a comprehensive guide detailing:
+     - Real API connection via `--dart-define=API_BASE=http://...` and `--dart-define=NEXCONN_APP_KEY=...`.
+     - Platform-specific host IP routing (Android emulator `10.0.2.2:8080`, iOS simulator/desktop `localhost:8080`, and physical devices via local Wi-Fi LAN IP `192.168.x.x:8080`).
+     - Standalone demo/offline mode via `--dart-define=USE_MOCK=true`.
+     - Android cleartext HTTP development note (`android:usesCleartextTraffic="true"`).
+     - Execution instructions for tests and `./scripts/gate-app.sh`.
+     - High-level directory architecture and physical device morning checklist.
+  3. Documented in `docs/handoff/app.md` the exhaustive inventory of hardware and real-environment items to be tested on physical devices in the morning.

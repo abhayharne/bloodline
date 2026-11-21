@@ -16,4 +16,4 @@ Every screen gets at least one widget test using the mock client.
 - [x] B10 Feature reminders (flag reminders): home card "You may be eligible again" from /me derived fields, registered via slots only when enabled.
 - [!] B11 Accessibility: large-font toggle (textScaler) in settings. Voice-to-text only if a package works without extra platform setup; otherwise mark [!].
   BLOCKED: Voice-to-text requires platform-specific audio permissions (RECORD_AUDIO / Info.plist) and physical microphone hardware. Large-font textScaler toggle implemented and gate passes.
-- [ ] B12 Final pass: widget tests green, README section for running the app against the real API (flutter run --dart-define=API_BASE=... --dart-define=NEXCONN_APP_KEY=...), tidy handoff, list everything that needs a real device in docs/handoff/app.md.
+- [x] B12 Final pass: widget tests green, README section for running the app against the real API (flutter run --dart-define=API_BASE=... --dart-define=NEXCONN_APP_KEY=...), tidy handoff, list everything that needs a real device in docs/handoff/app.md.

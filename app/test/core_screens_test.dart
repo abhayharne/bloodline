@@ -18,6 +18,8 @@ import 'package:bloodline/features/home/home_screen.dart';
 import 'package:bloodline/features/notifications/notifications_screen.dart';
 import 'package:bloodline/core/slot_registry.dart';
 import 'package:bloodline/core/providers/settings_provider.dart';
+import 'package:bloodline/features/chat/channel_inbox_screen.dart';
+import 'package:bloodline/features/debug/debug_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 Widget createTestApp(
@@ -439,5 +441,27 @@ void main() {
     await tester.pump();
 
     expect(find.text('No notifications yet'), findsOneWidget);
+  });
+
+  testWidgets('ChannelInboxScreen renders emergency chat rooms with offline fallback when uninitialized', (tester) async {
+    await tester.pumpWidget(createTestApp(
+      const ChannelInboxScreen(),
+    ));
+    await tester.pump();
+
+    expect(find.text('Emergency Chat Rooms'), findsOneWidget);
+    expect(find.textContaining('Chat offline'), findsOneWidget);
+  });
+
+  testWidgets('DebugScreen renders developer tools, URL field, and mock mode switch', (tester) async {
+    await tester.pumpWidget(createTestApp(
+      const DebugScreen(),
+    ));
+    await tester.pump();
+
+    expect(find.text('Developer & Debug Tools'), findsOneWidget);
+    expect(find.text('Backend Base URL'), findsOneWidget);
+    expect(find.text('Force In-Memory Mock Mode'), findsOneWidget);
+    expect(find.text('Connect Token'), findsOneWidget);
   });
 }
