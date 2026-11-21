@@ -13,12 +13,13 @@ import (
 
 // Service is the application service layer.
 type Service struct {
-	store    *store.Store
-	chat     nexconn.Client
-	jwt      *auth.Issuer
-	demoOTP  string
-	features []string
-	bus      *events.Bus
+	store       *store.Store
+	chat        nexconn.Client
+	jwt         *auth.Issuer
+	demoOTP     string
+	features    []string
+	bus         *events.Bus
+	matchRadius float64
 }
 
 // Option customises a Service without breaking existing callers.
@@ -39,6 +40,11 @@ func WithBus(bus *events.Bus) Option {
 	return func(s *Service) { s.bus = bus }
 }
 
+// WithMatchRadius sets the role-aware feed radius in km.
+func WithMatchRadius(km float64) Option {
+	return func(s *Service) { s.matchRadius = km }
+}
+
 // Publish emits an event when a bus is configured.
 func (s *Service) Publish(ctx context.Context, name string, payload any) {
 	if s == nil || s.bus == nil {
@@ -49,7 +55,7 @@ func (s *Service) Publish(ctx context.Context, name string, payload any) {
 
 // New wires the service dependencies.
 func New(st *store.Store, chat nexconn.Client, jwt *auth.Issuer, opts ...Option) *Service {
-	s := &Service{store: st, chat: chat, jwt: jwt, demoOTP: "123456", features: []string{}}
+	s := &Service{store: st, chat: chat, jwt: jwt, demoOTP: "123456", features: []string{}, matchRadius: 10}
 	for _, opt := range opts {
 		opt(s)
 	}

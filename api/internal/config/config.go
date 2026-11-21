@@ -23,6 +23,7 @@ type Config struct {
 	MatchRadiusKM        float64
 	DemoOTP              string
 	Features             []string
+	NexconnMock          bool
 }
 
 // Load reads configuration from the process environment and validates it.
@@ -38,6 +39,7 @@ func Load() (Config, error) {
 		NexconnAPIBaseBackup: os.Getenv("NEXCONN_API_BASE_BACKUP"),
 		DemoOTP:              getenv("DEMO_OTP", "123456"),
 		Features:             parseFeatures(os.Getenv("FEATURES")),
+		NexconnMock:          os.Getenv("NEXCONN_MOCK") == "1",
 	}
 
 	radiusRaw := getenv("MATCH_RADIUS_KM", "10")
@@ -58,17 +60,19 @@ func (c Config) validate() error {
 	if c.JWTSecret == "" {
 		missing = append(missing, "JWT_SECRET")
 	}
-	if c.NexconnAppKey == "" {
-		missing = append(missing, "NEXCONN_APP_KEY")
-	}
-	if c.NexconnAppSecret == "" {
-		missing = append(missing, "NEXCONN_APP_SECRET")
-	}
-	if c.NexconnAPIBase == "" {
-		missing = append(missing, "NEXCONN_API_BASE")
-	}
-	if c.NexconnAPIBaseBackup == "" {
-		missing = append(missing, "NEXCONN_API_BASE_BACKUP")
+	if !c.NexconnMock {
+		if c.NexconnAppKey == "" {
+			missing = append(missing, "NEXCONN_APP_KEY")
+		}
+		if c.NexconnAppSecret == "" {
+			missing = append(missing, "NEXCONN_APP_SECRET")
+		}
+		if c.NexconnAPIBase == "" {
+			missing = append(missing, "NEXCONN_API_BASE")
+		}
+		if c.NexconnAPIBaseBackup == "" {
+			missing = append(missing, "NEXCONN_API_BASE_BACKUP")
+		}
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))

@@ -11,6 +11,7 @@ import (
 
 	"bloodline/internal/auth"
 	"bloodline/internal/service"
+	"bloodline/internal/store"
 )
 
 // Server holds the dependencies used by the handlers.
@@ -33,6 +34,10 @@ func New(svc *service.Service, jwt *auth.Issuer) http.Handler {
 	mux.Handle("GET /banks/me/stock", s.requireBank(s.getBankStock))
 	mux.Handle("PUT /banks/me/stock", s.requireBank(s.putBankStock))
 	mux.Handle("GET /notifications", s.requireAuth(s.getNotifications))
+	mux.Handle("POST /requests", s.requireRole("requester")(s.createRequest))
+	mux.Handle("GET /requests", s.requireRole("requester", "donor", "bank")(s.listRequests))
+	mux.Handle("POST /requests/{id}/accept", s.requireRole("donor", "bank")(s.acceptRequest))
+	mux.Handle("POST /requests/{id}/fulfill", s.requireRole("requester")(s.fulfillRequest))
 	return mux
 }
 
@@ -50,15 +55,26 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.Handler {
 	})
 }
 
+// requireRole accepts only the listed roles.
+func (s *Server) requireRole(roles ...string) func(http.HandlerFunc) http.Handler {
+	allowed := make(map[string]bool, len(roles))
+	for _, role := range roles {
+		allowed[role] = true
+	}
+	return func(next http.HandlerFunc) http.Handler {
+		return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
+			claims, _ := claimsFromContext(r.Context())
+			if !allowed[claims.Role] {
+				writeError(w, http.StatusForbidden, "role not allowed")
+				return
+			}
+			next(w, r)
+		})
+	}
+}
+
 func (s *Server) requireBank(next http.HandlerFunc) http.Handler {
-	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
-		claims, _ := claimsFromContext(r.Context())
-		if claims.Role != "bank" {
-			writeError(w, http.StatusForbidden, "bank role required")
-			return
-		}
-		next(w, r)
-	})
+	return s.requireRole("bank")(next)
 }
 
 func (s *Server) claimsFromRequest(r *http.Request) (auth.Claims, error) {
@@ -90,12 +106,19 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
 
 func writeServiceError(w http.ResponseWriter, err error) {
 	var validation service.ValidationError
-	if errors.As(err, &validation) {
+	switch {
+	case errors.As(err, &validation):
 		writeError(w, http.StatusBadRequest, validation.Message)
-		return
+	case errors.Is(err, store.ErrNotFound):
+		writeError(w, http.StatusNotFound, "not found")
+	case errors.Is(err, store.ErrConflict), errors.Is(err, service.ErrNotOpen):
+		writeError(w, http.StatusConflict, "conflict")
+	case errors.Is(err, service.ErrForbidden):
+		writeError(w, http.StatusForbidden, "forbidden")
+	default:
+		log.Printf("internal error: %v", err)
+		writeError(w, http.StatusInternalServerError, "internal server error")
 	}
-	log.Printf("internal error: %v", err)
-	writeError(w, http.StatusInternalServerError, "internal server error")
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

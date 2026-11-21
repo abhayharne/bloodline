@@ -118,4 +118,6 @@ Publishes `request.fulfilled`; all joined members get a notification row.
 Same as fulfill but status=cancelled. (Optional; implement only if time.)
 
 ## Dev only
-`POST /dev/reset` reloads seed data (enabled when `DEV=1`).
+- `POST /dev/reset` reloads seed data (enabled when `DEV=1`).
+- `NEXCONN_MOCK=1` makes the server skip all Nexconn network calls (dummy chat token),
+  used by `scripts/smoke.sh` when credentials/network are unavailable. Never enable in production.

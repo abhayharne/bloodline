@@ -20,7 +20,27 @@ type Client interface {
 	CreateGroupChannel(ctx context.Context, channelID, name, owner string, userIDs []string) error
 	// JoinGroupChannel adds members to an existing group channel.
 	JoinGroupChannel(ctx context.Context, channelID string, userIDs []string) error
+	// SendGroupMessage posts a message to a group channel as fromUserID.
+	SendGroupMessage(ctx context.Context, channelID, fromUserID, messageType, content string) error
+	// FreezeGroupChannel stops new messages while keeping history readable.
+	FreezeGroupChannel(ctx context.Context, channelID string) error
 }
+
+// NoopClient is a dev-only implementation used by scripts/smoke.sh with
+// NEXCONN_MOCK=1. It performs no network calls and returns a dummy chat token.
+type NoopClient struct{}
+
+func (NoopClient) IssueToken(context.Context, string, string) (string, error) {
+	return "mock-chat-token", nil
+}
+func (NoopClient) CreateGroupChannel(context.Context, string, string, string, []string) error {
+	return nil
+}
+func (NoopClient) JoinGroupChannel(context.Context, string, []string) error { return nil }
+func (NoopClient) SendGroupMessage(context.Context, string, string, string, string) error {
+	return nil
+}
+func (NoopClient) FreezeGroupChannel(context.Context, string) error { return nil }
 
 // SDKClient is the production implementation backed by the official Go SDK.
 type SDKClient struct {
@@ -86,6 +106,52 @@ func (c *SDKClient) CreateGroupChannel(ctx context.Context, channelID, name, own
 	}
 	if resp.Code != 0 {
 		return fmt.Errorf("nexconn: create group channel: code %d", resp.Code)
+	}
+	return nil
+}
+
+// SendGroupMessage posts a message into a group channel. Server-side sends do
+// not require the sender to be a member.
+func (c *SDKClient) SendGroupMessage(ctx context.Context, channelID, fromUserID, messageType, content string) error {
+	if channelID == "" || fromUserID == "" {
+		return errors.New("nexconn: channel id and sender are required")
+	}
+	if messageType == "" {
+		messageType = "RC:TxtMsg"
+	}
+	req := ncsdk.NewGroupChannelMessageSendRequest(fromUserID, []string{channelID}, messageType, content)
+	resp, _, err := c.api.MessageManagementAPI.SendGroupChannelMessage(ctx).
+		GroupChannelMessageSendRequest(*req).
+		Execute()
+	if err != nil {
+		return fmt.Errorf("nexconn: send group message: %w", err)
+	}
+	if resp == nil {
+		return errors.New("nexconn: send group message: empty response")
+	}
+	if resp.Code != 0 {
+		return fmt.Errorf("nexconn: send group message: code %d", resp.Code)
+	}
+	return nil
+}
+
+// FreezeGroupChannel disables new messages without deleting the room.
+func (c *SDKClient) FreezeGroupChannel(ctx context.Context, channelID string) error {
+	if channelID == "" {
+		return errors.New("nexconn: channel id is empty")
+	}
+	req := ncsdk.NewGroupChannelFreezeListUpdateRequest([]string{channelID})
+	resp, _, err := c.api.GroupChannelModerationAPI.AddGroupChannelFreezeList(ctx).
+		GroupChannelFreezeListUpdateRequest(*req).
+		Execute()
+	if err != nil {
+		return fmt.Errorf("nexconn: freeze group channel: %w", err)
+	}
+	if resp == nil {
+		return errors.New("nexconn: freeze group channel: empty response")
+	}
+	if resp.Code != 0 {
+		return fmt.Errorf("nexconn: freeze group channel: code %d", resp.Code)
 	}
 	return nil
 }

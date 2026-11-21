@@ -31,12 +31,13 @@ Stretch only if all else is done: AI summary pinned in room; push notifications 
 - [x] T1.1 Project init: go.mod, config from env, SQLite open + run db/schema.sql on boot, `/health`
 - [x] T1.2 Phone auth: `POST /auth/otp/send`, `POST /auth/verify`, `POST /auth/signup` (phone, profile, consent) -> app JWT + Nexconn token; legacy `POST /auth/login` kept additive
 - [x] T1.3 `PUT /banks/me/stock` and `GET /banks/me/stock`
-- [ ] T1.4 `POST /requests`: create, run matching, create Nexconn room, add requester + top banks, return request + channel_id + matched counts
-- [ ] T1.5 `GET /requests` (role-aware feed: requester sees own; donor sees open matches; bank sees open requests in range)
-- [ ] T1.6 `POST /requests/{id}/accept` (donor or bank joins room)
-- [ ] T1.7 `POST /requests/{id}/fulfill` (requester only): post system message, close/disable room, status=fulfilled
+- [x] T1.4 `POST /requests`: create, run matching, create Nexconn room, add requester + top banks, return request + channel_id + matched counts
+- [x] T1.5 `GET /requests` (role-aware feed: requester sees own; donor sees open matches; bank sees open requests in range)
+- [x] T1.6 `POST /requests/{id}/accept` (donor or bank joins room)
+- [x] T1.7 `POST /requests/{id}/fulfill` (requester only): post system message, close/disable room, status=fulfilled
 - [ ] T1.8 `db/seed.sql` loaded by `scripts` or boot flag: 5 donors, 2 banks with stock, 1 open request
-- [ ] T1.9 Tests for matching (distance, group, stock), handlers happy paths
+- [x] T1.9 Tests for matching (distance, group, stock), handlers happy paths
+- [x] T1.12 scripts/smoke.sh: signup -> request -> accept -> fulfill (NEXCONN_MOCK=1 for offline runs)
 - [x] T1.10 (D11 extension base) events bus with panic-safe subscribers, Notifier -> notifications, GET /notifications
 - [x] T1.11 (D11 extension base) DonorFilter pipeline + pure Compatible/Eligible with tests (not wired into live matching)
 

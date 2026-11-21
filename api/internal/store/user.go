@@ -34,6 +34,11 @@ const userColumns = `id, name, role, blood_group, lat, lng, push_token, created_
 	phone, sex, age, weight_kg, height_cm, donated_before, last_donated_at,
 	available, consent_at`
 
+// Qualified variant for queries that join tables sharing column names.
+const qualifiedUserColumns = `u.id, u.name, u.role, u.blood_group, u.lat, u.lng,
+	u.push_token, u.created_at, u.phone, u.sex, u.age, u.weight_kg, u.height_cm,
+	u.donated_before, u.last_donated_at, u.available, u.consent_at`
+
 // CreateUser inserts a user. It returns ErrConflict if name+role or phone already exists.
 func (s *Store) CreateUser(ctx context.Context, u User) error {
 	_, err := s.db.ExecContext(ctx, `

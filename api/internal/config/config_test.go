@@ -68,6 +68,23 @@ func TestLoadDemoOTPAndFeatures(t *testing.T) {
 	}
 }
 
+func TestLoadMockModeSkipsNexconnCredentials(t *testing.T) {
+	t.Setenv("JWT_SECRET", "test-secret")
+	t.Setenv("NEXCONN_APP_KEY", "")
+	t.Setenv("NEXCONN_APP_SECRET", "")
+	t.Setenv("NEXCONN_API_BASE", "")
+	t.Setenv("NEXCONN_API_BASE_BACKUP", "")
+	t.Setenv("NEXCONN_MOCK", "1")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.NexconnMock {
+		t.Error("NexconnMock = false, want true")
+	}
+}
+
 func TestLoadMissingRequired(t *testing.T) {
 	setRequiredEnv(t)
 	t.Setenv("JWT_SECRET", "")

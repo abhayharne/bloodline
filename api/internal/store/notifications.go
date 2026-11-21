@@ -8,14 +8,14 @@ import (
 
 // Notification is one row of the in-app notification feed.
 type Notification struct {
-	ID         string  `json:"id"`
-	UserID     string  `json:"user_id"`
-	Type       string  `json:"type"`
-	Title      string  `json:"title"`
-	Body       string  `json:"body"`
-	RequestID  *string `json:"request_id"`
-	ReadAt     *string `json:"read_at"`
-	CreatedAt  string  `json:"created_at"`
+	ID        string  `json:"id"`
+	UserID    string  `json:"user_id"`
+	Type      string  `json:"type"`
+	Title     string  `json:"title"`
+	Body      string  `json:"body"`
+	RequestID *string `json:"request_id"`
+	ReadAt    *string `json:"read_at"`
+	CreatedAt string  `json:"created_at"`
 }
 
 // InsertNotification appends a notification. Duplicates are not expected

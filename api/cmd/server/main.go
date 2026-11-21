@@ -38,14 +38,19 @@ func run() error {
 	}
 	defer st.Close()
 
-	chat, err := nexconn.New(
-		cfg.NexconnAppKey,
-		cfg.NexconnAppSecret,
-		cfg.NexconnAPIBase,
-		cfg.NexconnAPIBaseBackup,
-	)
-	if err != nil {
-		return err
+	var chat nexconn.Client
+	if cfg.NexconnMock {
+		chat = nexconn.NoopClient{}
+	} else {
+		chat, err = nexconn.New(
+			cfg.NexconnAppKey,
+			cfg.NexconnAppSecret,
+			cfg.NexconnAPIBase,
+			cfg.NexconnAPIBaseBackup,
+		)
+		if err != nil {
+			return err
+		}
 	}
 
 	issuer, err := auth.NewIssuer(cfg.JWTSecret, jwtTTL)
@@ -62,6 +67,7 @@ func run() error {
 	svc := service.New(st, chat, issuer,
 		service.WithDemoOTP(cfg.DemoOTP),
 		service.WithFeatures(cfg.Features),
+		service.WithMatchRadius(cfg.MatchRadiusKM),
 		service.WithBus(bus),
 	)
 	srv := &http.Server{

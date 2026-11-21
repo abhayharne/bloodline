@@ -18,9 +18,13 @@ import (
 )
 
 type fakeChat struct {
-	token  string
-	err    error
-	issued []string
+	token    string
+	err      error
+	issued   []string
+	created  []string
+	joined   []string
+	messages []string
+	frozen   []string
 }
 
 func (f *fakeChat) IssueToken(_ context.Context, userID, name string) (string, error) {
@@ -31,11 +35,23 @@ func (f *fakeChat) IssueToken(_ context.Context, userID, name string) (string, e
 	return f.token, nil
 }
 
-func (f *fakeChat) CreateGroupChannel(context.Context, string, string, string, []string) error {
+func (f *fakeChat) CreateGroupChannel(_ context.Context, channelID, _, _ string, _ []string) error {
+	f.created = append(f.created, channelID)
 	return nil
 }
 
-func (f *fakeChat) JoinGroupChannel(context.Context, string, []string) error {
+func (f *fakeChat) JoinGroupChannel(_ context.Context, channelID string, _ []string) error {
+	f.joined = append(f.joined, channelID)
+	return nil
+}
+
+func (f *fakeChat) SendGroupMessage(_ context.Context, _, _, _, content string) error {
+	f.messages = append(f.messages, content)
+	return nil
+}
+
+func (f *fakeChat) FreezeGroupChannel(_ context.Context, channelID string) error {
+	f.frozen = append(f.frozen, channelID)
 	return nil
 }
 
