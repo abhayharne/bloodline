@@ -80,6 +80,69 @@ func (s *Store) UserByPhone(ctx context.Context, phone string) (User, error) {
 		FROM users WHERE phone = ?`, phone))
 }
 
+// ProfileUpdate carries only the fields present in a PUT /me body. A nil
+// pointer means "leave unchanged"; an empty LastDonatedAt clears the column.
+type ProfileUpdate struct {
+	Available     *bool
+	Lat           *float64
+	Lng           *float64
+	WeightKG      *float64
+	HeightCM      *float64
+	LastDonatedAt *string
+}
+
+// UpdateProfile applies a partial profile update. An empty update is a no-op;
+// a missing user is reported as ErrNotFound.
+func (s *Store) UpdateProfile(ctx context.Context, id string, update ProfileUpdate) error {
+	clauses := make([]string, 0, 6)
+	args := make([]any, 0, 7)
+	if update.Available != nil {
+		clauses = append(clauses, "available = ?")
+		args = append(args, *update.Available)
+	}
+	if update.Lat != nil {
+		clauses = append(clauses, "lat = ?")
+		args = append(args, *update.Lat)
+	}
+	if update.Lng != nil {
+		clauses = append(clauses, "lng = ?")
+		args = append(args, *update.Lng)
+	}
+	if update.WeightKG != nil {
+		clauses = append(clauses, "weight_kg = ?")
+		args = append(args, *update.WeightKG)
+	}
+	if update.HeightCM != nil {
+		clauses = append(clauses, "height_cm = ?")
+		args = append(args, *update.HeightCM)
+	}
+	if update.LastDonatedAt != nil {
+		if strings.TrimSpace(*update.LastDonatedAt) == "" {
+			clauses = append(clauses, "last_donated_at = NULL")
+		} else {
+			clauses = append(clauses, "last_donated_at = ?")
+			args = append(args, strings.TrimSpace(*update.LastDonatedAt))
+		}
+	}
+	if len(clauses) == 0 {
+		return nil
+	}
+	args = append(args, id)
+	result, err := s.db.ExecContext(ctx,
+		"UPDATE users SET "+strings.Join(clauses, ", ")+" WHERE id = ?", args...)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func scanUser(row *sql.Row) (User, error) {
 	var (
 		u             User

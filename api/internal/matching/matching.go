@@ -67,6 +67,15 @@ func Compatible(patientGroup, donorGroup string) bool {
 	return compatibleWith[strings.ToUpper(strings.TrimSpace(patientGroup))][strings.ToUpper(strings.TrimSpace(donorGroup))]
 }
 
+// requiredInterval is the waiting period after a donation: 90 days for male
+// donors, 120 days for female, other or unspecified (the conservative choice).
+func requiredInterval(donor Donor) time.Duration {
+	if strings.EqualFold(strings.TrimSpace(donor.Sex), "male") {
+		return 90 * 24 * time.Hour
+	}
+	return 120 * 24 * time.Hour
+}
+
 // Eligible reports whether a donor satisfies the demo's safety rules:
 // age 18-65 inclusive, weight >= 45 kg, and enough time since the last
 // donation (90 days for male, 120 days for female/unspecified). Unknown age
@@ -84,12 +93,23 @@ func Eligible(donor Donor, now time.Time) bool {
 	if donor.LastDonatedAt == nil {
 		return true
 	}
+	return now.Sub(*donor.LastDonatedAt) >= requiredInterval(donor)
+}
 
-	required := 120 * 24 * time.Hour
-	if strings.EqualFold(strings.TrimSpace(donor.Sex), "male") {
-		required = 90 * 24 * time.Hour
+// NextEligibleAt returns the date from which the donor may give again, using
+// the same interval as Eligible. It is nil when the last donation date is
+// unknown or the waiting period has already elapsed (i.e. the donor is not
+// waiting on the interval). It intentionally ignores age/weight/availability:
+// those are separate concerns reported by Eligible.
+func NextEligibleAt(donor Donor, now time.Time) *time.Time {
+	if donor.LastDonatedAt == nil {
+		return nil
 	}
-	return now.Sub(*donor.LastDonatedAt) >= required
+	next := donor.LastDonatedAt.Add(requiredInterval(donor))
+	if !next.After(now) {
+		return nil
+	}
+	return &next
 }
 
 // DonorFilter is one predicate of the matching pipeline.

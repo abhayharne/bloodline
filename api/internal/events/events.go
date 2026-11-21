@@ -14,6 +14,7 @@ const (
 	RequestCreated   = "request.created"
 	RequestAccepted  = "request.accepted"
 	RequestFulfilled = "request.fulfilled"
+	DonationRecorded = "donation.recorded"
 )
 
 // Event carries the lifecycle name and a typed payload (see the *Payload types
@@ -119,4 +120,14 @@ type RequestFulfilledPayload struct {
 	RecipientIDs []string
 	BloodGroup   string
 	Hospital     string
+}
+
+// DonationRecordedPayload describes a donation recorded for a request. It is
+// deliberately small: feature subscribers (ranks, notifications) can look up
+// anything else they need, and no tokens or personal data ride on the bus.
+type DonationRecordedPayload struct {
+	DonationID    string
+	RequestID     string
+	DonorID       string
+	DonationCount int
 }
