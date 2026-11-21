@@ -16,9 +16,10 @@
   newest-first ordering fix). Working tree had a peer's uncommitted A13 edit to
   `api/internal/store/notifications.go` at check time — do not mistake it for ours.
 - A13 is still the first unchecked task; A14 follows. No task box was changed.
-- Only docs/decisions-api.md (appended D23) and this handoff were edited by us,
-  committed with explicit pathspec. No fixed ports, no `.env`, no docs/PLAN.md,
-  no `app/` edits, no pushes.
+- Only docs/decisions-api.md (appended D23) and this handoff were edited by us;
+  they landed inside the peer's `c850325` commit (peer uses `git commit -a`), not
+  a separate one. The peer's in-flight `request.go` was not swept in.
+  No fixed ports, no `.env`, no docs/PLAN.md, no `app/` edits, no pushes.
 
 ## Next action
 - Let the in-flight pts/6 loop finish A13: `ByAvailability`/`ByEligibility` under

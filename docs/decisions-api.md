@@ -203,3 +203,7 @@ task letter, re-verified the entry gate PASS on committed HEAD, and did not
 touch api/ code. Only docs/decisions-api.md and docs/handoff/api.md were edited,
 committed with explicit pathspec so the peer's uncommitted file is never staged.
 A human still needs to stop one `scripts/loop.sh opencode api ...` process.
+Postscript: this session's two doc edits were swept into the peer's `c850325`
+commit (the peer commits with `-a`) before my own explicit-pathspec commit could
+run; the peer's in-flight `request.go` was NOT included. Net tree state is correct
+and nothing is left uncommitted by this session.
