@@ -17,7 +17,7 @@ Nexconn Chat SDK.
 - Health:    `curl localhost:8080/health`
 
 ## Read these first
-docs/HANDOFF.md -> docs/PLAN.md -> docs/ARCHITECTURE.md -> docs/API.md -> docs/DATA_MODEL.md
+docs/handoff/<agent>.md (opencode: api.md, antigravity: app.md) -> docs/PLAN.md -> docs/ARCHITECTURE.md -> docs/API.md -> docs/DATA_MODEL.md
 
 ## Ownership (default; override via HANDOFF.md)
 - opencode:     `api/`, `docs/API.md`, `docs/DATA_MODEL.md`
@@ -35,7 +35,7 @@ docs/HANDOFF.md -> docs/PLAN.md -> docs/ARCHITECTURE.md -> docs/API.md -> docs/D
 
 ## Multi-agent protocol (MANDATORY)
 Two agents (OpenCode, Antigravity) work on this repo, ONE AT A TIME per working tree.
-1. START: read docs/HANDOFF.md and docs/PLAN.md, run `git status` and `git log -10 --oneline`.
+1. START: read docs/handoff/<agent>.md (opencode: api.md, antigravity: app.md) and docs/PLAN.md, run `git status` and `git log -10 --oneline`.
 2. Work on the task named in HANDOFF.md "Next action" unless the human says otherwise.
 3. Commit small and often. Prefix messages `[opencode]` or `[antigravity]`.
 4. Never end a session with uncommitted work.

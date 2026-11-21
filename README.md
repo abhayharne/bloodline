@@ -11,14 +11,14 @@ cd api && go run ./cmd/server                           # check: curl localhost:
 cd ../app && flutter create . --org com.bloodline --project-name bloodline && flutter pub get
 ```
 Then open the repo in OpenCode or Antigravity and say:
-"Read AGENTS.md, docs/HANDOFF.md and docs/PLAN.md, then continue." (or run `/resume`)
+"Read AGENTS.md, docs/handoff/<agent>.md (opencode: api.md, antigravity: app.md) and docs/PLAN.md, then continue." (or run `/resume`)
 
 ## Docs map
 | File | Purpose |
 |---|---|
 | AGENTS.md | Rules for both agents |
 | docs/PLAN.md | Task list, phases, timeline, scope |
-| docs/HANDOFF.md | Baton passed between agents |
+| docs/handoff/<agent>.md (opencode: api.md, antigravity: app.md) | Baton passed between agents |
 | docs/ARCHITECTURE.md | System design and flows |
 | docs/API.md | REST contract |
 | docs/DATA_MODEL.md | Tables and matching logic |
