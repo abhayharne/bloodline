@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"bloodline/internal/events"
 	"bloodline/internal/id"
@@ -94,6 +95,16 @@ func (s *Service) CreateRequest(ctx context.Context, in RequestInput) (RequestRe
 	donors, err := s.store.DonorsByGroup(ctx, group)
 	if err != nil {
 		return RequestResult{}, err
+	}
+	if s.HasFeature("reminders") {
+		// The reminders flag enables the isAvailable and isEligible pipeline
+		// filters. Fetch the whole group first so the pipeline, not the store
+		// query, decides who is matched. The core path above stays simple.
+		donors, err = s.store.DonorsByGroupAll(ctx, group)
+		if err != nil {
+			return RequestResult{}, err
+		}
+		donors = applyReminderFilters(group, in.Lat, in.Lng, donors)
 	}
 	rankByDistance(in.Lat, in.Lng, banks)
 	rankByDistance(in.Lat, in.Lng, donors)
@@ -354,6 +365,42 @@ func (s *Service) FulfillRequest(ctx context.Context, requestID, userID string) 
 	})
 	request.Status = "fulfilled"
 	return request, nil
+}
+
+// applyReminderFilters runs the availability and eligibility filters that the
+// reminders feature enables. Unknown age/weight get known-eligible defaults so
+// the pipeline agrees with the permissive /me contract; an explicit
+// available=false or a recent donation still excludes the donor.
+func applyReminderFilters(group string, lat, lng float64, donors []store.User) []store.User {
+	if len(donors) == 0 {
+		return donors
+	}
+	profiles := make([]matching.Donor, 0, len(donors))
+	for _, user := range donors {
+		profile := matching.FromUser(user)
+		if profile.Age == nil {
+			age := 30
+			profile.Age = &age
+		}
+		if profile.WeightKG == nil {
+			weight := 60.0
+			profile.WeightKG = &weight
+		}
+		profiles = append(profiles, profile)
+	}
+	kept := matching.NewPipeline(matching.ByAvailability(), matching.ByEligibility()).Apply(
+		matching.Patient{BloodGroup: group, Lat: lat, Lng: lng}, profiles, time.Now())
+	keepIDs := make(map[string]bool, len(kept))
+	for _, profile := range kept {
+		keepIDs[profile.ID] = true
+	}
+	result := make([]store.User, 0, len(kept))
+	for _, user := range donors {
+		if keepIDs[user.ID] {
+			result = append(result, user)
+		}
+	}
+	return result
 }
 
 func rankByDistance(lat, lng float64, users []store.User) {
