@@ -7,3 +7,7 @@ app/.dart_tool/
 .idea/
 .vscode/
 .DS_Store
+
+*.kate-swp
+.*.swp
+*.swp
