@@ -1,17 +1,18 @@
 # App Handoff
-**From:** agy (app agent)  **To:** next agent / human  **Time:** 2026-11-22 04:46 IST
+**From:** agy (app agent)  **To:** next agent / human  **Time:** 2026-11-22 04:48 IST
 **Branch:** main
 
 ## Done this iteration
 - Task B12 Final pass:
-  - Replaced test placeholder in `app/test/widget_test.dart` with `BloodLineApp` root gate widget test (75/75 tests passing, gate clean).
+  - Replaced test placeholder in `app/test/widget_test.dart` with `BloodLineApp` root gate widget test.
+  - Added widget tests for `ChannelInboxScreen` and `DebugScreen` in `app/test/core_screens_test.dart` (77/77 tests passing, gate clean, 100% of all 11 application screens covered with mock client).
   - Enhanced `app/README.md` with clear instructions for running against real Go backend and Nexconn Singapore Chat SDK using `--dart-define=API_BASE=...` and `--dart-define=NEXCONN_APP_KEY=...`.
   - Documented platform host address mapping (`10.0.2.2:8080` for Android emulator, `localhost:8080` for iOS simulator/desktop, and local Wi-Fi IP `192.168.x.x:8080` for physical devices), offline mock mode (`USE_MOCK=true`), and cleartext HTTP.
   - Recorded decision D-APP-9 in `docs/decisions-app.md`.
   - All tasks B0 through B12 in `docs/tasks-app.md` are completed (B11 marked `[!]` for voice-to-text hardware/platform requirement).
 
 ## State of the code
-- Gate: `scripts/gate-app.sh` PASS (`flutter analyze` clean, 0 errors/warnings, 75/75 tests passing).
+- Gate: `scripts/gate-app.sh` PASS (`flutter analyze` clean, 0 errors/warnings, 77/77 tests passing).
 - Complete Flutter app architecture ready: Auth & signup with donor consent, Requester flow, Donor feed & accept, Blood Bank 8-group stock manager, Chat inbox/rooms with summary header, Fulfill & donation recording, 10s notification polling & in-app banner, feature ranks, feature reminders, and large-font accessibility toggle.
 
 ## Next action
