@@ -104,3 +104,35 @@ The dev route is registered only via `httpapi.WithDevRoutes()` when `DEV=1`;
 `POST /dev/reset` is unauthenticated so the demo can reset before login.
 The transaction wipes notifications, donations, request_members, requests,
 bank_stock and users before inserting the seed, so resets are repeatable.
+
+## D19 — A11 profile and donation recording
+`GET /me` and `PUT /me` return `{"user":...,"derived":{eligible,next_eligible_at,
+donation_count,rank}}`. `rank` is typed (`{key,label}`) but always null until A12
+lands, so clients can rely on the shape now. `PUT /me` applies only the six
+addendum fields: pointers mean "unchanged", an empty `last_donated_at` clears the
+column, and lat/lng/weight/height/date are validated before any write.
+
+Derived eligibility reuses the tested `matching.Eligible` unchanged. Two details
+bridge it to addendum v2: (1) the addendum says unknown age/weight count as
+eligible while the D11 pure function requires them known, so /me fills only
+unknown values with known-eligible defaults (age 30, weight 60) before calling
+it; (2) `next_eligible_at` comes from a new pure `matching.NextEligibleAt` using
+the same 90/120-day interval, formatted as `YYYY-MM-DD`, null when no last
+donation is stored or the wait has elapsed. Non-donors always report
+`eligible:false` and `next_eligible_at:null`.
+
+`POST /requests/{id}/donated` is donor-only and requires room membership (403
+otherwise; missing request 404). Because A8 already writes one donations row on
+accept, the endpoint reuses that row via `Store.DonationFor` and only creates a
+row when none exists; the (request, donor) unique key and `INSERT OR IGNORE`
+make it idempotent. `donation_count` counts all donation rows for the donor, so
+accept + donated + repeat all report the same number. The response maps the
+stored `created_at` to the contract's `donated_at`.
+
+`donation.recorded` is published on every successful /donated call, including
+repeats: without a new marker column there is no way to distinguish "first
+record" from "already recorded on accept". Subscribers (A12 ranks, future
+messages) must therefore be idempotent; the rank subscriber only emits on an
+actual rank change. Smoke keeps its A9 SQLite row assertion and adds HTTP
+assertions for /me, /donated, idempotency and donation_count. docs/API.md is
+still deliberately untouched; A14 owns the doc reconciliation.
