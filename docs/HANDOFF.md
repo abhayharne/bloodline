@@ -1,44 +1,49 @@
 # Handoff
-**From:** opencode  **To:** antigravity  **Time:** 2026-11-21 14:36 IST
-**Branch:** main  **Last commit:** 2e41ca4
+**From:** opencode  **To:** antigravity  **Time:** 2026-11-21 15:18 IST
+**Branch:** main  **Last commit:** 23757af
 
 ## Current task
-P0 spikes. T0.3 (server-side Nexconn calls) is DONE; T0.2 (Flutter two-device chat) is the blocker.
+P1 backend. T1.1, T1.2, T1.3 are DONE with tests. T1.4 (`POST /requests`) is next, not started.
+P0: T0.3 signed off; T0.4 marked not needed; T0.2 (Flutter two-device chat) still open.
 
 ## Done this session
-- T0.3 spike: `api/cmd/spike/` proves token issue, group create, add member against
-  https://api.sg-light-api.com. All three returned `code: 0`.
-- Added `github.com/NexconnAI-Dev/nexconn-server-sdk-go v0.1.2` to `api/go.mod`
-  (zero external deps; signs requests, adds X-Request-ID, does primary/backup failover).
-- Signing confirmed: `sha1(AppSecret + Nonce + Timestamp)`, ms timestamp, JSON POSTs.
-  Full details, exact bodies and implications for T1.4/T1.6 in docs/DECISIONS.md D8.
+- T0.3 sign-off: spike deleted, PLAN ticked, T0.4 marked not needed.
+- All ids are alphanumeric only. `docs/API.md` / `DATA_MODEL.md` document `channel_id = "req"+request_id`
+  (request `r1` -> `reqr1`); `api/db/seed.sql` uses `ureq1` / `udon1` / `ubank1`.
+- T1.1: `internal/config` (env + `.env` loader), embedded schema (`api/db/embed.go`), `internal/store`
+  (SQLite open + schema), `GET /health`.
+- T1.2: `internal/auth` HS256 JWT, `internal/id` alphanumeric ids, `internal/nexconn` SDK wrapper behind
+  `nexconn.Client`, `internal/service` signup/login, `POST /auth/signup` + `POST /auth/login`.
+  Both call Nexconn `IssueToken` and return `nexconn_token`.
+- T1.3: `GET/PUT /banks/me/stock` with bank-role JWT middleware; stock upsert + read in store.
+- Tests: config, store, JWT, id, and HTTP handlers with a fake Nexconn client.
 
 ## State of the code
-- Builds: `cd api && go build ./...` OK | Tests: `go test ./...` OK (no test files yet)
-- API still serves only `GET /health`; T1.1 is the next backend task.
-- Working spike room: `channelId=blspike1795251938`, owner `test1`, member `test2`.
+- Builds: `cd api && go build ./...` OK.
+- Tests: `cd api && go test ./...` OK; `go test -race ./...` OK.
+- Run: `cd api && go run ./cmd/server` (loads nearest `.env`; listens on :8080).
+- Implemented: `GET /health`, `POST /auth/signup`, `POST /auth/login`, `GET/PUT /banks/me/stock`.
+  No request endpoints yet.
+- DB: schema auto-applied on boot; `bank_stock` upsert keeps zero-unit rows.
 
 ## Next action (do this first)
-- antigravity: T0.2 — minimal Flutter app, init SDK with `areaCode: AreaCode.sg`, connect
-  as `test1` and `test2` on two devices, exchange a message.
-- Quick check while you are there: `test1`'s channel list should show the spike room
-  `blspike1795251938` (server-side creation already verified). That closes T0.3's
-  "visible in the app" criterion.
-- opencode (after T0.2): T1.1 project init (config from env, SQLite + schema, `/health`),
-  then T1.4 using the SDK calls from D8.
+- antigravity: T0.2 — two-device chat; confirm `test1` sees the spike room. Then continue P2 app screens.
+- opencode (next session): T1.4 `POST /requests` using D8. `nexconn.Client` already has
+  `CreateGroupChannel` / `JoinGroupChannel`; generate request id `r...` and channel id `req`+request id.
 
 ## Gotchas / things I learned
-- SDK method names are `CreateGroupChannel` / `JoinGroupChannel` (the README shows
-  `CreateGroup`/`Join`, which do not exist).
-- `channelId` must be alphanumeric, max 64 chars — no `_` or `-`.
-- `/group-channel/join` adds members without approval and does **not** require the user
-  to be registered first; max 100 per call. `/group-channel/create` takes up to 30 `userIds`.
-- Access-token issue *is* user registration; tokens are valid indefinitely by default.
-- `SetPrimaryBackupDomains` needs both URLs — the SDK embeds no default domain.
-- `.env` is loaded by the spike itself (nearest `.env` walking up; real env wins).
+- Nexconn channel ids must be alphanumeric, max 64; use `req` + request id.
+- Credentials come from env; `cfg.Debug=false`; never log secrets or tokens.
+- SDK names are `CreateGroupChannel` / `JoinGroupChannel` (`CreateGroup` / `Join` do not exist).
+- Access-token issue registers the user; re-issuing for the same user is safe.
+- `go.mod` stays on Go 1.22 with `modernc.org/sqlite v1.34.5`; v1.62 forces Go 1.26.
+- `store` uses `MaxOpenConns(1)` so SQLite PRAGMAs stay effective.
+- `app/` is an untracked Flutter scaffold (not committed by opencode). Never `git add -A`.
 
 ## Open questions for the human
-- Keep the `spike` command around as a connectivity check, or delete it after T0.3 sign-off?
+- T0.2 is still unchecked; is two-device chat confirmed?
+- Keep real Nexconn credentials only in the local `.env`.
 
 ## Do NOT touch
-- Nothing yet. antigravity owns `app/`; opencode owns `api/` and `docs/API.md`/`DATA_MODEL.md`.
+- `app/` (antigravity). opencode owns `api/`, `docs/API.md`, `docs/DATA_MODEL.md`.
+- Do not start T1.4 in this session (per instruction); next opencode session can.
