@@ -33,3 +33,47 @@ Example: `POST /v4/auth/access-token/issue` with headers `App-Key`, `Nonce`, `Ti
 and body `{"userId","name","avatarUrl"}`. Signature algorithm NOT yet confirmed: check Server API -> Chat -> request signing
 (RongCloud-style is sha1(appSecret + nonce + timestamp); VERIFY before relying on it). Prefer the official Go server SDK (NexconnAI-Dev/nexconn-server-sdk-go).
 Call the Server API only from our backend, never from the app (App Secret must not leak).
+
+## D8 — T0.3 spike: Nexconn server API signing + room creation CONFIRMED
+Status: all three calls returned `code: 0` against `https://api.sg-light-api.com` (2026-11-21).
+Code: `api/cmd/spike/` (throwaway; delete after T0.3 sign-off). SDK added: `github.com/NexconnAI-Dev/nexconn-server-sdk-go v0.1.2`.
+
+**Signing (confirmed in docs.nexconn.ai/platform-chat-api/prepare-to-use-api/auth and in the SDK source):**
+- `Signature = sha1(AppSecret + Nonce + Timestamp)` hex-encoded. No MD5, no body in the hash.
+- `Nonce`: random string, max 18 chars, unique per request (SDK: random decimal up to 1e18).
+- `Timestamp`: Unix **milliseconds**.
+- Headers on every call: `App-Key`, `Nonce`, `Timestamp`, `Signature`, `Content-Type: application/json`,
+  optional `X-Request-ID` (SDK adds a UUID automatically). All endpoints are `POST`. HTTPS only.
+- 401 means signature/app-key mismatch.
+
+**Official Go SDK fits — use it.** Module `github.com/NexconnAI-Dev/nexconn-server-sdk-go` (v0.1.2, go 1.18,
+zero external deps, OpenAPI-generated). It signs requests, generates nonce/timestamp/X-Request-ID, and does
+primary->backup failover. Notes:
+- `cfg.SetNexconnCredentials(appKey, appSecret)`; `cfg.SetPrimaryBackupDomains(primary, backup)` — both URLs
+  are required, the SDK embeds no default domain.
+- Generated method names differ from the README example: `CreateGroupChannel`, `JoinGroupChannel`
+  (not `CreateGroup`/`Join`). Builder: `client.GroupChannelManagementAPI.CreateGroupChannel(ctx).GroupChannelCreateRequest(req).Execute()`.
+- Errors: `*ncsdk.GenericOpenAPIError` with `HttpStatus()`, `ErrorCode()`, `ErrorMessage()`, `Body()`.
+
+**Working calls (bodies shown exactly as sent; secrets/tokens redacted):**
+1. Mint user token — `POST /v4/auth/access-token/issue`
+   `{"userId":"test1","name":"BloodLine Test One"}` -> `code:0, result:{userId:"test1", accessToken:<84 chars>}`.
+   This call *is* user registration; no separate register step exists. Tokens are valid indefinitely by default
+   and re-issuing for the same userId is safe.
+2. Create group — `POST /v4/group-channel/create`
+   `{"channelId":"blspike1795251938","name":"BloodLine spike room","owner":"test1"}` -> `code:0`.
+   Creator/owner joins automatically. `channelId` max 64 chars, **alphanumeric only** (no `_`/`-`), so generate
+   ids like `req<id>` / `blspike<unix>`. `name` max 64 chars.
+3. Add member — `POST /v4/group-channel/join`
+   `{"channelId":"blspike1795251938","userIds":["test2"]}` -> `code:0, result:{memberCount:2, owner:"test1", ...}`.
+   Adds without approval, max 100 users per call. **The member does not need to exist first** (test2 had never
+   obtained a token and join still succeeded), so T1.4 can create the room + add banks in one go.
+
+**Implications for T1.4/T1.6:**
+- Create the room with `owner` = requester and pass `userIds` (max 30) for the first banks directly in
+  `/group-channel/create`; use `/group-channel/join` later for donors accepting (`POST /requests/{id}/accept`).
+- Store the Nexconn `channel_id` on the request row; `join` returns `memberCount` for verification.
+- Room "close" on fulfill: `/v4/group-channel/freeze-list/add` (freeze) or `/v4/group-channel/dismiss` (delete) —
+  decide in T1.7, not needed for the spike.
+- Verified in the console/app: pending AG's T0.2 — the channel `blspike1795251938` (and later spike rooms)
+  should appear in `test1`'s channel list once the Flutter client connects.
