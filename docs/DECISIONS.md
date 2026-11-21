@@ -77,3 +77,18 @@ primary->backup failover. Notes:
   decide in T1.7, not needed for the spike.
 - Verified in the console/app: pending AG's T0.2 — the channel `blspike1795251938` (and later spike rooms)
   should appear in `test1`'s channel list once the Flutter client connects.
+
+
+## D9 — ai_nexconn_chatui_plugin Android plugin class casing bug
+The pub.dev package (v26.2.11) declares `pluginClass: AiNexconnChatUIPlugin` in its pubspec.yaml
+but the Kotlin source file is named `AiNexconnChatuiPlugin.kt` (lowercase "ui"). On case-sensitive
+Linux filesystems, Flutter's plugin loader cannot find the class and the build fails at plugin
+registration. Workaround: rename `AiNexconnChatuiPlugin.kt` to `AiNexconnChatUIPlugin.kt` inside the
+pub cache (a symlink causes a Kotlin "Redeclaration" compiler error because both files get compiled).
+Noted in DECISIONS so other developers can reproduce the fix. The class *inside* the file
+is correctly named `AiNexconnChatUIPlugin`.
+
+## D10 — Debug screen as default home for T0.2 spike
+During P0, the app starts on a DebugScreen where you paste a Nexconn user token and connect.
+This will be replaced by the login flow in T2.2. The screen also has a shortcut to open the
+spike room `blspike1795251938` for quick end-to-end verification.
