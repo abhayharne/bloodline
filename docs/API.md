@@ -4,6 +4,10 @@ Base: `http://<host>:8080`. JSON. Auth: `Authorization: Bearer <jwt>` except /he
 Errors: `{"error":"message"}` with status 400/401/403/404/409/500.
 Change this doc FIRST, then the code.
 
+**IDs are alphanumeric only (A-Z, a-z, 0-9; no `_` or `-`)** — Nexconn rejects
+non-alphanumeric channel ids. User ids look like `u1a2b3c4`, request ids like `r1a2b3c4`,
+and `channel_id` is always `"req" + request id` (request `r1` -> channel `reqr1`).
+
 ## GET /health
 200 `{"status":"ok"}`
 
@@ -13,7 +17,7 @@ Change this doc FIRST, then the code.
 ```
 `blood_group` required for requester and donor; omit for bank. 201:
 ```json
-{ "user":{"id":"u_1","name":"Asha","role":"donor","blood_group":"O+","lat":21.14,"lng":79.08},
+{ "user":{"id":"u1","name":"Asha","role":"donor","blood_group":"O+","lat":21.14,"lng":79.08},
   "token":"<app jwt>", "nexconn_token":"<chat token>" }
 ```
 
@@ -39,8 +43,8 @@ Change this doc FIRST, then the code.
 ```
 201:
 ```json
-{ "request":{"id":"r_1","blood_group":"O-","units":2,"hospital":"City Hospital",
-             "urgency":"critical","status":"open","channel_id":"ch_abc","created_at":"..."},
+{ "request":{"id":"r1","blood_group":"O-","units":2,"hospital":"City Hospital",
+             "urgency":"critical","status":"open","channel_id":"reqr1","created_at":"..."},
   "matches":{"banks":1,"donors":4} }
 ```
 
@@ -52,7 +56,7 @@ Query: `status=open|fulfilled|all` (default open).
 200 `{"requests":[{ ...request, "distance_km":3.2, "requester_name":"Ravi", "joined":false }]}`
 
 ## POST /requests/{id}/accept  (donor|bank)
-Adds the caller to the room. 200 `{"channel_id":"ch_abc"}`. 409 if request not open.
+Adds the caller to the room. 200 `{"channel_id":"reqr1"}`. 409 if request not open.
 
 ## POST /requests/{id}/fulfill  (requester who owns it)
 Posts system message, closes room. 200 `{"request":{...,"status":"fulfilled"}}`.

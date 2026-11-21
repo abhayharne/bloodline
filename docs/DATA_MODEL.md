@@ -8,6 +8,13 @@ See `api/db/schema.sql` for DDL.
 - `requests(id, requester_id, blood_group, units, hospital, urgency, lat, lng, status, channel_id, created_at, fulfilled_at)`; status in open|fulfilled|cancelled; urgency in critical|urgent|planned
 - `request_members(request_id, user_id, role, joined_at)` PK(request_id, user_id)
 
+## ID conventions
+All ids are alphanumeric only (A-Z, a-z, 0-9; no `_` or `-`) because Nexconn channel ids
+reject other characters.
+- `users.id`: `u` + random hex (seed: `ureq1`, `udon1`, `ubank1`)
+- `requests.id`: `r` + random hex (seed: `r1`)
+- `requests.channel_id`: `"req" + request id` (request `r1` -> channel `reqr1`)
+
 ## Blood groups
 A+, A-, B+, B-, AB+, AB-, O+, O-
 
