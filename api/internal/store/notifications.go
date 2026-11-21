@@ -121,3 +121,41 @@ func (s *Store) HasNotification(ctx context.Context, userID, typ, body string) (
 	}
 	return true, nil
 }
+
+// HasNotificationForRequest reports whether the user already has a notification
+// of the given type tied to a request. Feature subscribers use it to keep one
+// notification per (user, type, request) even if an event is delivered twice.
+func (s *Store) HasNotificationForRequest(ctx context.Context, userID, typ, requestID string) (bool, error) {
+	var one int
+	err := s.db.QueryRowContext(ctx, `
+		SELECT 1 FROM notifications
+		WHERE user_id = ? AND type = ? AND request_id = ? LIMIT 1`,
+		userID, typ, requestID).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// HasNotificationSince reports whether the user already has a notification of
+// the given type created at or after `since`. `since` must use the same UTC
+// "YYYY-MM-DD HH:MM:SS" layout as notifications.created_at. The reminders
+// feature uses the donor's last donation date as `since` so it writes at most
+// one eligible_again notification per waiting period.
+func (s *Store) HasNotificationSince(ctx context.Context, userID, typ, since string) (bool, error) {
+	var one int
+	err := s.db.QueryRowContext(ctx, `
+		SELECT 1 FROM notifications
+		WHERE user_id = ? AND type = ? AND created_at >= ? LIMIT 1`,
+		userID, typ, since).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}

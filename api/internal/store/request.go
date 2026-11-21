@@ -151,6 +151,16 @@ func (s *Store) DonorsByGroup(ctx context.Context, group string) ([]User, error)
 		FROM users WHERE role = 'donor' AND blood_group = ? AND available = 1`, group))
 }
 
+// DonorsByGroupAll returns every donor account with the exact blood group,
+// including those marked unavailable. The core matching path keeps using
+// DonorsByGroup; features that enable the isAvailable/isEligible pipeline
+// use this method so the pipeline, rather than SQL, decides who is matched.
+func (s *Store) DonorsByGroupAll(ctx context.Context, group string) ([]User, error) {
+	return scanUsers(s.db.QueryContext(ctx, `
+		SELECT `+userColumns+`
+		FROM users WHERE role = 'donor' AND blood_group = ?`, group))
+}
+
 // BanksWithStock returns bank accounts holding at least minUnits of group.
 func (s *Store) BanksWithStock(ctx context.Context, group string, minUnits int) ([]User, error) {
 	return scanUsers(s.db.QueryContext(ctx, `

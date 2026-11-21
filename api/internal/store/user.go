@@ -80,6 +80,14 @@ func (s *Store) UserByPhone(ctx context.Context, phone string) (User, error) {
 		FROM users WHERE phone = ?`, phone))
 }
 
+// Donors returns every donor account, ordered by id. The reminders feature
+// scans this list to find donors whose waiting period has elapsed.
+func (s *Store) Donors(ctx context.Context) ([]User, error) {
+	return scanUsers(s.db.QueryContext(ctx, `
+		SELECT `+userColumns+`
+		FROM users WHERE role = 'donor' ORDER BY id`))
+}
+
 // ProfileUpdate carries only the fields present in a PUT /me body. A nil
 // pointer means "leave unchanged"; an empty LastDonatedAt clears the column.
 type ProfileUpdate struct {

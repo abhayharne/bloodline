@@ -187,3 +187,19 @@ the HIGHER-numbered session owns the current unchecked task and the handoff
 rewrite. Both loops cannot be stopped from inside an agent iteration (do not
 edit `loop.sh` or kill a peer), so a human must stop the extra loop; until then
 re-read files before every write, commit atomically, and never revert peer work.
+
+## D23 — Both api loops now on iteration 6 (operational)
+The D15/D17/D18/D22 duplicate recurred with both `opencode run` api processes
+naming iteration 6: pts/6 (gate-FAIL prompt, started 03:47) and pts/4 (gate-PASS
+prompt, started 03:52, this session). The iteration-number tie-break in D22 no
+longer distinguishes them, so refine it: when iteration numbers are equal, the
+EARLIER-started loop owns the current unchecked task and the LATER-started loop
+records the deferral. By that rule the pts/6 loop keeps A13 (as the handoff and
+D22 already assign it). At check time it had uncommitted A13 work in
+`api/internal/store/notifications.go` (`HasNotificationForRequest`,
+`HasNotificationSince` for idempotent reminders), confirming it was mid-task;
+writing A13 here would have clobbered that work. This session therefore owns no
+task letter, re-verified the entry gate PASS on committed HEAD, and did not
+touch api/ code. Only docs/decisions-api.md and docs/handoff/api.md were edited,
+committed with explicit pathspec so the peer's uncommitted file is never staged.
+A human still needs to stop one `scripts/loop.sh opencode api ...` process.
