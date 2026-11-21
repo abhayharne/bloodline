@@ -1,0 +1,9 @@
+.env
+*.db
+*.sqlite
+api/bin/
+app/build/
+app/.dart_tool/
+.idea/
+.vscode/
+.DS_Store
