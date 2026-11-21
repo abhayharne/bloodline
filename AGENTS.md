@@ -7,7 +7,7 @@ Nexconn Chat SDK.
 ## Stack
 - App: Flutter (`app/`) with `ai_nexconn_chat_plugin` + `ai_nexconn_chatui_plugin`
 - API: Go 1.22, stdlib `net/http`, SQLite (`modernc.org/sqlite`) (`api/`)
-- Chat infra: Nexconn (client SDK in app, server SDK/REST in api)
+- Chat infra: Nexconn, Singapore data center (client SDK areaCode `AreaCode.sg`; server API https://api.sg-light-api.com). Server API is called only from `api/`, never from the app.
 
 ## Commands
 - API run:   `cd api && go run ./cmd/server`   (listens on :8080)

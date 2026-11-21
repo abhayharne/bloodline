@@ -15,7 +15,7 @@ P0 spikes (T0.1-T0.4 in docs/PLAN.md)
 ## Next action (do this first)
 - opencode: T0.3 Go spike for Nexconn server calls (token, create group, add member). Log exact calls in DECISIONS.md.
 - antigravity: T0.2 minimal Flutter chat between two users on two devices.
-Human must complete T0.1 (Nexconn keys in .env) before either spike.
+T0.1 done by human: Nexconn app BloodLine created in Singapore; keys go in .env (never commit). Server base https://api.sg-light-api.com; client areaCode AreaCode.sg.
 
 ## Gotchas / things I learned
 - (none yet)

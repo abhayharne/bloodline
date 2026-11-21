@@ -22,3 +22,14 @@ JWT from signup/login with no passwords (name + role + group). Hackathon scope, 
 - Component-wise requests (platelets, plasma)
 - e-Raktkosh integration
 - Multi-language UI
+
+## D6 — Nexconn data center: Singapore
+App created in the Singapore data center. Server API base: https://api.sg-light-api.com (backup https://api-b.sg-light-api.com).
+The App Key's data center must match the Server API's. Client SDK must be initialised with `areaCode: AreaCode.sg`.
+Source: docs.nexconn.ai/guides/data-center.
+
+## D7 — Nexconn server request format (from docs)
+Example: `POST /v4/auth/access-token/issue` with headers `App-Key`, `Nonce`, `Timestamp`, `Signature`, `Content-Type: application/json`
+and body `{"userId","name","avatarUrl"}`. Signature algorithm NOT yet confirmed: check Server API -> Chat -> request signing
+(RongCloud-style is sha1(appSecret + nonce + timestamp); VERIFY before relying on it). Prefer the official Go server SDK (NexconnAI-Dev/nexconn-server-sdk-go).
+Call the Server API only from our backend, never from the app (App Secret must not leak).

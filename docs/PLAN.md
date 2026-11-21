@@ -22,9 +22,9 @@ Stretch only if all else is done: AI summary pinned in room; push notifications 
 | 12-14 | P5 Ship | Demo rehearsal x3, backup video, pitch deck |
 
 ## P0 — Spikes (do first, blocks everything)
-- [ ] T0.1 (human) Create Nexconn project, get app key/secret into `.env`
+- [x] T0.1 (human) Create Nexconn project (BloodLine, Singapore), get app key/secret into `.env`  <- verify .env filled
 - [ ] T0.2 (AG) Minimal Flutter app: init SDK, connect as user A and B on two devices, exchange messages. DONE WHEN: message sent on device 1 appears on device 2.
-- [ ] T0.3 (OC) Go spike: with Nexconn server API, (a) mint a user token, (b) create a group channel, (c) add members. Record exact calls in DECISIONS.md. DONE WHEN: a curl-triggered Go call creates a room visible in the app.
+- [ ] T0.3 (OC) Go spike (base URL https://api.sg-light-api.com, see DECISIONS D6/D7; first call to prove signing: POST /v4/auth/access-token/issue): with Nexconn server API, (a) mint a user token, (b) create a group channel, (c) add members. Record exact calls in DECISIONS.md. DONE WHEN: a curl-triggered Go call creates a room visible in the app.
 - [ ] T0.4 FALLBACK DECISION: if T0.3 fails after 45 min, switch to client-side room creation by the requester and invites by the donor joining via channel id; log in DECISIONS.md.
 
 ## P1 — Backend (OC)
@@ -58,8 +58,6 @@ Stretch only if all else is done: AI summary pinned in room; push notifications 
 - [ ] T4.2 Empty/error/loading states, app icon, name, splash
 - [ ] T4.3 Bug bash against docs/DEMO_SCRIPT.md
 - [ ] T4.4 (stretch) AI summary pinned in room
-- [ ] T4.5 A large-font toggle in settings, which is a text scale factor in Flutter, so about 15 minutes.
-- [ ] T4.6 Voice-to-text on the message input for families in distress who can't type quickly.
 
 ## P5 — Ship
 - [ ] T5.1 Rehearse demo x3 with a timer
