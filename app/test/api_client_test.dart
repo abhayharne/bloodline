@@ -1,7 +1,49 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bloodline/core/api_client.dart';
+import 'package:bloodline/core/features.dart';
+import 'package:bloodline/core/slots.dart';
 
 void main() {
+  group('ApiClient Factory & Architecture', () {
+    test('Factory creates MockApiClient when mockMode is true', () {
+      final client = ApiClient(mockMode: true);
+      expect(client, isA<MockApiClient>());
+      expect(client.mockMode, isTrue);
+    });
+
+    test('Factory creates HttpApiClient when mockMode is false', () {
+      final client = ApiClient(mockMode: false);
+      expect(client, isA<HttpApiClient>());
+      expect(client.mockMode, isFalse);
+    });
+
+    test('HttpApiClient respects configurable baseUrl and authToken', () {
+      final client = HttpApiClient(
+        baseUrl: 'http://api.bloodline.local:8080',
+        authToken: 'jwt_sample_123',
+      );
+      expect(client.baseUrl, 'http://api.bloodline.local:8080');
+      expect(client.authToken, 'jwt_sample_123');
+    });
+
+    test('Features.load correctly fetches and queries config features', () async {
+      final client = MockApiClient();
+      final features = await Features.load(client);
+      expect(features.hasRanks, isTrue);
+      expect(features.hasReminders, isTrue);
+      expect(features.isEnabled('ranks'), isTrue);
+      expect(features.isEnabled('unknown_feature'), isFalse);
+      expect(features.demoMode, isTrue);
+    });
+
+    test('SlotRegistry works from slots.dart export', () {
+      SlotRegistry.instance.clear();
+      expect(SlotRegistry.instance.homeCards, isEmpty);
+      expect(SlotRegistry.instance.profileSections, isEmpty);
+      expect(SlotRegistry.instance.roomHeaderBadges, isEmpty);
+    });
+  });
+
   group('ApiClient Mock Mode', () {
     late ApiClient client;
 

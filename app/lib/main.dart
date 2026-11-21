@@ -54,9 +54,7 @@ void main() async {
     areaCode: AreaCode.sg,
   );
 
-  final apiClient = ApiClient(
-    baseUrl: ConfigConstants.localHostBaseUrl,
-  );
+  final apiClient = ApiClient();
 
   runApp(
     NexconnChatUIProviders(

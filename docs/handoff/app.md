@@ -1,20 +1,25 @@
 # App Handoff
-**From:** agy (app agent)  **To:** next agent / human  **Time:** 2026-11-22 02:53 IST
-**Branch:** feat/app
+**From:** agy (app agent)  **To:** next agent / human  **Time:** 2026-11-22 03:25 IST
+**Branch:** main
 
 ## Done this iteration
-- Task B0: Vendored `ai_nexconn_chatui_plugin` into `app/packages/ai_nexconn_chatui_plugin` with reproducible Kotlin plugin class casing fix (`AiNexconnChatUIPlugin.kt`).
-- Updated `app/pubspec.yaml` with path dependency to `packages/ai_nexconn_chatui_plugin`.
-- Excluded `packages/**` from analyzer in `app/analysis_options.yaml`.
-- Recorded decision in `docs/decisions-app.md`.
-- Gate `scripts/gate-app.sh` passed cleanly (19/19 tests passing, analyzer clean).
+- Task B1 Architecture:
+  - Implemented abstract `ApiClient` with `HttpApiClient` and `MockApiClient`.
+  - Added factory selection supporting `--dart-define=USE_MOCK` and `--dart-define=API_BASE`.
+  - Added `lib/core/features.dart` which loads feature flags from `GET /config`.
+  - Added `lib/core/slots.dart` with `SlotRegistry` (`homeCards`, `profileSections`, `roomHeaderBadges`), verified empty in core build.
+  - Verified JSON models ignore unknown server fields safely.
+  - Added unit and widget tests covering `ApiClient`, `Features.load`, and `SlotRegistry` (24/24 tests green).
+  - Gate `scripts/gate-app.sh` passed cleanly.
+  - Recorded decision D-APP-2 in `docs/decisions-app.md`.
 
 ## State of the code
-- Gate: `scripts/gate-app.sh` PASS (flutter analyze + 19 widget/unit tests green).
-- Plugin dependency is fully vendored and reproducible without manual `~/.pub-cache` edits.
+- Gate: `scripts/gate-app.sh` PASS (flutter analyze clean, 24/24 tests green).
+- Clean separation between core and feature extensions via slots.
+- App is fully runnable against mock or real backend.
 
 ## Next action
-- Task B1: Architecture alignment — `lib/core/api_client.dart` (ensure abstract `ApiClient` + `HttpApiClient` + `MockApiClient` selected by `--dart-define=USE_MOCK`), `lib/core/features.dart` (loads `GET /config`), `lib/core/slots.dart` (`SlotRegistry: homeCards, profileSections, roomHeaderBadges`), verify provider-based state & routing.
+- Task B2 Auth: phone entry, mock OTP screen (shows "demo mode, code 123456" when demo), signup form (role, name, age, weight, height, sex, donated before, optional last donation date, consent checkbox for donors), location permission request with a typed-area fallback. Connects Nexconn via nexconn_service.dart using nexconn_token and AreaCode.sg.
 
 ## Blockers / Human notes
-- A human must verify Android build with `flutter build apk` on a real device/SDK environment in the morning.
+- None. Real build verification (`flutter build apk`) needed on physical device/SDK when convenient.
