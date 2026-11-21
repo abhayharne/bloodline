@@ -15,7 +15,8 @@
   role-aware donor feed, idempotent accept, donation row + notification read,
   fulfill and feed transitions, and exact `GET /config` features.
 - Gate runs it twice (`FEATURES=`, `FEATURES=ranks,reminders`); both SMOKE OK.
-- Decision recorded as D16 in `docs/decisions-api.md`.
+- Decisions recorded as D16 (smoke design) and D17 (duplicate-loop race and
+  in-place fix) in `docs/decisions-api.md`.
 
 ## State
 - `go build ./...`, `go vet ./...`, `go test -race -count=1 ./...` and both
@@ -35,6 +36,8 @@
 ## Gotchas / blockers
 - No blockers; no human input needed. No device, real credentials or fixed
   port. Smoke needs curl, jq, python3 and go (all present in this environment).
+- Duplicate api loops recurred (D15/D17): re-read files before each write and
+  keep commits atomic; never revert a peer's version.
 - Auth contract drift: addendum v2 says `otp`, handler reads `code`. Smoke
   sends both; reconciling docs/handler is part of A14, not this task.
 - No donation read endpoint until A11, so smoke checks the SQLite `donations`
