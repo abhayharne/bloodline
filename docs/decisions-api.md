@@ -310,7 +310,7 @@ A human still needs to stop one of the two `scripts/loop.sh opencode api` loops
 (D15/D17/D18/D22/D23/D24 recurrence). Until then re-read before every write,
 commit atomically with explicit pathspecs, and never revert peer work.
 
-## D26 — A14 final doc pass (iteration 8)
+## D27 — A14 final doc pass (iteration 8)
 
 A14 is complete and ticked; the gate passes (build, vet, `-race -count=1 ./...`,
 both smoke modes). Scope decision: rule 5 normally limits edits to `api/` plus
