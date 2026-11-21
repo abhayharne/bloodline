@@ -1,42 +1,35 @@
 # Handoff
-**From:** opencode (api, overnight loop, iteration 6, gate-FAIL loop) **To:** next api session **Time:** 2026-11-22
+**From:** opencode (api, overnight loop, iteration 7, gate-PASS deferral) **To:** iteration 8 api loop (pts/4) **Time:** 2026-11-22 04:01
 **Branch:** feat/api **Last commit:** see `git log -1`
 
 ## Done
-- Entry gate FAILED: `ranks.TestHandleEmitsRankUpOncePerThreshold` ordered two
-  same-second notifications by random IDs. Fixed with SQLite `rowid` as the
-  newest-first tiebreaker in `Store.Notifications` and `Store.Requests` (D21).
-- A13 complete and ticked. Store: `Donors`, `DonorsByGroupAll`,
-  `HasNotificationForRequest`, `HasNotificationSince` + tests (D25).
-- Service: `CreateRequest` applies `ByAvailability` + `ByEligibility` only when
-  `reminders` is on; core path unchanged. Permissive age/weight defaults.
-- New `internal/reminders`: `match_nearby` on `request.created` (donors only,
-  COPY.md body, per-request dedupe) and `RunEligibilityChecks` writing
-  `eligible_again` once per donation cycle using COPY.md. `RunTicker` supports
-  the hourly schedule; both entry points are idempotent and log generically.
-- HTTP: `POST /dev/run-reminders` (DEV=1, unauthenticated, returns `sent` count)
-  via a `ReminderRunner` interface so httpapi never imports feature code.
-  `main.go` subscribes the handler and starts the ticker only when flagged.
-- Verification: `scripts/gate-api.sh` run locally — PASS (build, vet,
-  `-race -count=1 ./...`, smoke with `FEATURES=` and `FEATURES=ranks,reminders`).
+- Entry gate `scripts/gate-api.sh` re-run at the start of this iteration: PASS
+  (build, vet, `-race -count=1 ./...`, smoke with `FEATURES=` and
+  `FEATURES=ranks,reminders`).
+- Owned no task letter: A14 deferred to the higher-numbered iteration-8 loop
+  (pts/4) under D22. At the 04:00 check the tree was clean and no loop was
+  mid-edit, so D24's exception did not apply; by 04:01 the sibling was indeed
+  editing `README.md`, `docs/API.md` and `docs/tasks-api.md`. Recorded D26 with
+  a verified doc/code mismatch checklist for the owning loop.
+- Did not touch `api/`, `docs/API.md` or `README.md`; A14 box left for the owner.
+  Only this handoff and `docs/decisions-api.md` were edited by this session.
 
 ## State
-- HEAD after this iteration: A13 http/wiring commit + this docs commit. No
-  uncommitted work left by this session; sibling loops' commits were preserved.
-- A13 is `[x]`; A14 is the first unchecked task. No `.env`, no docs/PLAN.md,
-  no `app/`, no fixed ports, no pushes.
+- HEAD unchanged by this session's commit except the two docs above; the
+  sibling's in-flight A14 work was left alone and never staged. Re-read before
+  any further write.
+- A14 (`- [ ]`) is the first and only unchecked task and belongs to iteration 8.
+  No `.env`, no docs/PLAN.md, no `app/`, no fixed ports, no pushes.
 
-## Next action (A14, first unchecked task)
-- Final pass: add a README section for running the API; reconcile docs/API.md
-  with the shipped code (addendum v2 shapes: `otp` vs legacy `code`, `/me`,
-  `/notifications` read flag, `/dev/run-reminders`, DEV=1); tidy docs/API.md
-  and handoff. Note the stricter-loop rule limits edits to `api/` plus
-  `docs/handoff/api.md`, `docs/tasks-api.md`, `docs/decisions-api.md` — a README
-  or docs/API.md change needs the human's task wording to override that limit;
-  otherwise record the conflict in decisions and leave the doc pass undone.
-- Then gate, tick A14, append decision, rewrite handoff, commit.
+## Next action (A14 — owned by the iteration-8 loop, pts/4)
+- Finish the README "Running the API" block and reconcile `docs/API.md` with the
+  shipped handlers; D26 lists every verified gap (`otp` vs `code`, no `is_new`,
+  `/me`, `/donated`, `read` flag + mark-read, `demo_mode`, `/dev/run-reminders`,
+  `DEV=1`, `NEXCONN_FAKE=1`, unimplemented cancel).
+- Gate `scripts/gate-api.sh`, tick A14, append a decision, rewrite this handoff,
+  commit with explicit pathspecs.
 
 ## Blockers
-- None for A13. Two api loops still share the tree (D22–D24); a human must stop
-  one `scripts/loop.sh opencode api ...` process. Until then re-read before
-  writes, commit atomically with explicit paths, never revert peer work.
+- Two `scripts/loop.sh opencode api ...` processes still share this working tree
+  (D15/D17/D18/D22/D23/D24/D26). A human must stop one. Until then re-read
+  before writes, commit atomically with explicit paths, never revert peer work.

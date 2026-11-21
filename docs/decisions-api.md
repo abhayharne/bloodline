@@ -264,3 +264,80 @@ A13 is complete and the task box is ticked. Design decisions worth remembering:
   `devRoutes(bool)` unchanged preserved `main_test.go` option-count assertions.
 * Gate `scripts/gate-api.sh` passes: build, vet, `-race -count=1 ./...` and both
   smoke modes. No fixed ports, no `.env`, no docs/PLAN.md, no `app/` edits.
+
+## D26 — Iteration 7 (pts/6) defers A14; doc reconciliation checklist (operational)
+
+This session is the `api` iteration-7 loop on pts/6 (loop.sh 126314, PID 199868,
+started 03:59). The sibling `api` iteration-8 loop on pts/4 (loop.sh 127627,
+PID 197313, started 03:58) is live on the same tree. D22 assigns the current
+unchecked task to the higher-numbered loop, so iteration 8 owns A14 and this
+session owns no task letter. D24's exception does not apply: the tree was clean
+at the 04:00 check, so there was no in-flight A14 edit to protect. Re-verified
+`scripts/gate-api.sh` PASS on committed HEAD; did not touch `api/`, docs/API.md
+or README.md, did not tick A14. Only this log and the handoff were edited.
+
+**A14 scope call for the owning loop.** A14 explicitly names docs/API.md and a
+README section, but per-iteration rule 5 lists only `api/` plus the three handoff
+docs. AGENTS.md gives opencode ownership of docs/API.md and the task wording
+explicitly authorizes both files, so the specific authorization overrides the
+general folder guardrail for those two files (lex specialis). Root README.md is
+shared with the app agent: add only a short "Running the API" block and leave
+app content untouched, or put it in `api/README.md` (unambiguously in scope).
+
+**Verified doc/code gaps (read from handlers, not guessed):**
+- `GET /config` actually returns `{"features":[...],"demo_mode":true}` from
+  comma-separated `FEATURES` (empty default); doc says only `features` and
+  mentions `notifications`, which is not a flag the code reads.
+- `POST /auth/otp/send` returns `{"sent":true}` with no `demo` key (addendum's
+  `"demo":true` is not implemented); OTP is `DEMO_OTP`, never in the response.
+- `POST /auth/verify` reads `code`, NOT `otp`; unknown phone is 404 "user not
+  found", wrong code 401 "invalid otp", and the response is the plain
+  `{user,token,nexconn_token}` — no `is_new` (the addendum's `{"is_new":true}`
+  for unknown phones is not implemented).
+- `POST /auth/signup` has no OTP field in the request struct; consent is a
+  `*bool` and a duplicate phone is 409 "user already exists".
+- `GET /notifications` rows include a `read` boolean plus legacy `read_at`,
+  `user_id`, `request_id`; there IS a `POST /notifications/{id}/read` -> 204
+  (owner-scoped, idempotent) which docs/API.md says does not exist.
+- `GET /me`, `PUT /me`, `POST /requests/{id}/donated` and `POST /dev/run-reminders`
+  are shipped but undocumented. `POST /requests/{id}/cancel` is documented as
+  optional and is NOT implemented — mark it as such.
+- Dev notes should name `DEV=1` as the gate for `/dev/reset` and
+  `/dev/run-reminders`, and `NEXCONN_FAKE=1` (fake preferred over the legacy
+  `NEXCONN_MOCK=1` no-op) for offline runs.
+
+A human still needs to stop one of the two `scripts/loop.sh opencode api` loops
+(D15/D17/D18/D22/D23/D24 recurrence). Until then re-read before every write,
+commit atomically with explicit pathspecs, and never revert peer work.
+
+## D26 — A14 final doc pass (iteration 8)
+
+A14 is complete and ticked; the gate passes (build, vet, `-race -count=1 ./...`,
+both smoke modes). Scope decision: rule 5 normally limits edits to `api/` plus
+the handoff/tasks/decisions docs, but A14 is the human's own task wording and
+explicitly asks for a README section and an exact `docs/API.md` reconciliation.
+That specific instruction overrides the general folder limit for those two
+files, so this pass edited root `README.md` and `docs/API.md` directly; no code,
+no `.env`, no docs/PLAN.md and no `app/` files were touched.
+
+`docs/API.md` is now a v2 contract describing the shipped code, not just the
+older v1 shape: phone auth, `/me`, notifications with `read` + mark-read, donated,
+dev routes, feature flags, offline modes and the full response shapes. Where the
+code diverges from `docs/API-addendum-v2.md` it is documented in a
+"Deviations from addendum v2" section rather than silently changed: `/auth/verify`
+reads `code` (not `otp`) and has no `is_new` pre-signup path, signup does not read
+`otp` and only rejects an explicit `consent:false`, `/auth/otp/send` omits `demo`,
+notifications carry additive fields, and `/config` defaults `features` to `[]`.
+Deliberate choice: this is a doc pass, so the code was left unchanged; reconciling
+the auth wire to the addendum is left for a future task/human decision. The smoke
+script already sends both `otp` and `code`, so both paths keep working. The README
+gained a "Running the API" section covering offline `NEXCONN_FAKE=1` startup,
+env knobs and the self-contained gate/smoke script.
+
+Operational: the two api loops recurred (D15/D17/D18/D22/D24) — this is iteration
+8 (PID 197313, loop.sh 127627, started 03:58:45) and the sibling is iteration 7
+(PID 199868, loop.sh 126314, started 03:59:26). Per D22 the higher-numbered loop
+owns the current task and handoff, so this session owned A14. The tree was clean
+at every write, edits were committed with explicit pathspecs, and no peer work
+was reverted. A human still needs to stop one of the duplicate `loop.sh opencode
+api` processes.
