@@ -15,5 +15,5 @@ Use docs/API-addendum-v2.md as the contract. Nexconn calls go behind the existin
 - [x] A10 Seed and POST /dev/reset (only when DEV=1): 5 donors, 2 banks with stock, 1 open request, all with phones and alphanumeric ids.
 - [x] A11 GET/PUT /me and POST /requests/{id}/donated with derived eligibility and donation_count; publish donation.recorded.
 - [x] A12 Feature ranks (flag ranks): subscriber on donation.recorded computes rank; /me returns it; rank_up notification using docs/COPY.md.
-- [ ] A13 Feature reminders (flag reminders): enable isAvailable and isEligible filters; hourly ticker plus POST /dev/run-reminders (DEV=1) that writes eligible_again notifications using docs/COPY.md, once per eligibility period; match_nearby notifications on request.created.
+- [x] A13 Feature reminders (flag reminders): enable isAvailable and isEligible filters; hourly ticker plus POST /dev/run-reminders (DEV=1) that writes eligible_again notifications using docs/COPY.md, once per eligibility period; match_nearby notifications on request.created.
 - [ ] A14 Final pass: README section for running the API, update docs/API.md to match the code exactly, tidy handoff.

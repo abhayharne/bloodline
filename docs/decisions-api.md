@@ -225,3 +225,42 @@ against). Decision: re-verified the entry gate PASS, deferred A13 to the in-flig
 peer, touched no api/ code, did not tick A13, and limited writes to this decision
 log and the handoff, committed with an explicit pathspec. No task box changed.
 A human still needs to stop one of the two `scripts/loop.sh opencode api` loops.
+
+## D25 — A13 reminders feature implementation (iteration 6, gate-FAIL loop)
+
+A13 is complete and the task box is ticked. Design decisions worth remembering:
+
+* **Flag-gated filters.** `CreateRequest` keeps the core path exactly as before
+  (`Store.DonorsByGroup`, which already excludes `available=0` in SQL). With
+  `reminders` on it instead uses the new `Store.DonorsByGroupAll` and runs
+  `matching.NewPipeline(ByAvailability(), ByEligibility())` before distance
+  ranking and the top-10 cap, so `matches.donors` and the `request.created`
+  recipients reflect the filters. Unknown age/weight are filled with the same
+  known-eligible defaults (30 / 60 kg) that `/me` uses, so the pure strict
+  `Eligible` does not contradict the addendum's permissive unknown rule. The
+  store's built-in availability check means "enable isAvailable" is explicit in
+  the pipeline but not a behavioural change for the core path; flipping that
+  would need a separate decision.
+* **match_nearby.** A new `internal/reminders` handler subscribes to
+  `request.created`. It looks up each recipient (banks are recipients too) and
+  only notifies donors, computing distance from the stored request coordinates
+  with `matching.DistanceKM`. Body follows COPY.md with one decimal for km to
+  avoid a nonsense "0 km away". Dedupe is per (user, type, request) through
+  `Store.HasNotificationForRequest`, so duplicate event delivery is harmless.
+  Title is `Nearby match`.
+* **eligible_again / once per period.** `RunEligibilityChecks` scans `Store.Donors`,
+  skips anyone with no (or unparseable) last donation date and anyone still
+  waiting, and uses COPY.md's exact body. "Once per eligibility period" is
+  deduped with `Store.HasNotificationSince(user, type, last_donated_at)`: an
+  existing reminder written at or after the current donation cycle suppresses a
+  new one; a later donation starts a new cycle. No schema or event-payload
+  change was needed. Title is `Ready again?`.
+* **Wiring.** `main.go` always builds the runner so `POST /dev/run-reminders`
+  works in DEV=1 even when the flag is off; the `request.created` subscription
+  and the hourly `RunTicker` are gated on the flag. `httpapi` declares a small
+  `ReminderRunner` interface, so it never imports the feature package. The dev
+  route is registered only with `WithDevRoutes()` (DEV=1), is unauthenticated
+  like `/dev/reset`, and returns `{"status":"ok","sent":N}`. Keeping
+  `devRoutes(bool)` unchanged preserved `main_test.go` option-count assertions.
+* Gate `scripts/gate-api.sh` passes: build, vet, `-race -count=1 ./...` and both
+  smoke modes. No fixed ports, no `.env`, no docs/PLAN.md, no `app/` edits.
