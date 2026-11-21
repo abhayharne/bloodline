@@ -92,3 +92,37 @@ is correctly named `AiNexconnChatUIPlugin`.
 During P0, the app starts on a DebugScreen where you paste a Nexconn user token and connect.
 This will be replaced by the login flow in T2.2. The screen also has a shortcut to open the
 spike room `blspike1795251938` for quick end-to-end verification.
+
+## D11 — Extension architecture: events, filters, notifier, flags
+Goal: keep the hackathon happy path simple while making later extension cheap.
+
+1. **Events bus** (`api/internal/events`): tiny in-process synchronous pub/sub. Subscribers
+   register by event name; `Publish` delivers to each matching subscriber. A panic in one
+   subscriber is recovered and reported per-subscriber so it cannot crash the request or
+   starve other subscribers. No network, no persistence, no globals: the bus is injected
+   into the service. Event names: `request.created`, `request.accepted`, `request.fulfilled`.
+   Payloads carry ids/labels only — never JWTs, chat tokens, OTPs or phone numbers beyond
+   the recipient user id. Synchronous delivery keeps the demo deterministic and testable;
+   replace with a queue only if the bus ever does real I/O.
+2. **DonorFilter pipeline** (`api/internal/matching`): matching is expressed as an ordered
+   list of `DonorFilter` predicates (compatibility, distance, availability, eligibility).
+   `Compatible(patientGroup, donorGroup)` is a pure ABO/Rh chart; `Eligible(donor, now)`
+   is a pure rule (age 18-65, weight >= 45 kg, >= 90 days since last donation for male /
+   >= 120 days for female or unspecified). Both are unit-tested now, but are **not wired
+   into the live matching path** in this phase: D4's exact-group rule stays live so the
+   seeded demo keeps its expected counts. Enabling the pipeline is a feature-flagged
+   follow-up, not a silent contract change.
+3. **Notifier** (`api/internal/notify`): an events subscriber that writes rows to
+   `notifications`. The app polls `GET /notifications` and shows an in-app banner; no push
+   provider is added (stretch item in PLAN). Notification rows are additive and safe to
+   ignore for older clients. Errors are logged without secrets; a failed notification
+   write never rolls back the primary request mutation.
+4. **Feature flags** (`config.FEATURES`): comma-separated env list exposed by public
+   `GET /config` as `{"features":[...]}`; empty by default. Flags describe client-visible
+   capabilities only; they never contain credentials and do not change the core contract.
+   `DEMO_OTP` (default `123456`) is a separate mock-auth setting, not a flag.
+5. **User profile + donations tables**: `users` gains phone (unique), sex, age, weight_kg,
+   height_cm, donated_before, last_donated_at, available (default 1) and consent_at for
+   phone signup and future eligibility filtering. `donations` records a donor's pledge on
+   accept; `notifications` records events. Fresh databases use `db/schema.sql`; existing
+   databases get idempotent `ALTER TABLE` migrations on boot.

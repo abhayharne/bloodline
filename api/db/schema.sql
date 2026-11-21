@@ -1,14 +1,24 @@
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS users (
-  id          TEXT PRIMARY KEY,
-  name        TEXT NOT NULL,
-  role        TEXT NOT NULL CHECK (role IN ('requester','donor','bank')),
-  blood_group TEXT CHECK (blood_group IN ('A+','A-','B+','B-','AB+','AB-','O+','O-')),
-  lat         REAL NOT NULL DEFAULT 0,
-  lng         REAL NOT NULL DEFAULT 0,
-  push_token  TEXT,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  id            TEXT PRIMARY KEY,
+  name          TEXT NOT NULL,
+  role          TEXT NOT NULL CHECK (role IN ('requester','donor','bank')),
+  blood_group   TEXT CHECK (blood_group IN ('A+','A-','B+','B-','AB+','AB-','O+','O-')),
+  lat           REAL NOT NULL DEFAULT 0,
+  lng           REAL NOT NULL DEFAULT 0,
+  push_token    TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  -- Phone auth + donor profile (D11). Old name+role signups may leave these NULL.
+  phone         TEXT UNIQUE,
+  sex           TEXT CHECK (sex IS NULL OR sex IN ('male','female','other')),
+  age           INTEGER CHECK (age IS NULL OR (age >= 0 AND age <= 120)),
+  weight_kg     REAL CHECK (weight_kg IS NULL OR weight_kg >= 0),
+  height_cm     REAL CHECK (height_cm IS NULL OR height_cm >= 0),
+  donated_before INTEGER NOT NULL DEFAULT 0,
+  last_donated_at TEXT,
+  available     INTEGER NOT NULL DEFAULT 1 CHECK (available IN (0,1)),
+  consent_at    TEXT,
   UNIQUE (name, role)
 );
 
@@ -43,5 +53,29 @@ CREATE TABLE IF NOT EXISTS request_members (
   PRIMARY KEY (request_id, user_id)
 );
 
+-- One pledged donation per donor per request (written on donor accept).
+CREATE TABLE IF NOT EXISTS donations (
+  id         TEXT PRIMARY KEY,
+  request_id TEXT NOT NULL REFERENCES requests(id),
+  donor_id   TEXT NOT NULL REFERENCES users(id),
+  units      INTEGER NOT NULL CHECK (units > 0),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (request_id, donor_id)
+);
+
+-- In-app notification feed written by the Notifier from request events.
+CREATE TABLE IF NOT EXISTS notifications (
+  id         TEXT PRIMARY KEY,
+  user_id    TEXT NOT NULL REFERENCES users(id),
+  type       TEXT NOT NULL,
+  title      TEXT NOT NULL,
+  body       TEXT NOT NULL,
+  request_id TEXT REFERENCES requests(id),
+  read_at    TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_requests_status ON requests(status);
 CREATE INDEX IF NOT EXISTS idx_users_role_group ON users(role, blood_group);
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_donations_request ON donations(request_id);
