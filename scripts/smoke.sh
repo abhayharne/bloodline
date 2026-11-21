@@ -176,9 +176,23 @@ code="$(req GET /requests "" "$donor_token")"
 expect 200 "$code" "feed after accept"
 jq_ok --arg id "$request_id" '.requests[] | select(.id == $id) | .joined == true' "joined flag"
 
-step "8/10 donor pledge recorded + notification read"
-# Accept writes one donations row per (donor, request); there is no read
-# endpoint for it yet, so assert the row in the throwaway SQLite DB directly.
+step "8/10 /me + donor pledge + /donated + notification read"
+code="$(req GET /me "" "$donor_token")"
+expect 200 "$code" "donor /me"
+jq_ok --arg id "$donor_id" '
+  .user.id == $id and (.derived.eligible | type == "boolean") and
+  .derived.donation_count == 1 and .derived.rank == null
+' "donor /me derived"
+
+# A recent date keeps the waiting period open whenever the smoke runs.
+recent_date="$(python3 -c 'import datetime; print((datetime.date.today() - datetime.timedelta(days=10)).isoformat())')"
+code="$(req PUT /me "{\"weight_kg\":59,\"last_donated_at\":\"${recent_date}\"}" "$donor_token")"
+expect 200 "$code" "PUT /me"
+jq_ok '.user.weight_kg == 59 and (.derived.next_eligible_at | type == "string")' "PUT /me round trip"
+
+# Accept writes one donations row per (donor, request). Keep the A9 direct
+# SQLite assertion as a guard on the underlying row, then exercise the HTTP
+# path added in A11 (which must reuse that same row, not create a second one).
 pledges="$(python3 - "$work/bloodline.db" "$request_id" "$donor_id" <<'PY'
 import sqlite3, sys
 db, request_id, donor_id = sys.argv[1:4]
@@ -193,6 +207,20 @@ finally:
 PY
 )"
 [[ "$pledges" == "1" ]] || fail "expected 1 donation row, got $pledges"
+code="$(req POST "/requests/${request_id}/donated" '{}' "$donor_token")"
+expect 201 "$code" "donated"
+jq_ok --arg rid "$request_id" '
+  .donation.request_id == $rid and (.donation.id | length) > 0 and
+  (.donation.donated_at | length) > 0 and .donation_count == 1
+' "donated body"
+donation_id="$(jq -r '.donation.id' "$resp")"
+code="$(req POST "/requests/${request_id}/donated" '{}' "$donor_token")"
+expect 201 "$code" "donated (repeat)"
+jq_ok --arg did "$donation_id" '.donation.id == $did and .donation_count == 1' "donated idempotent"
+code="$(req GET /me "" "$donor_token")"
+expect 200 "$code" "donor /me after donated"
+jq_ok '.derived.donation_count == 1 and .derived.rank == null' "donation_count in /me"
+
 code="$(req GET /notifications "" "$requester_token")"
 expect 200 "$code" "requester notifications"
 jq_ok '(.notifications | length) > 0 and (all(.notifications[]; .read == false))' "notification shape"
