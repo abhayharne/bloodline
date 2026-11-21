@@ -13,6 +13,36 @@ cd ../app && flutter create . --org com.bloodline --project-name bloodline && fl
 Then open the repo in OpenCode or Antigravity and say:
 "Read AGENTS.md, docs/handoff/<agent>.md (opencode: api.md, antigravity: app.md) and docs/PLAN.md, then continue." (or run `/resume`)
 
+## Running the API
+
+From `api/` (Go 1.22). The API contract is in `docs/API.md`.
+
+```sh
+cd api
+go test ./...                 # unit tests
+go run ./cmd/server           # listens on :8080 (override with PORT)
+curl localhost:8080/health    # -> {"status":"ok"}
+```
+
+**Offline demo (no real Nexconn credentials or network):** set `NEXCONN_FAKE=1`
+for the in-memory stateful chat client and provide a JWT secret:
+
+```sh
+cd api
+JWT_SECRET=dev-secret NEXCONN_FAKE=1 DEV=1 go run ./cmd/server
+```
+
+Useful env (see `.env.example`): `PORT`, `DB_PATH`, `JWT_SECRET`, `DEMO_OTP`
+(default `123456`), `MATCH_RADIUS_KM`, `FEATURES` (comma list e.g.
+`ranks,reminders`), `DEV=1` (enables unauthenticated `POST /dev/reset` and
+`POST /dev/run-reminders`). Real mode needs the `NEXCONN_*` credentials and uses
+the Singapore data center; never enable fake/mock/dev modes in production.
+
+**End-to-end check:** `scripts/gate-api.sh` builds, vets, runs the race-enabled
+Go tests and the self-contained smoke test. `scripts/smoke.sh` starts its own
+throwaway server on a random free port with `NEXCONN_FAKE=1` and a temp DB, so it
+needs no running server and touches no fixed port.
+
 ## Docs map
 | File | Purpose |
 |---|---|
