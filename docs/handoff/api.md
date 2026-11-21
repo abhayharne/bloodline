@@ -35,6 +35,8 @@
 
 ## Gotchas / blockers
 - No blockers; no human input needed. No device, real credentials or fixed port.
+- Two duplicate api loop processes ran iteration 1 on this tree; the parallel one
+  wrote/committed A3 while this one verified. See D15 in docs/decisions-api.md.
 - Do NOT edit `.env`, docs/PLAN.md, docs/API.md or the other agent's `app/` files
   (overnight-loop rule 5 restricts edits to api/ + handoff/tasks/decisions).
 - docs/API.md still shows the old v1 notifications/config shape and "no mark-read

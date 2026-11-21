@@ -47,3 +47,12 @@ overnight-loop rules restrict this iteration's edits to api/ + handoff/tasks/
 decisions files. The bus, notifier, config and notifications code already had
 tests; added race-free concurrent pub/sub, partial notifier write-failure,
 mark-read store/HTTP owner-scoping and `read`/`demo_mode` shape tests.
+
+## D15 — Duplicate loop processes on iteration 1 (operational)
+Two `scripts/loop.sh opencode api ...` invocations were running the identical
+"iteration 1" prompt against the same working tree at once (two `opencode run`
+PIDs). The parallel process authored and committed A3 (`ca676a3`) while this
+process verified the gate and deferred further writes to avoid racing it. No
+code was duplicated or reverted. Decision: when a parallel api loop is detected,
+let the in-flight process finish its commit, verify gate + task box + handoff,
+and record the anomaly here instead of competing on the same task.
