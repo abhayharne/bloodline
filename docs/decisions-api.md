@@ -56,3 +56,39 @@ process verified the gate and deferred further writes to avoid racing it. No
 code was duplicated or reverted. Decision: when a parallel api loop is detected,
 let the in-flight process finish its commit, verify gate + task box + handoff,
 and record the anomaly here instead of competing on the same task.
+
+## D16 — A9 self-contained smoke script
+`scripts/smoke.sh` no longer expects an externally running server. It builds
+`./cmd/server` into a temp dir, asks the OS for a free ephemeral port with a
+tiny Python socket helper, starts the server with `NEXCONN_FAKE=1`, an explicit
+`JWT_SECRET`, `DEMO_OTP=123456`, `MATCH_RADIUS_KM=10`, a temp `DB_PATH` and the
+inherited `FEATURES`, then kills it in an EXIT trap. Explicit env values win
+over any local `.env` the server loads, so runs are deterministic.
+
+The script asserts health, config, three signups (requester/donor/bank), the
+mock OTP send/verify pair, bank stock PUT/GET, request creation with match
+counts and `channel_id == "req"+id`, the donor feed's `joined`/`distance_km`
+fields, idempotent accept, notification read, fulfill and feed transitions.
+Auth bodies include both `otp` (addendum v2) and `code` (what the current
+`/auth/verify` handler actually reads); unknown fields are ignored, so the one
+script keeps working when the handler is reconciled in A14.
+
+There is no donation read endpoint until A11, so the "donated" step checks the
+`donations` row written on donor accept directly in the throwaway SQLite DB
+with Python's stdlib `sqlite3`; it also asserts the requester's
+`request.accepted` notification. When A11 lands, add an HTTP assertion rather
+than removing the DB check. The gate now runs the script twice (`FEATURES=`
+and `FEATURES=ranks,reminders`); both passed. Requires curl, jq, python3 and go.
+
+## D17 — Duplicate api loops again on iteration 2 (operational)
+Two `opencode run` api loops for iteration 2 were live on the same tree again
+(D15 recurrence). Two independently written smoke scripts raced: this session's
+version was committed first (`6377709`), then the parallel process overwrote
+the working tree with its own, broader version whose `jq_ok` helper dropped the
+`--arg` options and whose failure path printed raw responses (including a JWT).
+Rather than revert the other version, we fixed it in place (`e9b2286`): `jq_ok`
+forwards every argument except the trailing label to jq, and failures redact
+`token`, `otp` and `phone` fields. Kept the parallel version's extra coverage
+(OTP send/verify, idempotent mark-read, SQLite donation-row check, post-flow
+config check). Rule retained: with duplicate loops, commit small atomic changes,
+re-read files before each write, verify the gate, and never revert a peer's work.
