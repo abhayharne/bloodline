@@ -28,6 +28,9 @@ func TestMatchNearbyNotifiesDonorsOnlyAndIsIdempotent(t *testing.T) {
 	ctx := context.Background()
 	group := "O-"
 
+	createUser(t, st, store.User{ID: "uReq", Name: "Ravi", Role: "requester", BloodGroup: &group, Lat: 21.10, Lng: 79.00, Available: true})
+	createUser(t, st, store.User{ID: "uDonor", Name: "Asha", Role: "donor", BloodGroup: &group, Lat: 21.11, Lng: 79.00, Available: true})
+	createUser(t, st, store.User{ID: "uBank", Name: "City Bank", Role: "bank", Lat: 21.10, Lng: 79.00, Available: true})
 	if err := st.CreateRequest(ctx, store.Request{
 		ID: "r1", RequesterID: "uReq", BloodGroup: group, Units: 1,
 		Hospital: "City Hospital", Urgency: "critical", Status: "open",
@@ -35,9 +38,6 @@ func TestMatchNearbyNotifiesDonorsOnlyAndIsIdempotent(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	createUser(t, st, store.User{ID: "uReq", Name: "Ravi", Role: "requester", BloodGroup: &group, Lat: 21.10, Lng: 79.00, Available: true})
-	createUser(t, st, store.User{ID: "uDonor", Name: "Asha", Role: "donor", BloodGroup: &group, Lat: 21.11, Lng: 79.00, Available: true})
-	createUser(t, st, store.User{ID: "uBank", Name: "City Bank", Role: "bank", Lat: 21.10, Lng: 79.00, Available: true})
 
 	event := events.Event{Name: events.RequestCreated, Payload: events.RequestCreatedPayload{
 		RequestID: "r1", BloodGroup: group, Hospital: "City Hospital", Units: 1,
@@ -143,6 +143,6 @@ func createUser(t *testing.T, st *store.Store, user store.User) {
 	}
 }
 
-func strPtr(value string) *string { return &value }
-func intPtr(value int) *int       { return &value }
+func strPtr(value string) *string     { return &value }
+func intPtr(value int) *int           { return &value }
 func floatPtr(value float64) *float64 { return &value }
