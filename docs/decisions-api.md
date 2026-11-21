@@ -136,3 +136,22 @@ messages) must therefore be idempotent; the rank subscriber only emits on an
 actual rank change. Smoke keeps its A9 SQLite row assertion and adds HTTP
 assertions for /me, /donated, idempotency and donation_count. docs/API.md is
 still deliberately untouched; A14 owns the doc reconciliation.
+
+## D20 — A12 ranks feature behind flag
+
+`ranks` is a client-safe feature flag. When enabled, `GET/PUT /me` fill
+`derived.rank` from pure `matching.RankForCount(donation_count)` (thresholds per
+addendum v2: 1 First Drop, 3 Helper, 5 Silver Lifeline, 10 Gold Lifeline, 25
+Lifesaver). Rank is computed on the fly from `donation_count`; no rank column is
+persisted because the count is the source of truth and recomputation is cheap.
+
+A new `internal/ranks` package subscribes to `events.DonationRecorded` only when
+`FEATURES` contains `ranks` (wired in `cmd/server/main.go`). The handler emits a
+`rank_up` notification using COPY.md: `"{n} donations. You're now a {rank}."`
+with type `rank_up` and title `Rank up`. Because D19 publishes
+`donation.recorded` on every successful /donated call (including repeats), the
+handler is idempotent: it ignores non-threshold counts and dedupes by checking
+`store.HasNotification(userID,"rank_up",body)` before insert.
+
+Smoke script was updated to accept rank in `/me` when `FEATURES` includes
+`ranks`, preserving the old null-rank assertion when the flag is off.

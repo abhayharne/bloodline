@@ -1,41 +1,36 @@
 # Handoff
-**From:** opencode (api, overnight loop, iteration 4)  **To:** next api session  **Time:** 2026-11-22
+**From:** opencode (api, overnight loop, iteration 5)  **To:** next api session  **Time:** 2026-11-22
 **Branch:** feat/api  **Last commit:** this iteration (see `git log -1`)
 
 ## Done this iteration
-- Gate was PASS at entry and PASS after the change (`bash scripts/gate-api.sh`).
-- A11 complete (first unchecked task; now ticked): `GET`/`PUT /me` and
-  `POST /requests/{id}/donated` per addendum v2.
-- `derived` = `{eligible, next_eligible_at, donation_count, rank}`; rank is typed
-  (`{key,label}`) but null until A12. `next_eligible_at` is `YYYY-MM-DD` or null.
-- PUT /me applies only the six addendum fields, validates ranges/date, and lets an
-  empty `last_donated_at` clear the column. Pointers mean "unchanged".
-- /donated is donor-only and membership-scoped (403 otherwise, 404 unknown request);
-  it reuses the A8 accept row, is idempotent per (request, donor), and publishes
-  `donation.recorded` on every successful call (documented in D19).
-- Added `DonationRecordedPayload`, `matching.NextEligibleAt`, store
-  `DonationFor`/`DonationCount`/`UpdateProfile`, unit + HTTP tests, smoke HTTP
-  assertions (A9's SQLite row check kept), and decision D19.
+- Gate was PASS at entry. Fixed smoke (rank-aware /me assertion) and gate is PASS now.
+- A12 complete (ticked): `ranks` feature behind `FEATURES=ranks`.
+- Pure `matching.RankForCount` implements thresholds (1 First Drop, 3 Helper, 5 Silver
+  Lifeline, 10 Gold Lifeline, 25 Lifesaver). `GET/PUT /me` fills `derived.rank` only
+  when `HasFeature("ranks")`; rank computed on the fly from donation_count (no DB column).
+- New `internal/ranks` subscribes to `events.DonationRecorded` when flag enabled
+  (wired in `cmd/server/main.go`); emits `rank_up` notification using COPY.md:
+  `"{n} donations. You're now a {rank}."` Idempotent: ignores same-rank counts and
+  dedupes via `store.HasNotification(userID,"rank_up",body)`.
+- Added store `HasNotification`, service `HasFeature`, ranks/matching/store/service/http
+  tests, smoke rank assertion when flag on. Decision D20 appended.
 
 ## State
-- `go build`, `go vet`, `go test -race -count=1 ./...` and both smoke variants pass.
-- No fixed ports, no `.env`, no docs/PLAN.md, no `app/` edits. Next unchecked task is A12.
+- `go build`, `go vet`, `go test -race -count=1 ./...` and smoke (`FEATURES=` and
+  `FEATURES=ranks,reminders`) pass via `scripts/gate-api.sh`.
+- No fixed ports, no `.env`, no docs/PLAN.md, no `app/` edits. Next unchecked task is A13.
 
-## Next action (A12, first unchecked task)
-- Implement feature `ranks`: subscribe to `events.DonationRecorded`, compute rank
-  from `donation_count` (1 First Drop, 3 Helper, 5 Silver Lifeline, 10 Gold Lifeline,
-  25 Lifesaver — addendum v2 line 26), fill `service.DerivedProfile.Rank` only when
-  the flag is on, and emit a rank_up notification using COPY.md:
-  `"{n} donations. You're now a {rank}."`
-- `Service.Features()` is currently the only flag accessor (no `HasFeature` helper);
-  compute rank on the fly from donation_count unless persistence is really needed,
-  and record the choice in docs/decisions-api.md.
-- Then gate, tick A12, append decision, rewrite this file, commit.
+## Next action (A13, first unchecked task)
+- Implement `reminders` flag: enable `ByAvailability` and `ByEligibility` filters in
+  matching pipeline when flag on (core path stays simple when off). Add hourly ticker
+  plus `POST /dev/run-reminders` (DEV=1) that writes `eligible_again` notifications
+  using COPY.md once per eligibility period; also `match_nearby` notifications on
+  `request.created`. Keep subscribers panic-safe and idempotent.
+- Touch only api/ plus docs/handoff/api.md, docs/tasks-api.md, docs/decisions-api.md.
+- Then gate, tick A13, append decision, rewrite handoff, commit.
 
 ## Gotchas / blockers
-- No blockers; no human input needed (no device, credentials or fixed port).
-- Duplicate api loops recur (D15/D17/D18): re-read files before each write,
-  keep commits atomic, dedupe rather than revert a peer's version.
-- Auth drift (addendum `otp` vs handler `code`) and docs/API.md's old v1 shape are
-  deferred to A14; overnight rule 5 forbids editing docs/API.md in this iteration.
-- `NEXCONN_FAKE` / `NEXCONN_MOCK` are dev env switches, not `GET /config` flags.
+- No blockers; no human input needed.
+- Duplicate api loops recur (D15/D17/D18): re-read files before writes, keep commits atomic.
+- Auth drift (addendum `otp` vs handler `code`) and docs/API.md old v1 shape deferred to A14.
+- Smoke step 8 had a hardcoded `rank==null`; now feature-aware. Keep smoke/gate green.
