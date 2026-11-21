@@ -46,7 +46,7 @@ type testAPI struct {
 	issuer  *auth.Issuer
 }
 
-func newTestAPI(t *testing.T) *testAPI {
+func newTestAPI(t *testing.T, opts ...service.Option) *testAPI {
 	t.Helper()
 
 	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
@@ -60,7 +60,7 @@ func newTestAPI(t *testing.T) *testAPI {
 	if err != nil {
 		t.Fatalf("auth.NewIssuer: %v", err)
 	}
-	svc := service.New(st, chat, issuer)
+	svc := service.New(st, chat, issuer, opts...)
 
 	return &testAPI{
 		handler: New(svc, issuer),

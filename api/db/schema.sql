@@ -77,5 +77,7 @@ CREATE TABLE IF NOT EXISTS notifications (
 
 CREATE INDEX IF NOT EXISTS idx_requests_status ON requests(status);
 CREATE INDEX IF NOT EXISTS idx_users_role_group ON users(role, blood_group);
+-- The phone index is created by store.Open's migration: fresh tables already
+-- have an inline UNIQUE constraint, legacy tables get index + column there.
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_donations_request ON donations(request_id);

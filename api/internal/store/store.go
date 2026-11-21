@@ -52,8 +52,64 @@ func Open(path string) (*Store, error) {
 		d.Close()
 		return nil, fmt.Errorf("apply schema: %w", err)
 	}
+	if err := migrateUsers(d); err != nil {
+		d.Close()
+		return nil, fmt.Errorf("migrate users: %w", err)
+	}
 
 	return &Store{db: d}, nil
+}
+
+// migrateUsers adds profile columns to databases created before D11. CREATE
+// TABLE IF NOT EXISTS cannot alter an existing users table, so this is the
+// idempotent companion to db/schema.sql.
+func migrateUsers(d *sql.DB) error {
+	rows, err := d.Query("PRAGMA table_info(users)")
+	if err != nil {
+		return err
+	}
+	existing := make(map[string]bool)
+	for rows.Next() {
+		var cid, notNull, primaryKey int
+		var name, columnType string
+		var defaultValue any
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
+			rows.Close()
+			return err
+		}
+		existing[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+
+	additions := []struct{ name, definition string }{
+		// SQLite cannot ALTER TABLE ADD COLUMN with UNIQUE; the index below
+		// enforces the same constraint for migrated databases.
+		{"phone", "TEXT"},
+		{"sex", "TEXT CHECK (sex IS NULL OR sex IN ('male','female','other'))"},
+		{"age", "INTEGER CHECK (age IS NULL OR (age >= 0 AND age <= 120))"},
+		{"weight_kg", "REAL CHECK (weight_kg IS NULL OR weight_kg >= 0)"},
+		{"height_cm", "REAL CHECK (height_cm IS NULL OR height_cm >= 0)"},
+		{"donated_before", "INTEGER NOT NULL DEFAULT 0"},
+		{"last_donated_at", "TEXT"},
+		{"available", "INTEGER NOT NULL DEFAULT 1 CHECK (available IN (0,1))"},
+		{"consent_at", "TEXT"},
+	}
+	for _, column := range additions {
+		if existing[column.name] {
+			continue
+		}
+		if _, err := d.Exec("ALTER TABLE users ADD COLUMN " + column.name + " " + column.definition); err != nil {
+			return fmt.Errorf("add column %s: %w", column.name, err)
+		}
+	}
+	_, err = d.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone)")
+	return err
 }
 
 // Close closes the underlying database.

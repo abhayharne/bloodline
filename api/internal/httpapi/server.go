@@ -25,6 +25,9 @@ func New(svc *service.Service, jwt *auth.Issuer) http.Handler {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health)
+	mux.HandleFunc("GET /config", s.config)
+	mux.HandleFunc("POST /auth/otp/send", s.otpSend)
+	mux.HandleFunc("POST /auth/verify", s.verifyOTP)
 	mux.HandleFunc("POST /auth/signup", s.signup)
 	mux.HandleFunc("POST /auth/login", s.login)
 	mux.Handle("GET /banks/me/stock", s.requireBank(s.getBankStock))

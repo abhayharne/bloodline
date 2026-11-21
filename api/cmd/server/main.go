@@ -51,7 +51,10 @@ func run() error {
 		return err
 	}
 
-	svc := service.New(st, chat, issuer)
+	svc := service.New(st, chat, issuer,
+		service.WithDemoOTP(cfg.DemoOTP),
+		service.WithFeatures(cfg.Features),
+	)
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
 		Handler:           httpapi.New(svc, issuer),

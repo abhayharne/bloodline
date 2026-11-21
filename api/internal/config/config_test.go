@@ -38,6 +38,36 @@ func TestLoadDefaults(t *testing.T) {
 	}
 }
 
+func TestLoadDemoOTPAndFeatures(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("DEMO_OTP", "")
+	t.Setenv("FEATURES", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.DemoOTP != "123456" {
+		t.Errorf("DemoOTP = %q, want 123456", cfg.DemoOTP)
+	}
+	if len(cfg.Features) != 0 {
+		t.Errorf("Features = %v, want empty", cfg.Features)
+	}
+
+	t.Setenv("DEMO_OTP", "998877")
+	t.Setenv("FEATURES", " notifications, eligibility,notifications, ")
+	cfg, err = Load()
+	if err != nil {
+		t.Fatalf("Load with env: %v", err)
+	}
+	if cfg.DemoOTP != "998877" {
+		t.Errorf("DemoOTP = %q, want 998877", cfg.DemoOTP)
+	}
+	if len(cfg.Features) != 2 || cfg.Features[0] != "notifications" || cfg.Features[1] != "eligibility" {
+		t.Errorf("Features = %v", cfg.Features)
+	}
+}
+
 func TestLoadMissingRequired(t *testing.T) {
 	setRequiredEnv(t)
 	t.Setenv("JWT_SECRET", "")

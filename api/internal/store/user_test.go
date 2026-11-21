@@ -83,6 +83,47 @@ func TestCreateUserConflict(t *testing.T) {
 	}
 }
 
+func TestCreateUserWithPhoneAndProfile(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	group, phone, sex, last := "O+", "+919876543210", "female", "2026-01-01"
+	age, weight, height := 28, 58.5, 163.0
+	consent := "2026-11-22 10:00:00"
+
+	want := User{
+		ID: "u1", Name: "Asha", Role: "donor", BloodGroup: &group,
+		Phone: &phone, Sex: &sex, Age: &age, WeightKG: &weight, HeightCM: &height,
+		DonatedBefore: true, LastDonatedAt: &last, Available: true, ConsentAt: &consent,
+	}
+	if err := st.CreateUser(ctx, want); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+
+	got, err := st.UserByPhone(ctx, phone)
+	if err != nil {
+		t.Fatalf("UserByPhone: %v", err)
+	}
+	if got.ID != "u1" || got.Phone == nil || *got.Phone != phone ||
+		got.Sex == nil || *got.Sex != sex || got.Age == nil || *got.Age != age ||
+		got.WeightKG == nil || *got.WeightKG != weight || got.HeightCM == nil || *got.HeightCM != height ||
+		!got.DonatedBefore || got.LastDonatedAt == nil || *got.LastDonatedAt != last ||
+		!got.Available || got.ConsentAt == nil || *got.ConsentAt != consent {
+		t.Errorf("UserByPhone = %+v", got)
+	}
+}
+
+func TestCreateUserDuplicatePhone(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	phone := "+919876543210"
+	if err := st.CreateUser(ctx, User{ID: "u1", Name: "A", Role: "donor", Phone: &phone}); err != nil {
+		t.Fatalf("first CreateUser: %v", err)
+	}
+	if err := st.CreateUser(ctx, User{ID: "u2", Name: "B", Role: "donor", Phone: &phone}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("second CreateUser error = %v, want ErrConflict", err)
+	}
+}
+
 func TestFindUserNotFound(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()

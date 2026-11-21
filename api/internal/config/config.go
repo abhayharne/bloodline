@@ -21,6 +21,8 @@ type Config struct {
 	NexconnAPIBase       string
 	NexconnAPIBaseBackup string
 	MatchRadiusKM        float64
+	DemoOTP              string
+	Features             []string
 }
 
 // Load reads configuration from the process environment and validates it.
@@ -34,6 +36,8 @@ func Load() (Config, error) {
 		NexconnAppSecret:     os.Getenv("NEXCONN_APP_SECRET"),
 		NexconnAPIBase:       os.Getenv("NEXCONN_API_BASE"),
 		NexconnAPIBaseBackup: os.Getenv("NEXCONN_API_BASE_BACKUP"),
+		DemoOTP:              getenv("DEMO_OTP", "123456"),
+		Features:             parseFeatures(os.Getenv("FEATURES")),
 	}
 
 	radiusRaw := getenv("MATCH_RADIUS_KM", "10")
@@ -131,4 +135,20 @@ func getenv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// parseFeatures turns "notifications, eligibility," into a de-duplicated list,
+// preserving order. An empty env value yields an empty (non-nil) slice.
+func parseFeatures(raw string) []string {
+	features := make([]string, 0)
+	seen := make(map[string]bool)
+	for _, part := range strings.Split(raw, ",") {
+		feature := strings.ToLower(strings.TrimSpace(part))
+		if feature == "" || seen[feature] {
+			continue
+		}
+		seen[feature] = true
+		features = append(features, feature)
+	}
+	return features
 }
