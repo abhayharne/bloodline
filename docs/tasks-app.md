@@ -6,10 +6,10 @@ Every screen gets at least one widget test using the mock client.
 - [ ] B0 Make the plugin fix reproducible: pin ai_nexconn_chatui_plugin to an exact version, check whether the Kotlin redeclaration is gone without touching ~/.pub-cache; if not, vendor the patched plugin into app/packages/ and use a path dependency. Do NOT run flutter build; note in docs/decisions-app.md that a human must verify with a real build in the morning.
 - [ ] B1 Architecture: lib/core/api_client.dart (abstract ApiClient + HttpApiClient + MockApiClient chosen by --dart-define=USE_MOCK, base URL configurable, JSON models ignore unknown fields), lib/core/features.dart (loads GET /config), lib/core/slots.dart (SlotRegistry: homeCards, profileSections, roomHeaderBadges, empty in core), lib/features/<name>/register.dart convention, provider-based state, simple routing.
 - [ ] B2 Auth: phone entry, mock OTP screen (shows "demo mode, code 123456" when demo), signup form (role, name, age, weight, height, sex, donated before, optional last donation date, consent checkbox for donors), location permission request with a typed-area fallback. Connects Nexconn via nexconn_service.dart using nexconn_token and AreaCode.sg.
-- [ ] B3 Requester: new-request form (blood group, units, hospital, urgency, location defaulting to current), my requests list with status chips.
-- [ ] B4 Donor: feed of matching open requests, "I can help" -> accept -> opens the chat, availability toggle (PUT /me).
-- [ ] B5 Bank: stock editor for the 8 groups (PUT /banks/me/stock), open requests list, open chat.
-- [ ] B6 Chat: ChannelPage inbox and ChatPage wrapper with a request-summary header (group, units, hospital, status) and room header slot. Keep the Nexconn SDK calls isolated in nexconn_service.dart so the rest is testable with fakes.
+- [x] B3 Requester: new-request form (blood group, units, hospital, urgency, location defaulting to current), my requests list with status chips.
+- [x] B4 Donor: feed of matching open requests, "I can help" -> accept -> opens the chat, availability toggle (PUT /me).
+- [x] B5 Bank: stock editor for the 8 groups (PUT /banks/me/stock), open requests list, open chat.
+- [x] B6 Chat: ChannelPage inbox and ChatPage wrapper with a request-summary header (group, units, hospital, status) and room header slot. Keep the Nexconn SDK calls isolated in nexconn_service.dart so the rest is testable with fakes.
 - [ ] B7 Fulfill and donated: requester "Mark fulfilled" button, closed-room read-only banner, donor "I donated" button (POST /requests/{id}/donated).
 - [ ] B8 Notifications: poll GET /notifications every 10 s, in-app banner and a notifications list; copy comes from the server, do not hardcode.
 - [ ] B9 Feature ranks (flag ranks): rank badge section in profile and a home card ("{n} donations, {rank}"), registered via slots only when features contains ranks.
