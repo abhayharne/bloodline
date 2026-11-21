@@ -1,233 +1,229 @@
 #!/usr/bin/env bash
-# End-to-end smoke test: starts a throwaway API server on a random free port,
-# then walks signup -> bank stock -> request -> feed -> accept -> donated ->
-# fulfill and asserts status codes and key response fields.
+# End-to-end smoke test for the BloodLine API.
 #
-# Called by scripts/gate-api.sh with NEXCONN_FAKE=1 and FEATURES set explicitly.
-# Can also be run directly. Never prints tokens or OTPs.
+# Starts a throwaway server on a random free port with NEXCONN_FAKE=1, curls the
+# full request lifecycle and asserts status codes and key fields. Everything is
+# isolated in a temp dir: a fresh SQLite DB, a local JWT secret and a random
+# port. The server is always killed on exit. No real Nexconn credentials, fixed
+# ports or phones are used.
+#
+# Usage:
+#   FEATURES= ./scripts/smoke.sh
+#   FEATURES=ranks,reminders ./scripts/smoke.sh
+# The gate runs both variants. Never prints tokens or OTPs.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-WORKDIR="$(mktemp -d)"
-SERVER_PID=""
-RESPONSE="$WORKDIR/response.json"
+root="$(cd "$(dirname "$0")/.." && pwd)"
+api_dir="$root/api"
+work="$(mktemp -d)"
+server_pid=""
 
 cleanup() {
-  if [[ -n "$SERVER_PID" ]]; then
-    kill "$SERVER_PID" 2>/dev/null || true
-    wait "$SERVER_PID" 2>/dev/null || true
+  if [[ -n "$server_pid" ]]; then
+    kill "$server_pid" 2>/dev/null || true
+    wait "$server_pid" 2>/dev/null || true
   fi
-  rm -rf "$WORKDIR"
+  rm -rf "$work"
 }
 trap cleanup EXIT
 
-command -v curl >/dev/null || { echo "curl is required" >&2; exit 1; }
-command -v jq >/dev/null || { echo "jq is required" >&2; exit 1; }
-command -v go >/dev/null || { echo "go is required" >&2; exit 1; }
+for tool in curl jq python3 go; do
+  command -v "$tool" >/dev/null || { echo "$tool is required" >&2; exit 1; }
+done
 
-# Redact secrets before printing a response in a failure message.
-body_summary() {
+step() { printf '%s\n' "$*"; }
+
+# Never print tokens or phones in a failure message.
+redacted_body() {
   jq -c 'if type == "object" then
            with_entries(if (.key | test("token|otp|phone")) then .value = "<redacted>" else . end)
-         else . end' "$RESPONSE" 2>/dev/null || echo '<unparseable>'
+         else . end' "$resp" 2>/dev/null || echo '<unparseable>'
 }
 
 fail() {
-  echo "SMOKE FAIL: $*" >&2
-  echo "  response: $(body_summary)" >&2
-  if [[ -f "$WORKDIR/server.log" ]]; then
+  echo "SMOKE FAILED: $*" >&2
+  echo "  response: $(redacted_body)" >&2
+  if [[ -f "$work/server.log" ]]; then
     echo "  server log:" >&2
-    sed 's/^/    /' "$WORKDIR/server.log" >&2
+    tail -20 "$work/server.log" >&2
   fi
   exit 1
 }
 
-step() { printf '%s\n' "$*"; }
+# A free ephemeral port chosen by the OS, so two concurrent runs never collide.
+port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')"
+base="http://127.0.0.1:${port}"
+resp="$work/resp.json"
 
-expect_code() {
-  local got="$1" want="$2" label="$3"
-  [[ "$got" == "$want" ]] || fail "$label: expected HTTP $want, got $got"
-}
+# Build once into the temp dir; `go run` would leave a child process to clean up.
+(cd "$api_dir" && go build -o "$work/server" ./cmd/server) || fail "go build"
 
-# method path body [bearer token]; writes the body to $RESPONSE, prints status.
-req() {
-  local method="$1" path="$2" body="$3" token="${4:-}"
-  local -a args=(-sS --max-time 10 -o "$RESPONSE" -w '%{http_code}' -X "$method"
-                 -H 'Content-Type: application/json')
-  if [[ -n "$token" ]]; then
-    args+=(-H "Authorization: Bearer ${token}")
-  fi
-  if [[ -n "$body" ]]; then
-    args+=(-d "$body")
-  fi
-  curl "${args[@]}" "${BASE_URL}${path}" || true
-}
-
-# Ask the OS for a free port; fall back to a random high port without python3.
-free_port() {
-  if command -v python3 >/dev/null 2>&1; then
-    python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()'
-  else
-    echo $((20000 + RANDOM % 40000))
-  fi
-}
-
-PORT="$(free_port)"
-[[ "$PORT" =~ ^[0-9]+$ ]] || fail "could not choose a free port"
-BASE_URL="http://127.0.0.1:${PORT}"
-
-step "building API server"
-(cd "$ROOT/api" && go build -o "$WORKDIR/server" ./cmd/server) || fail "go build failed"
-
-step "starting API server on random port ${PORT} with a temp DB"
-# Explicit values win over any .env found by config.LoadDotEnv.
-PORT="$PORT" \
-DB_PATH="$WORKDIR/smoke.db" \
-JWT_SECRET="smoke-only-secret-not-a-real-credential" \
+# Explicit env values win over any local .env the server loads on boot.
+PORT="$port" \
+DB_PATH="$work/bloodline.db" \
+JWT_SECRET="smoke-only-${port}" \
 NEXCONN_FAKE=1 \
-NEXCONN_MOCK= \
+DEMO_OTP=123456 \
+MATCH_RADIUS_KM=10 \
 FEATURES="${FEATURES:-}" \
-DEMO_OTP="${DEMO_OTP:-123456}" \
-  "$WORKDIR/server" >"$WORKDIR/server.log" 2>&1 &
-SERVER_PID=$!
+  "$work/server" >"$work/server.log" 2>&1 &
+server_pid=$!
 
 ready=0
-for ((attempt = 0; attempt < 100; attempt++)); do
-  if ! kill -0 "$SERVER_PID" 2>/dev/null; then
-    fail "server exited during startup"
-  fi
-  code="$(curl -sS --max-time 2 -o "$RESPONSE" -w '%{http_code}' "${BASE_URL}/health" 2>/dev/null || true)"
-  if [[ "$code" == "200" ]]; then
-    ready=1
-    break
-  fi
+for _ in $(seq 1 100); do
+  if curl -fsS -o "$resp" "$base/health" 2>/dev/null; then ready=1; break; fi
+  kill -0 "$server_pid" 2>/dev/null || fail "server exited during startup"
   sleep 0.1
 done
-[[ "$ready" == "1" ]] || fail "server did not become healthy in time"
+[[ "$ready" == 1 ]] || fail "server did not become healthy"
 
-# Unique phones keep the script safe even if a persistent DB is ever used.
-SUFFIX="$(date +%s%N | tail -c 9)"
-REQUESTER_PHONE="+919${SUFFIX}"
-DONOR_PHONE="+917${SUFFIX}"
-BANK_PHONE="+918${SUFFIX}"
+# req METHOD PATH [BODY] [TOKEN] -> prints the HTTP status, writes the body to $resp.
+req() {
+  local method="$1" path="$2" body="${3:-}" token="${4:-}"
+  local -a args=(-sS -o "$resp" -w '%{http_code}' -X "$method" -H 'Content-Type: application/json')
+  [[ -n "$token" ]] && args+=(-H "Authorization: Bearer ${token}")
+  [[ -n "$body" ]] && args+=(-d "$body")
+  curl "${args[@]}" "$base${path}"
+}
 
-step "1/9 health and config"
-[[ "$(jq -r '.status' "$RESPONSE")" == "ok" ]] || fail "health status is not ok"
-code="$(req GET /config '')"
-expect_code "$code" 200 "GET /config"
-jq -e --arg features "${FEATURES:-}" '
-  .demo_mode == true and
-  (.features == ($features | split(",") | map(select(. != ""))))
-' "$RESPONSE" >/dev/null || fail "GET /config shape (features/demo_mode)"
+expect() {
+  local want="$1" got="$2" label="$3"
+  [[ "$got" == "$want" ]] || fail "$label: HTTP $got (want $want)"
+}
 
-step "2/9 signup requester, donor and bank"
-code="$(req POST /auth/signup "{\"phone\":\"$REQUESTER_PHONE\",\"name\":\"Smoke Requester\",\"role\":\"requester\",\"blood_group\":\"O-\",\"lat\":21.1458,\"lng\":79.0882,\"consent\":true}")"
-expect_code "$code" 201 "requester signup"
-requester_token="$(jq -r '.token' "$RESPONSE")"
-requester_id="$(jq -r '.user.id' "$RESPONSE")"
-[[ -n "$requester_token" && "$requester_token" != "null" ]] || fail "requester token missing"
-[[ "$requester_id" =~ ^u[A-Za-z0-9]+$ ]] || fail "requester id is not alphanumeric"
-jq -e '.user.role == "requester" and (.nexconn_token | length) > 0' "$RESPONSE" >/dev/null ||
-  fail "requester signup fields"
+# jq_ok FILTER LABEL   or   jq_ok --arg NAME VALUE FILTER LABEL
+# The last argument is the failure label; everything before it goes to jq.
+jq_ok() {
+  local label="${@: -1}"
+  local -a jq_args=("${@:1:$#-1}")
+  jq -e "${jq_args[@]}" "$resp" >/dev/null 2>&1 || fail "$label"
+}
 
-code="$(req POST /auth/signup "{\"phone\":\"$DONOR_PHONE\",\"name\":\"Smoke Donor\",\"role\":\"donor\",\"blood_group\":\"O-\",\"sex\":\"male\",\"age\":28,\"weight_kg\":60,\"height_cm\":170,\"lat\":21.15,\"lng\":79.09,\"available\":true,\"consent\":true}")"
-expect_code "$code" 201 "donor signup"
-donor_token="$(jq -r '.token' "$RESPONSE")"
-donor_id="$(jq -r '.user.id' "$RESPONSE")"
-[[ -n "$donor_token" && "$donor_token" != "null" ]] || fail "donor token missing"
-[[ "$donor_id" =~ ^u[A-Za-z0-9]+$ ]] || fail "donor id is not alphanumeric"
-jq -e '.user.role == "donor" and .user.blood_group == "O-" and .user.available == true' "$RESPONSE" >/dev/null ||
-  fail "donor signup fields"
+step "1/10 health + config"
+code="$(req GET /health)"
+expect 200 "$code" "health"
+jq_ok '.status == "ok"' "health body"
+code="$(req GET /config)"
+expect 200 "$code" "config"
+jq_ok '.demo_mode == true and (.features | type == "array")' "config body"
 
-code="$(req POST /auth/signup "{\"phone\":\"$BANK_PHONE\",\"name\":\"Smoke Bank\",\"role\":\"bank\",\"lat\":21.14,\"lng\":79.08,\"consent\":true}")"
-expect_code "$code" 201 "bank signup"
-bank_token="$(jq -r '.token' "$RESPONSE")"
-[[ -n "$bank_token" && "$bank_token" != "null" ]] || fail "bank token missing"
-jq -e '.user.role == "bank" and .user.blood_group == null' "$RESPONSE" >/dev/null ||
-  fail "bank signup fields"
+# Signup bodies carry the addendum's `otp` as an ignored extra; this server
+# reads `code` for /auth/verify and does not require an OTP for signup.
+requester_phone="+919900000001"
+donor_phone="+919900000002"
+bank_phone="+919900000003"
 
-step "3/9 bank declares stock"
-code="$(req PUT /banks/me/stock '{"stock":[{"blood_group":"O-","units":5},{"blood_group":"O+","units":2}]}' "$bank_token")"
-expect_code "$code" 200 "PUT /banks/me/stock"
-jq -e '.stock | any(.blood_group == "O-" and .units == 5)' "$RESPONSE" >/dev/null ||
-  fail "bank stock did not persist"
+step "2/10 signup requester, donor and bank"
+code="$(req POST /auth/signup "{\"phone\":\"${requester_phone}\",\"otp\":\"123456\",\"name\":\"Smoke Requester\",\"role\":\"requester\",\"blood_group\":\"O-\",\"lat\":21.1458,\"lng\":79.0882,\"consent\":true}")"
+expect 201 "$code" "requester signup"
+jq_ok '.user.id | test("^u[0-9a-f]+$")' "requester id"
+jq_ok '(.token | length) > 0 and (.nexconn_token | length) > 0' "requester tokens"
+requester_token="$(jq -r '.token' "$resp")"
+requester_id="$(jq -r '.user.id' "$resp")"
 
-step "4/9 requester creates a request"
+code="$(req POST /auth/signup "{\"phone\":\"${donor_phone}\",\"otp\":\"123456\",\"name\":\"Smoke Donor\",\"role\":\"donor\",\"blood_group\":\"O-\",\"lat\":21.15,\"lng\":79.09,\"sex\":\"female\",\"age\":28,\"weight_kg\":58,\"height_cm\":163,\"donated_before\":false,\"available\":true,\"consent\":true}")"
+expect 201 "$code" "donor signup"
+jq_ok '(.user.id | test("^u[0-9a-f]+$")) and .user.available == true' "donor profile"
+donor_token="$(jq -r '.token' "$resp")"
+donor_id="$(jq -r '.user.id' "$resp")"
+
+code="$(req POST /auth/signup "{\"phone\":\"${bank_phone}\",\"otp\":\"123456\",\"name\":\"Smoke Bank\",\"role\":\"bank\",\"lat\":21.14,\"lng\":79.08,\"consent\":true}")"
+expect 201 "$code" "bank signup"
+jq_ok '(.user.id | test("^u[0-9a-f]+$")) and .user.blood_group == null' "bank profile"
+bank_token="$(jq -r '.token' "$resp")"
+
+step "3/10 mock OTP send + verify (login path)"
+code="$(req POST /auth/otp/send "{\"phone\":\"${donor_phone}\"}" "$donor_token")"
+expect 200 "$code" "otp send"
+jq_ok '.sent == true' "otp send body"
+code="$(req POST /auth/verify "{\"phone\":\"${donor_phone}\",\"otp\":\"123456\",\"code\":\"123456\"}")"
+expect 200 "$code" "otp verify"
+jq_ok --arg id "$donor_id" '.user.id == $id and (.token | length) > 0' "verify body"
+code="$(req POST /auth/verify "{\"phone\":\"${donor_phone}\",\"otp\":\"000000\",\"code\":\"000000\"}")"
+expect 401 "$code" "wrong otp rejected"
+
+step "4/10 bank stock PUT + GET"
+code="$(req PUT /banks/me/stock '{"stock":[{"blood_group":"O-","units":3},{"blood_group":"O+","units":5}]}' "$bank_token")"
+expect 200 "$code" "put bank stock"
+jq_ok '(.stock | map(select(.blood_group == "O-" and .units == 3)) | length) == 1' "stock body"
+code="$(req GET /banks/me/stock "" "$bank_token")"
+expect 200 "$code" "get bank stock"
+jq_ok '(.stock | map(select(.blood_group == "O-" and .units == 3)) | length) == 1' "stock round-trip"
+
+step "5/10 create request (matches bank stock + donor)"
 code="$(req POST /requests '{"blood_group":"O-","units":2,"hospital":"City Hospital","urgency":"critical","lat":21.1458,"lng":79.0882}' "$requester_token")"
-expect_code "$code" 201 "POST /requests"
-request_id="$(jq -r '.request.id' "$RESPONSE")"
-channel_id="$(jq -r '.request.channel_id' "$RESPONSE")"
-[[ "$request_id" =~ ^r[A-Za-z0-9]+$ ]] || fail "request id is not alphanumeric"
-[[ "$channel_id" == "req${request_id}" ]] || fail "channel_id is not req+request id"
-jq -e --arg uid "$requester_id" '
-  .request.status == "open" and .request.units == 2 and
-  .request.requester_id == $uid and
-  .matches.banks >= 1 and .matches.donors >= 1
-' "$RESPONSE" >/dev/null || fail "create request fields / match counts"
-step "    request ${request_id} room ${channel_id}"
+expect 201 "$code" "create request"
+jq_ok '.request.id | test("^r[0-9a-f]+$")' "request id"
+jq_ok '.request.status == "open"' "request status"
+jq_ok '.matches.banks >= 1 and .matches.donors >= 1' "match counts"
+request_id="$(jq -r '.request.id' "$resp")"
+channel_id="$(jq -r '.request.channel_id' "$resp")"
+[[ "$channel_id" == "req${request_id}" ]] || fail "channel_id $channel_id != req${request_id}"
 
-step "5/9 donor feed sees the open request"
-code="$(req GET /requests '' "$donor_token")"
-expect_code "$code" 200 "donor GET /requests"
-jq -e --arg rid "$request_id" --arg name "Smoke Requester" '
-  .requests | any(.id == $rid and .status == "open" and .joined == false and
-                  .requester_name == $name and (.distance_km | type) == "number")
-' "$RESPONSE" >/dev/null || fail "donor feed missing the open request"
+step "6/10 donor feed is role-aware and shows the open request"
+code="$(req GET /requests "" "$donor_token")"
+expect 200 "$code" "donor feed"
+jq_ok --arg id "$request_id" '[.requests[] | select(.id == $id)] | length == 1' "feed contains request"
+jq_ok --arg id "$request_id" '.requests[] | select(.id == $id) | .joined == false and .distance_km <= 10 and .requester_name == "Smoke Requester"' "feed fields"
 
-step "6/9 donor accepts the request (idempotently)"
+step "7/10 donor accepts (idempotent) and joins the room"
 code="$(req POST "/requests/${request_id}/accept" '{}' "$donor_token")"
-expect_code "$code" 200 "POST accept"
-[[ "$(jq -r '.channel_id' "$RESPONSE")" == "$channel_id" ]] || fail "accept returned wrong channel_id"
+expect 200 "$code" "donor accept"
+jq_ok --arg ch "$channel_id" '.channel_id == $ch' "accept channel"
 code="$(req POST "/requests/${request_id}/accept" '{}' "$donor_token")"
-expect_code "$code" 200 "repeat POST accept"
-code="$(req GET /requests '' "$donor_token")"
-expect_code "$code" 200 "donor GET /requests after accept"
-jq -e --arg rid "$request_id" '
-  .requests | any(.id == $rid and .joined == true)
-' "$RESPONSE" >/dev/null || fail "donor feed did not mark the request joined"
+expect 200 "$code" "donor accept (repeat)"
+code="$(req GET /requests "" "$donor_token")"
+expect 200 "$code" "feed after accept"
+jq_ok --arg id "$request_id" '.requests[] | select(.id == $id) | .joined == true' "joined flag"
 
-step "7/9 donation record (A11 contract, tolerated until the endpoint lands)"
-code="$(req POST "/requests/${request_id}/donated" '{}' "$donor_token")"
-case "$code" in
-  201)
-    jq -e --arg rid "$request_id" '
-      .donation.request_id == $rid and (.donation.id | length) > 0 and
-      (.donation_count | type) == "number" and .donation_count >= 1
-    ' "$RESPONSE" >/dev/null || fail "POST donated fields"
-    ;;
-  404)
-    step "    endpoint not implemented yet (A11); skipping until it lands"
-    ;;
-  *)
-    fail "POST donated: unexpected HTTP $code"
-    ;;
-esac
+step "8/10 donor pledge recorded + notification read"
+# Accept writes one donations row per (donor, request); there is no read
+# endpoint for it yet, so assert the row in the throwaway SQLite DB directly.
+pledges="$(python3 - "$work/bloodline.db" "$request_id" "$donor_id" <<'PY'
+import sqlite3, sys
+db, request_id, donor_id = sys.argv[1:4]
+con = sqlite3.connect(db)
+try:
+    print(con.execute(
+        "SELECT COUNT(*) FROM donations WHERE request_id=? AND donor_id=?",
+        (request_id, donor_id),
+    ).fetchone()[0])
+finally:
+    con.close()
+PY
+)"
+[[ "$pledges" == "1" ]] || fail "expected 1 donation row, got $pledges"
+code="$(req GET /notifications "" "$requester_token")"
+expect 200 "$code" "requester notifications"
+jq_ok '(.notifications | length) > 0 and (all(.notifications[]; .read == false))' "notification shape"
+notify_id="$(jq -r '[.notifications[] | select(.type == "request.accepted")][0].id // empty' "$resp")"
+[[ -n "$notify_id" ]] || fail "no request.accepted notification for requester"
+code="$(req POST "/notifications/${notify_id}/read" '{}' "$requester_token")"
+expect 204 "$code" "mark notification read"
+code="$(req POST "/notifications/${notify_id}/read" '{}' "$requester_token")"
+expect 204 "$code" "mark notification read (idempotent)"
+code="$(req GET /notifications "" "$requester_token")"
+expect 200 "$code" "notifications after read"
+jq_ok --arg id "$notify_id" '.notifications[] | select(.id == $id) | .read == true' "read flag"
 
-step "8/9 notifications feed and mark-read"
-code="$(req GET /notifications '' "$requester_token")"
-expect_code "$code" 200 "GET /notifications"
-jq -e '.notifications | type == "array"' "$RESPONSE" >/dev/null || fail "notifications is not an array"
-first_notification="$(jq -r '.notifications[0].id // empty' "$RESPONSE")"
-if [[ -n "$first_notification" ]]; then
-  code="$(req POST "/notifications/${first_notification}/read" '' "$requester_token")"
-  expect_code "$code" 204 "POST notification read"
-  code="$(req GET /notifications '' "$requester_token")"
-  expect_code "$code" 200 "GET /notifications after read"
-  jq -e --arg nid "$first_notification" '
-    .notifications | any(.id == $nid and .read == true)
-  ' "$RESPONSE" >/dev/null || fail "notification did not become read"
-fi
-
-step "9/9 requester fulfills the request"
+step "9/10 requester fulfills"
 code="$(req POST "/requests/${request_id}/fulfill" '{}' "$requester_token")"
-expect_code "$code" 200 "POST fulfill"
-jq -e --arg rid "$request_id" '
-  .request.id == $rid and .request.status == "fulfilled"
-' "$RESPONSE" >/dev/null || fail "fulfill response status"
-code="$(req GET '/requests?status=fulfilled' '' "$requester_token")"
-expect_code "$code" 200 "requester GET /requests?status=fulfilled"
-jq -e --arg rid "$request_id" '
-  .requests | any(.id == $rid and .status == "fulfilled")
-' "$RESPONSE" >/dev/null || fail "fulfilled request missing from requester feed"
+expect 200 "$code" "fulfill"
+jq_ok '.request.status == "fulfilled"' "fulfilled status"
+code="$(req GET "/requests?status=fulfilled" "" "$requester_token")"
+expect 200 "$code" "fulfilled feed"
+jq_ok --arg id "$request_id" '.requests[] | select(.id == $id) | .status == "fulfilled"' "fulfilled row"
+code="$(req GET /requests "" "$donor_token")"
+expect 200 "$code" "open feed after fulfill"
+jq_ok --arg id "$request_id" '([.requests[] | select(.id == $id)] | length) == 0' "request left the open feed"
+
+step "10/10 config still reflects FEATURES after the flow"
+code="$(req GET /config)"
+expect 200 "$code" "config repeat"
+jq_ok --arg features "${FEATURES:-}" '
+  ($features | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))
+    | reduce .[] as $f ([]; if index($f) then . else . + [$f] end)) as $want
+  | .features == $want and .demo_mode == true
+' "features match FEATURES env"
 
 step "SMOKE OK"
