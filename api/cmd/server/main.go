@@ -5,10 +5,15 @@ import (
 	"net/http"
 	"time"
 
+	"bloodline/internal/auth"
 	"bloodline/internal/config"
 	"bloodline/internal/httpapi"
+	"bloodline/internal/nexconn"
+	"bloodline/internal/service"
 	"bloodline/internal/store"
 )
+
+const jwtTTL = 7 * 24 * time.Hour
 
 func main() {
 	if err := run(); err != nil {
@@ -31,9 +36,25 @@ func run() error {
 	}
 	defer st.Close()
 
+	chat, err := nexconn.New(
+		cfg.NexconnAppKey,
+		cfg.NexconnAppSecret,
+		cfg.NexconnAPIBase,
+		cfg.NexconnAPIBaseBackup,
+	)
+	if err != nil {
+		return err
+	}
+
+	issuer, err := auth.NewIssuer(cfg.JWTSecret, jwtTTL)
+	if err != nil {
+		return err
+	}
+
+	svc := service.New(st, chat, issuer)
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           httpapi.New(),
+		Handler:           httpapi.New(svc, issuer),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

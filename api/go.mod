@@ -2,7 +2,10 @@ module bloodline
 
 go 1.22
 
-require modernc.org/sqlite v1.34.5
+require (
+	github.com/NexconnAI-Dev/nexconn-server-sdk-go v0.1.2
+	modernc.org/sqlite v1.34.5
+)
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect

@@ -1,3 +1,5 @@
+github.com/NexconnAI-Dev/nexconn-server-sdk-go v0.1.2 h1:p7O9ukyVY3ZNWOAfzJZJg3WMTlxcZBPxVlVhkV279ek=
+github.com/NexconnAI-Dev/nexconn-server-sdk-go v0.1.2/go.mod h1:PJo6rGYBZnlnu5eS9ACsHyDKBf0A96MWAKHKx3h/k1s=
 github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
 github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
 github.com/google/pprof v0.0.0-20240409012703-83162a5b38cd h1:gbpYu9NMq8jhDVbvlGkMFWCjLFlqqEZjEmObmhUy6Vo=
