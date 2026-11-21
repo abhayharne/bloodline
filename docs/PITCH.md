@@ -1,6 +1,6 @@
 # Pitch Outline (5-7 slides)
 
-1. **Problem** — emergency blood requests spread via forwards; stale, spammy, unresolved. Replacement-donor rules push families to hunt donors themselves.
+1. **Problem** — "Humanitarian & Social Good: volunteer dispatch for blood emergencies."
 2. **Who suffers** — patients' families, blood banks (inventory they can't surface), donors (alert fatigue).
 3. **Solution** — one request = one live chat room; banks first, then matched donors; closes when fulfilled.
 4. **Demo** — live (see DEMO_SCRIPT.md).

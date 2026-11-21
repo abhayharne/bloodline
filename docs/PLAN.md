@@ -58,6 +58,8 @@ Stretch only if all else is done: AI summary pinned in room; push notifications 
 - [ ] T4.2 Empty/error/loading states, app icon, name, splash
 - [ ] T4.3 Bug bash against docs/DEMO_SCRIPT.md
 - [ ] T4.4 (stretch) AI summary pinned in room
+- [ ] T4.5 A large-font toggle in settings, which is a text scale factor in Flutter, so about 15 minutes.
+- [ ] T4.6 Voice-to-text on the message input for families in distress who can't type quickly.
 
 ## P5 — Ship
 - [ ] T5.1 Rehearse demo x3 with a timer
