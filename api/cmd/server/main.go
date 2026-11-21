@@ -11,6 +11,7 @@ import (
 	"bloodline/internal/httpapi"
 	"bloodline/internal/nexconn"
 	"bloodline/internal/notify"
+	"bloodline/internal/ranks"
 	"bloodline/internal/service"
 	"bloodline/internal/store"
 )
@@ -53,6 +54,9 @@ func run() error {
 	bus.Subscribe(events.RequestCreated, notifier.Handle)
 	bus.Subscribe(events.RequestAccepted, notifier.Handle)
 	bus.Subscribe(events.RequestFulfilled, notifier.Handle)
+	if cfgHasFeature(cfg.Features, "ranks") {
+		bus.Subscribe(events.DonationRecorded, ranks.New(st).Handle)
+	}
 
 	svc := service.New(st, chat, issuer,
 		service.WithDemoOTP(cfg.DemoOTP),
@@ -95,4 +99,13 @@ func newChatClient(cfg config.Config) (nexconn.Client, error) {
 			cfg.NexconnAPIBaseBackup,
 		)
 	}
+}
+
+func cfgHasFeature(features []string, name string) bool {
+	for _, f := range features {
+		if f == name {
+			return true
+		}
+	}
+	return false
 }

@@ -104,3 +104,20 @@ func (s *Store) MarkNotificationRead(ctx context.Context, id, userID string) err
 	}
 	return err
 }
+
+// HasNotification reports whether a user already has a notification with the
+// given type and body. Used by feature subscribers to keep idempotent behavior
+// when events may be published more than once for the same logical transition.
+func (s *Store) HasNotification(ctx context.Context, userID, typ, body string) (bool, error) {
+	var one int
+	err := s.db.QueryRowContext(ctx, `
+		SELECT 1 FROM notifications WHERE user_id = ? AND type = ? AND body = ? LIMIT 1`,
+		userID, typ, body).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}

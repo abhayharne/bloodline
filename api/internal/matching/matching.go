@@ -186,6 +186,26 @@ func DistanceKM(lat1, lng1, lat2, lng2 float64) float64 {
 	return 2 * earthRadiusKM * math.Asin(math.Sqrt(a))
 }
 
+// RankForCount returns the donor rank for a donation count. The thresholds are
+// defined by addendum v2: 1 First Drop, 3 Helper, 5 Silver Lifeline,
+// 10 Gold Lifeline, 25 Lifesaver. The highest reached rank wins.
+func RankForCount(count int) (key, label string, ok bool) {
+	switch {
+	case count >= 25:
+		return "lifesaver", "Lifesaver", true
+	case count >= 10:
+		return "gold_lifeline", "Gold Lifeline", true
+	case count >= 5:
+		return "silver_lifeline", "Silver Lifeline", true
+	case count >= 3:
+		return "helper", "Helper", true
+	case count >= 1:
+		return "first_drop", "First Drop", true
+	default:
+		return "", "", false
+	}
+}
+
 // FromUser converts a store user into a matching donor profile.
 func FromUser(user store.User) Donor {
 	donor := Donor{

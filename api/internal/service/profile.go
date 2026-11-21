@@ -92,6 +92,11 @@ func (s *Service) profileView(ctx context.Context, user store.User) (ProfileView
 		value := next.UTC().Format("2006-01-02")
 		view.Derived.NextEligibleAt = &value
 	}
+	if s.HasFeature("ranks") {
+		if key, label, ok := matching.RankForCount(count); ok {
+			view.Derived.Rank = &Rank{Key: key, Label: label}
+		}
+	}
 	return view, nil
 }
 

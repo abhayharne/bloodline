@@ -77,3 +77,26 @@ func TestMarkNotificationReadMissingIsNotFound(t *testing.T) {
 		t.Fatalf("err = %v, want ErrNotFound", err)
 	}
 }
+
+func TestHasNotification(t *testing.T) {
+	st, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	ctx := context.Background()
+	seedNotification(t, st, "n1", "u1")
+	// seedNotification uses type request.created, body "b"
+	ok, err := st.HasNotification(ctx, "u1", "request.created", "b")
+	if err != nil || !ok {
+		t.Fatalf("ok=%v err=%v, want true", ok, err)
+	}
+	ok, err = st.HasNotification(ctx, "u1", "rank_up", "b")
+	if err != nil || ok {
+		t.Fatalf("ok=%v err=%v, want false", ok, err)
+	}
+	ok, err = st.HasNotification(ctx, "u2", "request.created", "b")
+	if err != nil || ok {
+		t.Fatalf("other user ok=%v err=%v, want false", ok, err)
+	}
+}

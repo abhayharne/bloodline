@@ -69,6 +69,16 @@ func (s *Service) Features() []string {
 	return out
 }
 
+// HasFeature reports whether a client-safe feature flag is enabled.
+func (s *Service) HasFeature(name string) bool {
+	for _, f := range s.features {
+		if f == name {
+			return true
+		}
+	}
+	return false
+}
+
 // ValidationError is a client-caused error; handlers map it to HTTP 400.
 type ValidationError struct {
 	Message string

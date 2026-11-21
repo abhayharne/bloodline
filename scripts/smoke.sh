@@ -179,10 +179,17 @@ jq_ok --arg id "$request_id" '.requests[] | select(.id == $id) | .joined == true
 step "8/10 /me + donor pledge + /donated + notification read"
 code="$(req GET /me "" "$donor_token")"
 expect 200 "$code" "donor /me"
-jq_ok --arg id "$donor_id" '
-  .user.id == $id and (.derived.eligible | type == "boolean") and
-  .derived.donation_count == 1 and .derived.rank == null
-' "donor /me derived"
+if echo ",${FEATURES:-}," | grep -q ',ranks,'; then
+  jq_ok --arg id "$donor_id" '
+    .user.id == $id and (.derived.eligible | type == "boolean") and
+    .derived.donation_count == 1 and .derived.rank.key == "first_drop"
+  ' "donor /me derived"
+else
+  jq_ok --arg id "$donor_id" '
+    .user.id == $id and (.derived.eligible | type == "boolean") and
+    .derived.donation_count == 1 and .derived.rank == null
+  ' "donor /me derived"
+fi
 
 # A recent date keeps the waiting period open whenever the smoke runs.
 recent_date="$(python3 -c 'import datetime; print((datetime.date.today() - datetime.timedelta(days=10)).isoformat())')"
@@ -219,7 +226,11 @@ expect 201 "$code" "donated (repeat)"
 jq_ok --arg did "$donation_id" '.donation.id == $did and .donation_count == 1' "donated idempotent"
 code="$(req GET /me "" "$donor_token")"
 expect 200 "$code" "donor /me after donated"
-jq_ok '.derived.donation_count == 1 and .derived.rank == null' "donation_count in /me"
+if echo ",${FEATURES:-}," | grep -q ',ranks,'; then
+  jq_ok '.derived.donation_count == 1 and .derived.rank.key == "first_drop" and .derived.rank.label == "First Drop"' "donation_count and rank in /me"
+else
+  jq_ok '.derived.donation_count == 1 and .derived.rank == null' "donation_count in /me"
+fi
 
 code="$(req GET /notifications "" "$requester_token")"
 expect 200 "$code" "requester notifications"

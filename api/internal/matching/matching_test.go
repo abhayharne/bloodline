@@ -211,3 +211,30 @@ func TestFromUser(t *testing.T) {
 		t.Error("female donor with 120 days since donation should be eligible")
 	}
 }
+
+func TestRankForCount(t *testing.T) {
+	tests := []struct {
+		count int
+		key   string
+		label string
+		ok    bool
+	}{
+		{0, "", "", false},
+		{1, "first_drop", "First Drop", true},
+		{2, "first_drop", "First Drop", true},
+		{3, "helper", "Helper", true},
+		{4, "helper", "Helper", true},
+		{5, "silver_lifeline", "Silver Lifeline", true},
+		{9, "silver_lifeline", "Silver Lifeline", true},
+		{10, "gold_lifeline", "Gold Lifeline", true},
+		{24, "gold_lifeline", "Gold Lifeline", true},
+		{25, "lifesaver", "Lifesaver", true},
+		{100, "lifesaver", "Lifesaver", true},
+	}
+	for _, tt := range tests {
+		key, label, ok := RankForCount(tt.count)
+		if key != tt.key || label != tt.label || ok != tt.ok {
+			t.Errorf("RankForCount(%d) = (%q,%q,%v), want (%q,%q,%v)", tt.count, key, label, ok, tt.key, tt.label, tt.ok)
+		}
+	}
+}

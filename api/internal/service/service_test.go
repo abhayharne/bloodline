@@ -249,3 +249,30 @@ func TestRecordDonationAuthorization(t *testing.T) {
 		t.Fatalf("requester error = %v, want ErrForbidden", err)
 	}
 }
+
+func TestProfileRankFeatureFlag(t *testing.T) {
+	env := newTestService(t, WithFeatures([]string{"ranks"}))
+	ctx := context.Background()
+	group := "O+"
+	createUser(t, env.st, store.User{ID: "u1", Name: "Asha", Role: "donor", BloodGroup: &group, Available: true})
+	createUser(t, env.st, store.User{ID: "u2", Name: "Ravi", Role: "requester", BloodGroup: &group})
+	createRequest(t, env.st, store.Request{ID: "r1", RequesterID: "u2", BloodGroup: group, Units: 1, Hospital: "H", Urgency: "urgent", Status: "open"})
+
+	view, err := env.svc.Profile(ctx, "u1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Derived.Rank != nil {
+		t.Fatalf("rank before donations = %+v, want nil", view.Derived.Rank)
+	}
+	if err := env.st.CreateDonation(ctx, store.Donation{ID: "d1", RequestID: "r1", DonorID: "u1", Units: 1}); err != nil {
+		t.Fatal(err)
+	}
+	view, err = env.svc.Profile(ctx, "u1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Derived.Rank == nil || view.Derived.Rank.Key != "first_drop" || view.Derived.Rank.Label != "First Drop" {
+		t.Fatalf("rank = %+v, want First Drop", view.Derived.Rank)
+	}
+}
