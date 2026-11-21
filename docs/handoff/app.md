@@ -1,6 +1,6 @@
 # App Handoff
 **From:** agy (app agent)  **To:** next agent / human  **Time:** 2026-11-22 03:25 IST
-**Branch:** main
+**Branch:** feat/app
 
 ## Done this iteration
 - Task B1 Architecture:
