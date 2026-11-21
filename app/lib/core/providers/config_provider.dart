@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/app_config.dart';
 import '../api_client.dart';
+import '../../features/ranks/register.dart';
 
 class ConfigProvider extends ChangeNotifier {
   final ApiClient apiClient;
@@ -18,6 +19,7 @@ class ConfigProvider extends ChangeNotifier {
 
     try {
       _config = await apiClient.getConfig();
+      registerRanksFeature(config: _config);
     } catch (e) {
       debugPrint('[ConfigProvider] fetchConfig error: $e');
     } finally {

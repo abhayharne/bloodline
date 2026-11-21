@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bloodline/core/models/user.dart';
+import 'package:bloodline/core/models/user_derived.dart';
 import 'package:bloodline/core/models/auth_response.dart';
 import 'package:bloodline/core/models/blood_request.dart';
 import 'package:bloodline/core/models/blood_request_response.dart';
@@ -8,6 +9,26 @@ import 'package:bloodline/core/models/app_config.dart';
 
 void main() {
   group('JSON Models Ignore Unknown Fields', () {
+    test('UserDerived and UserRank safely parse and ignore unknown fields', () {
+      final json = {
+        'eligible': true,
+        'next_eligible_at': '2026-12-01T00:00:00.000Z',
+        'donation_count': 3,
+        'rank': {
+          'key': 'helper',
+          'label': 'Helper',
+          'extra_badge_color': '#FFD700',
+        },
+        'unknown_field_score': 100,
+      };
+
+      final derived = UserDerived.fromJson(json);
+      expect(derived.eligible, isTrue);
+      expect(derived.donationCount, 3);
+      expect(derived.rank?.key, 'helper');
+      expect(derived.rank?.label, 'Helper');
+    });
+
     test('User.fromJson safely ignores unknown fields', () {
       final json = {
         'id': 'u100',

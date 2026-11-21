@@ -5,6 +5,7 @@ import 'package:ai_nexconn_chatui_plugin/ai_nexconn_chatui_plugin.dart';
 
 import 'core/config.dart';
 import 'core/api_client.dart';
+import 'core/features.dart';
 import 'core/nexconn_service.dart';
 import 'core/providers/auth_provider.dart';
 import 'core/providers/requests_provider.dart';
@@ -20,12 +21,16 @@ import 'features/chat/register.dart';
 import 'features/home/register.dart';
 import 'features/debug/register.dart';
 import 'features/notifications/register.dart';
+import 'features/ranks/register.dart';
 
 import 'features/auth/login_screen.dart';
 import 'features/home/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  final apiClient = ApiClient();
+  final features = await Features.load(apiClient);
 
   // Initialize features (registers extension slots if any)
   registerAuthFeature();
@@ -36,6 +41,7 @@ void main() async {
   registerHomeFeature();
   registerDebugFeature();
   registerNotificationsFeature();
+  registerRanksFeature(features: features);
 
   // App key from dart-define, with fallback to .env default
   const appKey = String.fromEnvironment(
@@ -56,8 +62,6 @@ void main() async {
     appKey: appKey,
     areaCode: AreaCode.sg,
   );
-
-  final apiClient = ApiClient();
 
   runApp(
     NexconnChatUIProviders(

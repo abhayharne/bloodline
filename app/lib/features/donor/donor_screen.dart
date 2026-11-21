@@ -54,6 +54,11 @@ class _DonorScreenState extends State<DonorScreen> {
     if (!mounted) return;
     if (res != null) {
       final count = res['donation_count'] ?? 1;
+      try {
+        if (count is num) {
+          context.read<AuthProvider>().updateDonationCount(count.toInt());
+        }
+      } catch (_) {}
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

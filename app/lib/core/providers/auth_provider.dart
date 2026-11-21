@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
+import '../models/user_derived.dart';
 import '../models/auth_response.dart';
 import '../api_client.dart';
 import '../nexconn_service.dart';
@@ -9,12 +10,14 @@ import '../nexconn_service.dart';
 class AuthProvider extends ChangeNotifier {
   final ApiClient apiClient;
   User? _currentUser;
+  UserDerived? _derived;
   String? _token;
   String? _nexconnToken;
   bool _isLoading = false;
   String? _error;
 
   User? get currentUser => _currentUser;
+  UserDerived? get derived => _derived;
   String? get token => _token;
   String? get nexconnToken => _nexconnToken;
   bool get isAuthenticated => _currentUser != null && _token != null;
@@ -44,6 +47,8 @@ class AuthProvider extends ChangeNotifier {
           NexconnService.instance.connect(nexconnToken);
         }
         notifyListeners();
+        // Fetch derived profile & rank
+        await fetchMe();
       }
     } catch (e) {
       debugPrint('[AuthProvider] init session restoration error: $e');
@@ -174,8 +179,33 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> fetchMe() async {
+    try {
+      final res = await apiClient.getMe();
+      if (_currentUser == null && res['user'] != null && res['user'] is Map) {
+        _currentUser = User.fromJson(Map<String, dynamic>.from(res['user'] as Map));
+      }
+      if (res['derived'] != null && res['derived'] is Map) {
+        _derived = UserDerived.fromJson(Map<String, dynamic>.from(res['derived'] as Map));
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[AuthProvider] fetchMe error: $e');
+    }
+  }
+
+  void updateDonationCount(int count) {
+    final current = _derived ?? const UserDerived();
+    _derived = current.copyWith(
+      donationCount: count,
+      rank: UserRank.fromDonationCount(count) ?? current.rank,
+    );
+    notifyListeners();
+  }
+
   Future<void> logout() async {
     _currentUser = null;
+    _derived = null;
     _token = null;
     _nexconnToken = null;
     apiClient.authToken = null;
@@ -204,5 +234,7 @@ class AuthProvider extends ChangeNotifier {
     if (resp.nexconnToken.isNotEmpty) {
       await NexconnService.instance.connect(resp.nexconnToken);
     }
+
+    await fetchMe();
   }
 }

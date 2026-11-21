@@ -46,3 +46,13 @@
   3. Created `NotificationBanner` in `lib/features/notifications/notification_banner.dart` integrated at the top of `HomeScreen` dashboard, presenting server-provided title and body with "Mark read", "View All", and dismiss actions.
   4. Created `NotificationsScreen` in `lib/features/notifications/notifications_screen.dart` displaying the full notification feed with unread indicators, pull-to-refresh, empty state, and one-tap read actions. Added notification bell icon with dynamic unread badge in `HomeScreen` AppBar.
   5. Added comprehensive widget and unit tests covering polling, banner server copy rendering, dismiss, empty state, and read actions (35/35 tests green, gate clean).
+
+## D-APP-6 — Feature ranks: rank badge section in profile and home card via slots when flag enabled
+- Context: Task B9 requires rank badge section in profile and a home card ("{n} donations, {rank}"), registered via slots only when features contains ranks.
+- Decision:
+  1. Created `UserRank` and `UserDerived` models in `lib/core/models/user_derived.dart` with milestone mapping (1 First Drop, 3 Helper, 5 Silver Lifeline, 10 Gold Lifeline, 25 Lifesaver) and pure functions in `lib/core/rules/ranks.dart`.
+  2. Implemented `RanksHomeCard` in `lib/features/ranks/ranks_home_card.dart` displaying `"{n} donations, {rank}"` with gradient styling and medal iconography.
+  3. Implemented `RanksProfileSection` in `lib/features/ranks/ranks_profile_section.dart` displaying rank badge chip, lifetime donation count, and unlocked milestone chips in profile.
+  4. Implemented `registerRanksFeature({features, config, registry})` in `lib/features/ranks/register.dart` which registers cards into `SlotRegistry.instance.homeCards` and `profileSections` only when the `'ranks'` feature flag is active, ensuring idempotency.
+  5. Hooked dynamic configuration triggers in `ConfigProvider.fetchConfig()` and `AuthProvider.fetchMe()`, allowing real-time slot appearance upon config loading and instant rank progression updates when donations are recorded.
+  6. Added comprehensive unit and widget tests in `test/ranks_test.dart` and `test/models_test.dart` (45/45 tests passing, gate clean).

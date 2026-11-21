@@ -723,6 +723,21 @@ class MockApiClient implements ApiClient {
     ]);
   }
 
+  User? _mockCurrentUser;
+  int _mockDonationCount = 3;
+
+  int get mockDonationCount => _mockDonationCount;
+  set mockDonationCount(int val) => _mockDonationCount = val;
+
+  static Map<String, String>? rankForCount(int count) {
+    if (count >= 25) return {'key': 'lifesaver', 'label': 'Lifesaver'};
+    if (count >= 10) return {'key': 'gold_lifeline', 'label': 'Gold Lifeline'};
+    if (count >= 5) return {'key': 'silver_lifeline', 'label': 'Silver Lifeline'};
+    if (count >= 3) return {'key': 'helper', 'label': 'Helper'};
+    if (count >= 1) return {'key': 'first_drop', 'label': 'First Drop'};
+    return null;
+  }
+
   @override
   Future<bool> checkHealth() async => true;
 
@@ -772,6 +787,7 @@ class MockApiClient implements ApiClient {
     );
     final mockToken = 'mock_jwt_$mockId';
     authToken = mockToken;
+    _mockCurrentUser = mockUser;
     return AuthResponse(
       user: mockUser,
       token: mockToken,
@@ -805,6 +821,7 @@ class MockApiClient implements ApiClient {
     );
     final mockToken = 'mock_jwt_$mockId';
     authToken = mockToken;
+    _mockCurrentUser = mockUser;
     return AuthResponse(
       user: mockUser,
       token: mockToken,
@@ -937,8 +954,9 @@ class MockApiClient implements ApiClient {
 
   @override
   Future<Map<String, dynamic>> getMe() async {
+    final rank = rankForCount(_mockDonationCount);
     return {
-      'user': {
+      'user': _mockCurrentUser?.toJson() ?? {
         'id': 'u1',
         'name': 'Demo User',
         'role': 'donor',
@@ -949,8 +967,8 @@ class MockApiClient implements ApiClient {
       'derived': {
         'eligible': true,
         'next_eligible_at': null,
-        'donation_count': 3,
-        'rank': {'key': 'helper', 'label': 'Helper'}
+        'donation_count': _mockDonationCount,
+        'rank': rank,
       }
     };
   }
@@ -979,13 +997,14 @@ class MockApiClient implements ApiClient {
     if (index != -1) {
       _mockRequests[index] = _mockRequests[index].copyWith(donated: true);
     }
+    _mockDonationCount++;
     return {
       'donation': {
         'id': 'd1',
         'request_id': requestId,
         'donated_at': DateTime.now().toIso8601String(),
       },
-      'donation_count': 4,
+      'donation_count': _mockDonationCount,
     };
   }
 }

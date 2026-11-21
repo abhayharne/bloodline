@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/slot_registry.dart';
 import '../../core/location_service.dart';
 import '../../core/providers/auth_provider.dart';
+import '../../core/providers/config_provider.dart';
 import '../home/home_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -227,6 +228,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    try {
+      context.watch<ConfigProvider>();
+    } catch (_) {}
     final profileSlots = SlotRegistry.instance.profileSections;
 
     return Scaffold(

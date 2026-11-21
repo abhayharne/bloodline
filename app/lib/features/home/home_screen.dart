@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/slot_registry.dart';
 import '../../core/providers/auth_provider.dart';
+import '../../core/providers/config_provider.dart';
 import '../../core/providers/notifications_provider.dart';
 import '../requester/requester_screen.dart';
 import '../donor/donor_screen.dart';
@@ -37,6 +38,9 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    try {
+      context.watch<ConfigProvider>();
+    } catch (_) {}
     final user = auth.currentUser;
     final role = user?.role ?? 'donor';
     final homeCards = SlotRegistry.instance.homeCards;

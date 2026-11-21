@@ -16,6 +16,7 @@ import 'package:bloodline/core/providers/notifications_provider.dart';
 import 'package:bloodline/features/chat/blood_request_chat_screen.dart';
 import 'package:bloodline/features/home/home_screen.dart';
 import 'package:bloodline/features/notifications/notifications_screen.dart';
+import 'package:bloodline/core/slot_registry.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 Widget createTestApp(
@@ -46,6 +47,11 @@ void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
     MockApiClient.resetMockNotifications();
+    SlotRegistry.instance.clear();
+  });
+
+  tearDown(() {
+    SlotRegistry.instance.clear();
   });
   testWidgets('LoginScreen renders phone input, role selector, and mock OTP trigger', (tester) async {
     await tester.pumpWidget(createTestApp(const LoginScreen()));
