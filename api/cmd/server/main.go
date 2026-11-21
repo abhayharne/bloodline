@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"bloodline/internal/nexconn"
 	"bloodline/internal/notify"
 	"bloodline/internal/ranks"
+	"bloodline/internal/reminders"
 	"bloodline/internal/service"
 	"bloodline/internal/store"
 )
@@ -58,15 +60,24 @@ func run() error {
 		bus.Subscribe(events.DonationRecorded, ranks.New(st).Handle)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	reminderRunner := reminders.New(st)
+	if cfgHasFeature(cfg.Features, "reminders") {
+		bus.Subscribe(events.RequestCreated, reminderRunner.Handle)
+		go reminderRunner.RunTicker(ctx, time.Hour)
+	}
+
 	svc := service.New(st, chat, issuer,
 		service.WithDemoOTP(cfg.DemoOTP),
 		service.WithFeatures(cfg.Features),
 		service.WithMatchRadius(cfg.MatchRadiusKM),
 		service.WithBus(bus),
 	)
+	opts := append(devRoutes(cfg.Dev), httpapi.WithReminderRunner(reminderRunner))
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           httpapi.New(svc, issuer, devRoutes(cfg.Dev)...),
+		Handler:           httpapi.New(svc, issuer, opts...),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

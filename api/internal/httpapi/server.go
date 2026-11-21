@@ -14,11 +14,18 @@ import (
 	"bloodline/internal/store"
 )
 
+// ReminderRunner is the feature slice the dev run-reminders route needs. The
+// interface lives here so httpapi never imports the reminders feature package.
+type ReminderRunner interface {
+	RunEligibilityChecks(ctx context.Context) (int, error)
+}
+
 // Server holds the dependencies used by the handlers.
 type Server struct {
-	svc *service.Service
-	jwt *auth.Issuer
-	dev bool
+	svc       *service.Service
+	jwt       *auth.Issuer
+	dev       bool
+	reminders ReminderRunner
 }
 
 // ServerOption customises the HTTP handler without breaking existing callers.
@@ -28,6 +35,12 @@ type ServerOption func(*Server)
 // production; main only passes it when DEV=1.
 func WithDevRoutes() ServerOption {
 	return func(s *Server) { s.dev = true }
+}
+
+// WithReminderRunner injects the eligibility scan used by POST /dev/run-reminders.
+// It does not register the route; that still requires WithDevRoutes (DEV=1).
+func WithReminderRunner(r ReminderRunner) ServerOption {
+	return func(s *Server) { s.reminders = r }
 }
 
 // New returns the API handler.
@@ -57,6 +70,7 @@ func New(svc *service.Service, jwt *auth.Issuer, opts ...ServerOption) http.Hand
 	mux.Handle("POST /requests/{id}/fulfill", s.requireRole("requester")(s.fulfillRequest))
 	if s.dev {
 		mux.HandleFunc("POST /dev/reset", s.devReset)
+		mux.HandleFunc("POST /dev/run-reminders", s.devRunReminders)
 	}
 	return mux
 }
