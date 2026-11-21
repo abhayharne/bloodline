@@ -207,3 +207,21 @@ Postscript: this session's two doc edits were swept into the peer's `c850325`
 commit (the peer commits with `-a`) before my own explicit-pathspec commit could
 run; the peer's in-flight `request.go` was NOT included. Net tree state is correct
 and nothing is left uncommitted by this session.
+
+## D24 — Iteration 7 duplicate loop; defer A13 to actively-editing peer (operational)
+This session is the "iteration 7, gate PASS" loop (PID 191522, started 03:56:04,
+loop.sh 127627). The sibling "iteration 6, gate FAIL" loop (PID 177280, started
+03:47:54, loop.sh 126314) is still alive and mid-flight on A13: at check time it
+had uncommitted edits to api/cmd/server/main.go (reminders subscription, hourly
+ticker, dev route), api/internal/httpapi/dev.go (devRunReminders) and
+api/internal/httpapi/server.go (reminders field + route). Its last commits are
+c850325 (store helpers), 40c073d (filters behind flag) and 89550b6 (handler tests).
+
+D22's "higher iteration owns the task" rule is refined: its purpose is to stop
+two agents racing on the same files, so it yields when the lower-numbered loop is
+demonstrably editing those files right now. Following it literally here would
+clobber the peer's uncommitted A13 work (the exact failure D15/D17/D18 guard
+against). Decision: re-verified the entry gate PASS, deferred A13 to the in-flight
+peer, touched no api/ code, did not tick A13, and limited writes to this decision
+log and the handoff, committed with an explicit pathspec. No task box changed.
+A human still needs to stop one of the two `scripts/loop.sh opencode api` loops.

@@ -1,37 +1,32 @@
 # Handoff
-**From:** opencode (api, overnight loop, iteration 6, pts/4)  **To:** next api session  **Time:** 2026-11-22
-**Branch:** feat/api  **Last commit:** see `git log -1`
+**From:** opencode (api, overnight loop, iteration 7, gate-PASS loop) **To:** next api session **Time:** 2026-11-22 03:57
+**Branch:** feat/api **Last commit:** see `git log -1`
 
 ## Done this iteration
-- Re-ran `scripts/gate-api.sh` on committed HEAD: PASS (all packages, both smoke modes).
-- No A<N> code owned this iteration. Both api loops now name iteration 6: pts/6
-  (gate-FAIL prompt, started 03:47) and pts/4 (this session, gate-PASS, started 03:52).
-  The pts/6 loop already owns A13 per the handoff and D22, and had uncommitted A13
-  work in `api/internal/store/notifications.go` when checked. Per D15/D22 and the
-  refined equal-iteration tie-break in D23, deferred A13 to it rather than race on
-  the same files. Did not touch api/ code or the peer's uncommitted work.
+- Re-ran `scripts/gate-api.sh` on committed HEAD: PASS (build, vet, `-race` tests, both smoke modes).
+- Owned no A<N> code. Deferred A13 to the in-flight iteration-6 peer loop (started 03:47:54),
+  which had uncommitted edits to `main.go`, `dev.go` and `server.go`. Did not touch api/ code
+  or the peer's work; recorded the refinement in D24.
 
 ## State
-- HEAD: `e524d9f` (iteration 5 deferral + D22); before it `3d17bce` (D21 rowid
-  newest-first ordering fix). Working tree had a peer's uncommitted A13 edit to
-  `api/internal/store/notifications.go` at check time — do not mistake it for ours.
-- A13 is still the first unchecked task; A14 follows. No task box was changed.
-- Only docs/decisions-api.md (appended D23) and this handoff were edited by us;
-  they landed inside the peer's `c850325` commit (peer uses `git commit -a`), not
-  a separate one. The peer's in-flight `request.go` was not swept in.
-  No fixed ports, no `.env`, no docs/PLAN.md, no `app/` edits, no pushes.
+- HEAD: `89550b6` (A13 reminders handler tests). Before it `40c073d` (filters behind flag)
+  and `c850325` (store/dedupe helpers).
+- A13 is still the first unchecked task; the peer is finishing its wiring (hourly ticker,
+  `POST /dev/run-reminders`, reminders subscription in main.go) as uncommitted edits.
+  A14 follows. No task box changed by us.
+- Only `docs/decisions-api.md` (D24) and this handoff edited by us; committed with an
+  explicit pathspec. No fixed ports, no `.env`, no `docs/PLAN.md`, no `app/` edits, no pushes.
 
 ## Next action
-- Let the in-flight pts/6 loop finish A13: `ByAvailability`/`ByEligibility` under
-  `reminders`, hourly ticker + `POST /dev/run-reminders` (DEV=1) writing once-per-
-  eligibility-period `eligible_again` per COPY.md, `match_nearby` on
-  `request.created`, panic-safe/idempotent subscribers; then gate, tick A13, D24,
-  handoff, commit. Verify its commit + task box before starting a new A<N>.
+- Let the iteration-6 peer finish A13: hourly ticker + `POST /dev/run-reminders` (DEV=1)
+  writing once-per-cycle `eligible_again` per COPY.md, `match_nearby` on `request.created`,
+  reminders subscription in main.go; then gate, tick A13, D25, handoff, commit. Verify its
+  commit + task box before starting a new A<N>.
 - After A13: A14 (README API run section, reconcile docs/API.md with code, tidy handoff).
-- Two api loops are still running on this tree. A human must stop one
-  `scripts/loop.sh opencode api ...` process. Until then re-read files before every
-  write, commit atomically with explicit paths, and never revert peer work (D22/D23).
+- Two api loops still share this tree. A human must stop one `scripts/loop.sh opencode api ...`
+  process. Until then re-read files before every write, commit atomically with explicit
+  paths, and never revert peer work (D22–D24).
 
 ## Blockers
-- None for the API code itself. The duplicate-loop process issue needs a human to
-  stop one `scripts/loop.sh opencode api` process (out of scope for an iteration).
+- None for the API code itself. The duplicate-loop process issue needs a human to stop one
+  loop (out of scope for an iteration).
