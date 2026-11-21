@@ -857,8 +857,16 @@ class MockApiClient implements ApiClient {
 
   @override
   Future<Map<String, dynamic>> verifyOtp(String phone, String otp) async {
+    if (otp != '123456' && !otp.startsWith('123')) {
+      throw ApiException(401, 'Invalid OTP');
+    }
+    final isNew = phone.contains('new') || phone.endsWith('999') || phone.endsWith('000');
+    if (isNew) {
+      return {'is_new': true, 'demo': true};
+    }
     return {
       'is_new': false,
+      'demo': true,
       'token': 'mock_token_$phone',
       'nexconn_token': 'mock_nexconn_token_$phone',
       'user': {

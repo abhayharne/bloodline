@@ -50,6 +50,49 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<Map<String, dynamic>> sendOtp(String phone) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final res = await apiClient.sendOtp(phone);
+      _isLoading = false;
+      notifyListeners();
+      return res;
+    } catch (e) {
+      _isLoading = false;
+      _error = e.toString();
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> verifyOtp({
+    required String phone,
+    required String otp,
+  }) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final res = await apiClient.verifyOtp(phone, otp);
+      if (res['is_new'] == false && res['user'] != null) {
+        final authResp = AuthResponse.fromJson(res);
+        await _saveSession(authResp);
+      }
+      _isLoading = false;
+      notifyListeners();
+      return res;
+    } catch (e) {
+      _isLoading = false;
+      _error = e.toString();
+      notifyListeners();
+      rethrow;
+    }
+  }
+
   Future<bool> login({
     required String name,
     required String role,
@@ -87,6 +130,8 @@ class AuthProvider extends ChangeNotifier {
     bool donatedBefore = false,
     DateTime? lastDonationDate,
     String? areaName,
+    bool consent = true,
+    String? otp,
   }) async {
     _isLoading = true;
     _error = null;
@@ -107,6 +152,8 @@ class AuthProvider extends ChangeNotifier {
         donatedBefore: donatedBefore,
         lastDonationDate: lastDonationDate,
         areaName: areaName,
+        consent: consent,
+        otp: otp,
       );
       await _saveSession(resp);
       _isLoading = false;

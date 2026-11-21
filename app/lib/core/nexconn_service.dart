@@ -41,9 +41,26 @@ class NexconnService {
   /// If using mock tokens (offline or spike), safely catches errors without crashing.
   Future<bool> connect(String token) async {
     if (token.isEmpty) return false;
+
+    // For mock tokens or test environments, record connection state immediately
+    if (token.startsWith('mock_')) {
+      _connected = true;
+      _connectedUserId = 'mock_user';
+      _connectionController.add(true);
+      return true;
+    }
+
     final completer = Completer<bool>();
 
     try {
+      if (!_initialized) {
+        await initialize(
+          appKey: const String.fromEnvironment('NEXCONN_APP_KEY',
+              defaultValue: 'mock_app_key'),
+          areaCode: AreaCode.sg,
+        );
+      }
+
       await NCEngine.connect(
         ConnectParams(token: token),
         (String? userId, NCError? error) {
@@ -55,42 +72,20 @@ class NexconnService {
             if (!completer.isCompleted) completer.complete(true);
           } else {
             debugPrint('[NexconnService] Connect error: ${error?.code} - ${error?.message}');
-            // For mock/dev tokens, record connection state gracefully
-            if (token.startsWith('mock_')) {
-              _connected = true;
-              _connectedUserId = 'mock_user';
-              _connectionController.add(true);
-              if (!completer.isCompleted) completer.complete(true);
-            } else {
-              _connected = false;
-              _connectionController.add(false);
-              if (!completer.isCompleted) completer.complete(false);
-            }
+            _connected = false;
+            _connectionController.add(false);
+            if (!completer.isCompleted) completer.complete(false);
           }
         },
       );
     } catch (e) {
       debugPrint('[NexconnService] Connect exception: $e');
-      if (token.startsWith('mock_')) {
-        _connected = true;
-        _connectedUserId = 'mock_user';
-        _connectionController.add(true);
-        if (!completer.isCompleted) completer.complete(true);
-      } else {
-        if (!completer.isCompleted) completer.complete(false);
-      }
+      if (!completer.isCompleted) completer.complete(false);
     }
 
     return completer.future.timeout(
       const Duration(seconds: 4),
-      onTimeout: () {
-        if (token.startsWith('mock_')) {
-          _connected = true;
-          _connectionController.add(true);
-          return true;
-        }
-        return false;
-      },
+      onTimeout: () => false,
     );
   }
 

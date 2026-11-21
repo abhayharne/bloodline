@@ -1,1 +1,1 @@
-[agy] B1 Architecture: abstract ApiClient, HttpApiClient, MockApiClient, features.dart, slots.dart
+[agy] B2 Auth: phone entry, demo mode OTP, signup form with donor consent, typed area fallback, Nexconn connection

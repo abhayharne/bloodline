@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:bloodline/core/api_client.dart';
+import 'package:bloodline/core/nexconn_service.dart';
 import 'package:bloodline/core/providers/auth_provider.dart';
 import 'package:bloodline/core/providers/requests_provider.dart';
 import 'package:bloodline/core/providers/bank_stock_provider.dart';
@@ -12,15 +13,15 @@ import 'package:bloodline/features/donor/donor_screen.dart';
 import 'package:bloodline/features/bank/bank_screen.dart';
 import 'package:bloodline/core/models/blood_request.dart';
 import 'package:bloodline/features/chat/blood_request_chat_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-Widget createTestApp(Widget child) {
+Widget createTestApp(Widget child, {AuthProvider? authProvider}) {
   final apiClient = ApiClient(mockMode: true);
+  final auth = authProvider ?? AuthProvider(apiClient: apiClient);
   return MultiProvider(
     providers: [
       Provider<ApiClient>.value(value: apiClient),
-      ChangeNotifierProvider<AuthProvider>(
-        create: (_) => AuthProvider(apiClient: apiClient),
-      ),
+      ChangeNotifierProvider<AuthProvider>.value(value: auth),
       ChangeNotifierProvider<RequestsProvider>(
         create: (_) => RequestsProvider(apiClient: apiClient),
       ),
@@ -33,6 +34,9 @@ Widget createTestApp(Widget child) {
 }
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
   testWidgets('LoginScreen renders phone input, role selector, and mock OTP trigger', (tester) async {
     await tester.pumpWidget(createTestApp(const LoginScreen()));
     await tester.pumpAndSettle();
@@ -49,10 +53,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Enter 6-digit Mock OTP'), findsOneWidget);
+    expect(find.text('demo mode, code 123456'), findsOneWidget);
     expect(find.text('Verify & Continue'), findsOneWidget);
   });
 
-  testWidgets('ProfileScreen renders physical fields, blood group, and location fallback', (tester) async {
+  testWidgets('ProfileScreen renders physical fields, blood group, consent, and location fallback', (tester) async {
     await tester.pumpWidget(createTestApp(const ProfileScreen(isNewUser: true)));
     await tester.pumpAndSettle();
 
@@ -65,6 +70,8 @@ void main() {
     expect(find.text('Donated blood before?'), findsOneWidget);
     expect(find.text('Location Settings'), findsOneWidget);
     expect(find.text('Use Device GPS Location'), findsOneWidget);
+    expect(find.text('Typed Area / Neighborhood (fallback)'), findsOneWidget);
+    expect(find.text('Donor Consent *'), findsOneWidget);
     expect(find.text('Nagpur Central'), findsWidgets);
   });
 
@@ -124,5 +131,82 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Request Fulfilled — This room is closed'), findsOneWidget);
+  });
+
+  testWidgets('LoginScreen OTP verify authenticates existing user and connects Nexconn', (tester) async {
+    final client = ApiClient(mockMode: true);
+    final auth = AuthProvider(apiClient: client);
+
+    await tester.pumpWidget(createTestApp(const LoginScreen(), authProvider: auth));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Get Mock OTP'));
+    await tester.pumpAndSettle();
+
+    // Verify existing user
+    await tester.ensureVisible(find.text('Verify & Continue'));
+    await tester.tap(find.text('Verify & Continue'));
+    await tester.pump();
+
+    expect(auth.isAuthenticated, isTrue);
+    expect(auth.token, isNotNull);
+    expect(auth.currentUser?.role, 'donor');
+    expect(NexconnService.instance.isConnected, isTrue);
+  });
+
+  testWidgets('ProfileScreen enforces donor consent validation before submitting', (tester) async {
+    final client = ApiClient(mockMode: true);
+    final auth = AuthProvider(apiClient: client);
+
+    await tester.pumpWidget(createTestApp(
+      const ProfileScreen(isNewUser: true, initialRole: 'donor'),
+      authProvider: auth,
+    ));
+    await tester.pumpAndSettle();
+
+    // Enter name
+    await tester.enterText(find.byType(TextFormField).first, 'Vikram');
+    await tester.pumpAndSettle();
+
+    // Uncheck consent checkbox
+    final consentFinder = find.byType(CheckboxListTile);
+    expect(consentFinder, findsOneWidget);
+    await tester.ensureVisible(consentFinder);
+    await tester.tap(consentFinder);
+    await tester.pumpAndSettle();
+
+    // Tap Complete Registration
+    await tester.ensureVisible(find.text('Complete Registration'));
+    await tester.tap(find.text('Complete Registration'));
+    await tester.pump();
+
+    // Should show validation snackbar and remain on ProfileScreen without registering
+    expect(find.text('Donors must provide consent to be registered.'), findsOneWidget);
+    expect(find.text('Complete Registration'), findsOneWidget);
+    expect(auth.isAuthenticated, isFalse);
+  });
+
+  testWidgets('LoginScreen new user navigates to ProfileScreen upon OTP verification', (tester) async {
+    await tester.pumpWidget(createTestApp(const LoginScreen()));
+    await tester.pumpAndSettle();
+
+    // Enter a new user phone number (ends in 999 to trigger is_new in mock)
+    final phoneFinder = find.byType(TextField).at(1);
+    await tester.enterText(phoneFinder, '+91 99999 00999');
+    await tester.pumpAndSettle();
+
+    // Tap Get Mock OTP
+    await tester.tap(find.text('Get Mock OTP'));
+    await tester.pumpAndSettle();
+
+    // Verify OTP -> navigates to Complete Profile screen
+    await tester.ensureVisible(find.text('Verify & Continue'));
+    await tester.tap(find.text('Verify & Continue'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Complete Profile'), findsOneWidget);
+    expect(find.text('Donor Consent *'), findsOneWidget);
+    expect(find.text('Typed Area / Neighborhood (fallback)'), findsOneWidget);
   });
 }

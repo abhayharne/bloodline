@@ -58,11 +58,19 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
 
-    final tabs = [
-      dashboardBody,
-      const ChannelInboxScreen(),
-      const ProfileScreen(),
-    ];
+    Widget activeBody;
+    switch (_currentTabIndex) {
+      case 1:
+        activeBody = const ChannelInboxScreen();
+        break;
+      case 2:
+        activeBody = const ProfileScreen();
+        break;
+      case 0:
+      default:
+        activeBody = dashboardBody;
+        break;
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -122,10 +130,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: IndexedStack(
-        index: _currentTabIndex,
-        children: tabs,
-      ),
+      body: activeBody,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentTabIndex,
         onDestinationSelected: (idx) => setState(() => _currentTabIndex = idx),

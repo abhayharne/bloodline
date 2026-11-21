@@ -9,6 +9,7 @@ class ProfileScreen extends StatefulWidget {
   final String? initialPhone;
   final String? initialName;
   final String? initialRole;
+  final String? initialOtp;
   final bool isNewUser;
 
   const ProfileScreen({
@@ -16,6 +17,7 @@ class ProfileScreen extends StatefulWidget {
     this.initialPhone,
     this.initialName,
     this.initialRole,
+    this.initialOtp,
     this.isNewUser = false,
   });
 
@@ -38,6 +40,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _sex = 'male';
   bool _donatedBefore = false;
   DateTime? _lastDonationDate;
+  bool _consent = true;
 
   double _latitude = 21.1458;
   double _longitude = 79.0882;
@@ -78,6 +81,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _latitude = u.lat != 0.0 ? u.lat : 21.1458;
       _longitude = u.lng != 0.0 ? u.lng : 79.0882;
       _locationDisplay = u.areaName ?? 'Nagpur Central, MH';
+      _consent = u.consent;
     }
   }
 
@@ -146,6 +150,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _onSubmit() async {
     if (!_formKey.currentState!.validate()) return;
 
+    if (_role == 'donor' && !_consent) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Donors must provide consent to be registered.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     final authProvider = context.read<AuthProvider>();
     final name = _nameController.text.trim();
     final phone = _phoneController.text.trim();
@@ -170,6 +184,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         donatedBefore: _donatedBefore,
         lastDonationDate: _lastDonationDate,
         areaName: _locationDisplay,
+        consent: _consent,
+        otp: widget.initialOtp ?? '123456',
       );
     } else {
       final updated = authProvider.currentUser!.copyWith(
@@ -186,6 +202,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         donatedBefore: _donatedBefore,
         lastDonationDate: _lastDonationDate,
         areaName: _locationDisplay,
+        consent: _consent,
       );
       await authProvider.updateProfile(updated);
       success = true;
@@ -476,6 +493,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         label: Text(_isFetchingLocation ? 'Detecting GPS…' : 'Use Device GPS Location'),
                       ),
                       const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _customAreaController,
+                        decoration: const InputDecoration(
+                          labelText: 'Typed Area / Neighborhood (fallback)',
+                          hintText: 'e.g. Sitabuldi, Civil Lines, Medical Square',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.edit_location_alt),
+                        ),
+                        onChanged: (val) {
+                          setState(() {
+                            _locationDisplay = val;
+                            _isGpsActive = false;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
                       const Text(
                         'Or choose a typed area preset (fallback):',
                         style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black54),
@@ -497,6 +530,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
+
+              if (_role == 'donor') ...[
+                const SizedBox(height: 16),
+                Card(
+                  elevation: 0,
+                  color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.4),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _consent,
+                      onChanged: (val) => setState(() => _consent = val ?? false),
+                      title: const Text(
+                        'Donor Consent *',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      ),
+                      subtitle: const Text(
+                        'I agree to donate blood voluntarily and receive notifications',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                      controlAffinity: ListTileControlAffinity.leading,
+                    ),
+                  ),
+                ),
+              ],
 
               // SlotRegistry profileSections (rendered if any feature registers)
               for (final slotBuilder in profileSlots) ...[

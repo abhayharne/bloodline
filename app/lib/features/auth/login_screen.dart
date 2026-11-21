@@ -16,6 +16,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _nameController = TextEditingController(text: 'Ravi');
   String _selectedRole = 'donor'; // 'requester' | 'donor' | 'bank'
   bool _otpSent = false;
+  bool _isDemo = true;
   final _otpController = TextEditingController(text: '123456');
 
   @override
@@ -26,22 +27,35 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _onSendOtp() {
-    if (_phoneController.text.trim().isEmpty) {
+  Future<void> _onSendOtp() async {
+    final phone = _phoneController.text.trim();
+    if (phone.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a valid phone number')),
       );
       return;
     }
-    setState(() {
-      _otpSent = true;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Mock OTP sent! Auto-filled: 123456'),
-        backgroundColor: Colors.teal,
-      ),
-    );
+    final auth = context.read<AuthProvider>();
+    try {
+      final res = await auth.sendOtp(phone);
+      if (!mounted) return;
+      setState(() {
+        _otpSent = true;
+        _isDemo = res['demo'] == true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Mock OTP sent! Auto-filled: 123456'),
+          backgroundColor: Colors.teal,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _otpSent = true;
+        _isDemo = true;
+      });
+    }
   }
 
   Future<void> _onVerifyOtp() async {
@@ -57,45 +71,37 @@ class _LoginScreenState extends State<LoginScreen> {
     final name = _nameController.text.trim();
     final phone = _phoneController.text.trim();
 
-    if (name.isEmpty) {
-      // Navigate to complete profile
+    try {
+      final res = await authProvider.verifyOtp(phone: phone, otp: otp);
+      if (!mounted) return;
+
+      if (res['is_new'] == false && authProvider.isAuthenticated) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+        return;
+      }
+
+      // If user is new, proceed to complete profile registration
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => ProfileScreen(
             initialPhone: phone,
+            initialName: name.isNotEmpty ? name : null,
             initialRole: _selectedRole,
+            initialOtp: otp,
             isNewUser: true,
           ),
         ),
       );
-      return;
-    }
-
-    // Try login with provided credentials
-    final success = await authProvider.login(
-      name: name,
-      role: _selectedRole,
-      phone: phone,
-    );
-
-    if (!mounted) return;
-    if (success) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-      );
-    } else {
-      // If user doesn't exist, proceed to profile registration
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ProfileScreen(
-            initialPhone: phone,
-            initialName: name,
-            initialRole: _selectedRole,
-            isNewUser: true,
-          ),
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Verification failed: $e'),
+          backgroundColor: Colors.red.shade700,
         ),
       );
     }
@@ -256,6 +262,32 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      if (_isDemo)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.shade100,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.amber.shade400),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.info_outline, size: 18, color: Colors.orange),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'demo mode, code 123456',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       const Text(
                         'Enter 6-digit Mock OTP',
                         style: TextStyle(
