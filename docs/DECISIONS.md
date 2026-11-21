@@ -126,3 +126,9 @@ Goal: keep the hackathon happy path simple while making later extension cheap.
    phone signup and future eligibility filtering. `donations` records a donor's pledge on
    accept; `notifications` records events. Fresh databases use `db/schema.sql`; existing
    databases get idempotent `ALTER TABLE` migrations on boot.
+
+## D12 — NEXCONN_MOCK=1 for offline smoke runs
+Dev-only env switch: when set, the API uses `nexconn.NoopClient` (dummy chat token, no
+network) and skips credential validation. It exists solely so `scripts/smoke.sh` can
+verify signup -> request -> accept -> fulfill without Nexconn credentials or internet.
+Never enable in production; it is not a feature flag and is not exposed by GET /config.
