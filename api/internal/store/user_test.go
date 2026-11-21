@@ -135,3 +135,53 @@ func TestFindUserNotFound(t *testing.T) {
 		t.Fatalf("UserByID error = %v, want ErrNotFound", err)
 	}
 }
+
+func TestUpdateProfilePartialAndClear(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	if err := st.CreateUser(ctx, User{
+		ID: "u1", Name: "Asha", Role: "donor", Lat: 21.1, Lng: 79.1, Available: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// An empty update is a harmless no-op.
+	if err := st.UpdateProfile(ctx, "u1", ProfileUpdate{}); err != nil {
+		t.Fatalf("empty update: %v", err)
+	}
+
+	available := false
+	weight := 58.0
+	last := "2026-01-01"
+	lat := 22.0
+	if err := st.UpdateProfile(ctx, "u1", ProfileUpdate{
+		Available: &available, WeightKG: &weight, LastDonatedAt: &last, Lat: &lat,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := st.UserByID(ctx, "u1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Available || got.WeightKG == nil || *got.WeightKG != weight ||
+		got.LastDonatedAt == nil || *got.LastDonatedAt != last || got.Lat != lat ||
+		got.Lng != 79.1 {
+		t.Fatalf("partial update = %+v", got)
+	}
+
+	empty := ""
+	if err := st.UpdateProfile(ctx, "u1", ProfileUpdate{LastDonatedAt: &empty}); err != nil {
+		t.Fatal(err)
+	}
+	got, err = st.UserByID(ctx, "u1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.LastDonatedAt != nil {
+		t.Fatalf("LastDonatedAt = %q, want cleared", *got.LastDonatedAt)
+	}
+
+	if err := st.UpdateProfile(ctx, "missing", ProfileUpdate{Lat: &lat}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing user update error = %v, want ErrNotFound", err)
+	}
+}

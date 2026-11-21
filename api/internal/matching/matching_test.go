@@ -115,6 +115,38 @@ func TestEligibleDonationIntervals(t *testing.T) {
 	}
 }
 
+func TestNextEligibleAt(t *testing.T) {
+	now := time.Date(2026, 11, 22, 12, 0, 0, 0, time.UTC)
+	if got := NextEligibleAt(eligibleDonor(), now); got != nil {
+		t.Fatalf("no last donation: NextEligibleAt = %v, want nil", got)
+	}
+
+	recent := now.AddDate(0, 0, -10)
+	donor := eligibleDonor()
+	donor.LastDonatedAt = &recent
+	got := NextEligibleAt(donor, now)
+	want := recent.Add(90 * 24 * time.Hour)
+	if got == nil || !got.Equal(want) {
+		t.Fatalf("male 10 days ago = %v, want %v", got, want)
+	}
+	if Eligible(donor, now) {
+		t.Error("donor 10 days after donating must not be eligible")
+	}
+
+	donor.Sex = "female"
+	got = NextEligibleAt(donor, now)
+	want = recent.Add(120 * 24 * time.Hour)
+	if got == nil || !got.Equal(want) {
+		t.Fatalf("female 10 days ago = %v, want %v", got, want)
+	}
+
+	old := now.AddDate(0, 0, -200)
+	donor.LastDonatedAt = &old
+	if got := NextEligibleAt(donor, now); got != nil {
+		t.Fatalf("waiting period already elapsed: NextEligibleAt = %v, want nil", got)
+	}
+}
+
 func TestPipelineAppliesAllFilters(t *testing.T) {
 	now := time.Date(2026, 11, 22, 12, 0, 0, 0, time.UTC)
 	patient := Patient{BloodGroup: "O+", Lat: 21.15, Lng: 79.09}
