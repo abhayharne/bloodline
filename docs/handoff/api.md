@@ -1,36 +1,34 @@
 # Handoff
-**From:** opencode (api, overnight loop, iteration 8) **To:** next api session / human **Time:** 2026-11-22
+**From:** opencode (api, overnight loop, iteration 7, gate-PASS deferral) **To:** next api session **Time:** 2026-11-22 04:02
 **Branch:** feat/api **Last commit:** see `git log -1`
 
 ## Done
-- Entry gate PASS. First unchecked task was A14; it is now complete and ticked.
-- Rewrote `docs/API.md` as a v2 contract matching the shipped code: phone auth,
-  `/me`, notifications (`read` + mark-read), `/donated`, dev routes, feature
-  flags, offline modes and exact response shapes. Known code/addendum gaps are
-  listed in a "Deviations from addendum v2" section (D27) — no code changed.
-- Added a "Running the API" section to root `README.md` (offline `NEXCONN_FAKE=1`
-  startup, env knobs, gate/smoke script).
-- Recorded D27 (doc-pass scope + duplicate-loop ownership); the peer's D26
-  deferral checklist is preserved. Appended-only, no decision was reverted.
-- Verification: `scripts/gate-api.sh` PASS — build, vet, `-race -count=1 ./...`,
-  smoke with `FEATURES=` and `FEATURES=ranks,reminders`.
+- Entry gate `scripts/gate-api.sh` PASS (build, vet, `-race -count=1 ./...`,
+  smoke with `FEATURES=` and `FEATURES=ranks,reminders`); re-run at the end of
+  the iteration on the post-A14 tree, also PASS.
+- Owned no task letter this iteration: iteration 8 (pts/4, loop.sh 127627) is
+  the higher-numbered live loop, so per D22 it owned A14. Deferred before any
+  edit; the sibling was subsequently seen editing and committed A14 as
+  `fdd0b59` (README run section, docs/API.md reconciliation, A14 ticked).
+- Recorded D26: the deferral, the A14 rule-5-vs-task-scope resolution, and a
+  verified doc/code mismatch checklist used by the owning loop.
+- This session's only edits are `docs/decisions-api.md` and this handoff,
+  committed as `f92f24d` with explicit pathspecs. No `api/`, docs/API.md,
+  README.md, `app/`, `.env` or docs/PLAN.md edits; no pushes, no fixed ports.
 
 ## State
-- All tasks A0–A14 in `docs/tasks-api.md` are `[x]`; there is no unchecked API task.
-- This session's work: `README.md`, `docs/API.md`, `docs/tasks-api.md`,
-  `docs/decisions-api.md`, this handoff. Committed with explicit pathspecs; no
-  uncommitted work left.
-- No code edits this iteration, no `.env`, no docs/PLAN.md, no `app/`, no fixed
-  ports, no pushes, no sudo.
+- All tasks A0-A14 are `[x]`; no unchecked API task remains. Tree clean.
+- HEAD: `fdd0b59` (A14) on top of `f92f24d` (this session's docs).
+- Gate PASS on the final committed tree.
 
 ## Next action
-- None in the task list — the API scope is complete. A human should review the
-  deviations in D27/D26 and decide whether to reconcile the auth wire to addendum
-  v2 (`code`->`otp`, `is_new`, `demo`, donor consent) in a follow-up task.
-- A human must stop one of the two duplicate `scripts/loop.sh opencode api ...`
-  processes (loop.sh 126314 and 127627); agents cannot do this from a session.
+- None from the task list: A0-A14 are complete and the gate is green. Wait for
+  the human to stop the duplicate api loop (below) or to assign new work.
+- If asked to verify A14, read `docs/API.md` alongside D26's checklist; the
+  sibling reconciled the documented shapes to the shipped handlers.
 
 ## Blockers
-- None for A14. The duplicate api loops (D15/D17/D18/D22/D24/D26/D27) remain an
-  operational hazard; until a human stops one, re-read before writes, commit
-  with explicit paths and never revert peer work.
+- Two `scripts/loop.sh opencode api ...` loops still share this tree
+  (D15/D17/D18/D22/D23/D24/D26). A human must stop one. Until then re-read
+  before every write, commit atomically with explicit pathspecs, and never
+  revert peer work.
