@@ -42,7 +42,7 @@ func (s *Store) Notifications(ctx context.Context, userID string) ([]Notificatio
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, user_id, type, title, body, request_id, read_at, created_at
 		FROM notifications WHERE user_id = ?
-		ORDER BY created_at DESC, id DESC`, userID)
+		ORDER BY created_at DESC, rowid DESC`, userID)
 	if err != nil {
 		return nil, err
 	}

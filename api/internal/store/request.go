@@ -59,7 +59,7 @@ func (s *Store) Requests(ctx context.Context, status string) ([]Request, error) 
 		query += " WHERE status = ?"
 		args = append(args, status)
 	}
-	query += " ORDER BY created_at DESC, id DESC"
+	query += " ORDER BY created_at DESC, rowid DESC"
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {

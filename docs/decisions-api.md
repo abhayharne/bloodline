@@ -155,3 +155,18 @@ handler is idempotent: it ignores non-threshold counts and dedupes by checking
 
 Smoke script was updated to accept rank in `/me` when `FEATURES` includes
 `ranks`, preserving the old null-rank assertion when the flag is off.
+
+## D21 — Gate fix: deterministic "newest first" ordering (iteration 6 entry)
+
+Entry gate failed in `ranks.TestHandleEmitsRankUpOncePerThreshold`: two rank_up
+notifications inserted in the same second both had identical `created_at`
+(`datetime('now')` has second precision), so the `ORDER BY created_at DESC, id DESC`
+tiebreaker fell back to random alphanumeric IDs and returned insertion order
+backwards. This was a real contract bug ("newest first"), not just a flaky test.
+
+Fix: both `Store.Notifications` and `Store.Requests` now order by
+`ORDER BY created_at DESC, rowid DESC`. SQLite's implicit, monotonically
+increasing `rowid` is a stable insertion-order tiebreaker for these rowid tables
+(rows are never hard-deleted), so tied timestamps now sort newest-first. No
+schema change and no change to clients when timestamps already differ. Verified
+with `-race -count=10` and the full gate (both smoke modes).
