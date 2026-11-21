@@ -28,7 +28,7 @@ Stretch only if all else is done: AI summary pinned in room; push notifications 
 - [x] T0.4 FALLBACK DECISION: NOT NEEDED — T0.3 succeeded, so client-side room creation fallback is not used.
 
 ## P1 — Backend (OC)
-- [ ] T1.1 Project init: go.mod, config from env, SQLite open + run db/schema.sql on boot, `/health`
+- [x] T1.1 Project init: go.mod, config from env, SQLite open + run db/schema.sql on boot, `/health`
 - [ ] T1.2 `POST /auth/signup`, `POST /auth/login` (name, role, blood_group, lat, lng) -> app JWT + Nexconn user token
 - [ ] T1.3 `PUT /banks/me/stock` and `GET /banks/me/stock`
 - [ ] T1.4 `POST /requests`: create, run matching, create Nexconn room, add requester + top banks, return request + channel_id + matched counts

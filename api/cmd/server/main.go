@@ -1,25 +1,42 @@
 package main
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
-	"os"
+	"time"
+
+	"bloodline/internal/config"
+	"bloodline/internal/httpapi"
+	"bloodline/internal/store"
 )
 
 func main() {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
+	if err := config.LoadDotEnv(); err != nil {
+		return err
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		return err
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-	})
-	// TODO (T1.x): register routes per docs/API.md
+	st, err := store.Open(cfg.DBPath)
+	if err != nil {
+		return err
+	}
+	defer st.Close()
 
-	log.Printf("BloodLine API listening on :%s", port)
-	log.Fatal(http.ListenAndServe(":"+port, mux))
+	srv := &http.Server{
+		Addr:              ":" + cfg.Port,
+		Handler:           httpapi.New(),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	log.Printf("BloodLine API listening on :%s (db %s)", cfg.Port, cfg.DBPath)
+	return srv.ListenAndServe()
 }
