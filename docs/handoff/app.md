@@ -1,25 +1,24 @@
 # App Handoff
-**From:** agy (app agent)  **To:** next agent / human  **Time:** 2026-11-22 04:26 IST
+**From:** agy (app agent)  **To:** next agent / human  **Time:** 2026-11-22 04:40 IST
 **Branch:** main
 
 ## Done this iteration
-- Task B10 Feature reminders (flag reminders):
-  - Implemented donor eligibility pure rules in `lib/core/rules/eligibility.dart` and `lib/core/rules/reminders.dart` matching `docs/API-addendum-v2.md` (age 18..65, weight >= 45 kg, availability, male 90d cooldown, female 120d cooldown, permissive for unknown fields).
-  - Implemented `RemindersHomeCard` in `lib/features/reminders/reminders_home_card.dart` displaying `"You may be eligible again"`, recharge days count, soft snooze action ("No pressure. We'll check back next month."), and "I'm ready" CTA, styled in warm teal tones per `docs/COPY.md`.
-  - Implemented `registerRemindersFeature()` in `lib/features/reminders/register.dart`, registering into `SlotRegistry.instance.homeCards` only when the `reminders` feature flag is present.
-  - Hooked `ConfigProvider` dynamic updates and `main.dart` to automatically activate reminders slot when feature flag is enabled.
-  - Added unit and widget tests in `test/reminders_test.dart` and `test/eligibility_test.dart` verifying flag-based slot registration and widget rendering (65/65 tests passing).
-  - Gate `scripts/gate-app.sh` passes cleanly (analyze 0 errors/warnings, 65/65 tests green).
-  - Recorded decision D-APP-7 in `docs/decisions-app.md`.
-  - Marked task B10 as done (`[x]`) in `docs/tasks-app.md`.
+- Task B11 Accessibility (large-font toggle via textScaler):
+  - Implemented `SettingsProvider` in `lib/core/providers/settings_provider.dart` with `TextScaler.linear(1.3)` toggle, persistent in `SharedPreferences`.
+  - Wired `textScaler` into `MaterialApp` builder in `lib/main.dart` so all UI scales dynamically when toggled.
+  - Implemented `SettingsScreen` in `lib/features/settings/settings_screen.dart` with 'Large Text (1.3x)' switch, live legibility preview card, and voice-to-text notice.
+  - Added entry points in `HomeScreen` AppBar actions and `ProfileScreen` settings button.
+  - Added unit, widget, and integration tests in `test/settings_test.dart` (75/75 tests passing, gate clean).
+  - Assessed voice-to-text: requires platform-specific manifest permissions (`RECORD_AUDIO`, `Info.plist`) and physical microphone input. Per task instruction and rule 3, marked B11 as `[!]` BLOCKED for the voice-to-text platform requirement.
+  - Recorded decision D-APP-8 in `docs/decisions-app.md`.
 
 ## State of the code
-- Gate: `scripts/gate-app.sh` PASS (flutter analyze clean, 65/65 tests green).
-- SlotRegistry enables modular plug-in of both `ranks` and `reminders` features; core build remains clean and empty when flags are disabled.
-- Unit and widget test suite covers pure eligibility calculation, intervals, snooze interactions, and slot injection into HomeScreen.
+- Gate: `scripts/gate-app.sh` PASS (flutter analyze clean 0 errors/warnings, 75/75 tests green).
+- App-wide font scaling working seamlessly with Flutter 3 modern `TextScaler`.
+- Settings screen accessible from dashboard and profile.
 
 ## Next action
-- Task B11 Accessibility: large-font toggle (textScaler) in settings. Voice-to-text only if a package works without extra platform setup; otherwise mark [!].
+- Task B12 Final pass: widget tests green, README section for running the app against the real API (flutter run --dart-define=API_BASE=... --dart-define=NEXCONN_APP_KEY=...), tidy handoff, list everything that needs a real device in docs/handoff/app.md.
 
 ## Blockers / Human notes
-- None. Physical device verification needed in morning for real APK builds.
+- Physical device verification needed in morning: real Android/iOS build, physical microphone testing if voice-to-text is pursued, and real GPS sensor checks.

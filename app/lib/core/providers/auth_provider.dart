@@ -26,6 +26,12 @@ class AuthProvider extends ChangeNotifier {
 
   AuthProvider({required this.apiClient});
 
+  void setCurrentUserForTesting(User user, {String token = 'test_token'}) {
+    _currentUser = user;
+    _token = token;
+    notifyListeners();
+  }
+
   static const _kUserPrefKey = 'bloodline_user_v1';
   static const _kTokenPrefKey = 'bloodline_jwt_token_v1';
   static const _kNexconnTokenPrefKey = 'bloodline_nexconn_token_v1';

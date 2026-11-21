@@ -17,6 +17,7 @@ import 'package:bloodline/features/chat/blood_request_chat_screen.dart';
 import 'package:bloodline/features/home/home_screen.dart';
 import 'package:bloodline/features/notifications/notifications_screen.dart';
 import 'package:bloodline/core/slot_registry.dart';
+import 'package:bloodline/core/providers/settings_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 Widget createTestApp(
@@ -24,11 +25,13 @@ Widget createTestApp(
   AuthProvider? authProvider,
   RequestsProvider? requestsProvider,
   NotificationsProvider? notificationsProvider,
+  SettingsProvider? settingsProvider,
 }) {
   final apiClient = ApiClient(mockMode: true);
   final auth = authProvider ?? AuthProvider(apiClient: apiClient);
   final requests = requestsProvider ?? RequestsProvider(apiClient: apiClient);
   final notif = notificationsProvider ?? NotificationsProvider(apiClient: apiClient);
+  final settings = settingsProvider ?? SettingsProvider();
   return MultiProvider(
     providers: [
       Provider<ApiClient>.value(value: apiClient),
@@ -38,6 +41,7 @@ Widget createTestApp(
         create: (_) => BankStockProvider(apiClient: apiClient),
       ),
       ChangeNotifierProvider<NotificationsProvider>.value(value: notif),
+      ChangeNotifierProvider<SettingsProvider>.value(value: settings),
     ],
     child: MaterialApp(home: child),
   );

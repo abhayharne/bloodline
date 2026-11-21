@@ -12,6 +12,7 @@ import '../auth/profile_screen.dart';
 import '../debug/debug_screen.dart';
 import '../notifications/notification_banner.dart';
 import '../notifications/notifications_screen.dart';
+import '../settings/settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -131,6 +132,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   );
                 },
+              );
+            },
+          ),
+          // Settings & Accessibility
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Settings & Accessibility',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
               );
             },
           ),

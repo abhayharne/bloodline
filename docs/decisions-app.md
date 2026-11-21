@@ -65,3 +65,12 @@
   3. Implemented `registerRemindersFeature({features, config, registry})` in `lib/features/reminders/register.dart`, registering into `SlotRegistry.instance.homeCards` only when `features.hasReminders` or `config.hasFeature('reminders')` is active.
   4. Hooked `registerRemindersFeature` into `ConfigProvider.fetchConfig()` and `main.dart`, dynamically activating reminders slot upon config load.
   5. Added comprehensive unit and widget tests in `test/reminders_test.dart` and `test/eligibility_test.dart` (65/65 tests passing, gate clean).
+
+## D-APP-8 — Accessibility: large-font toggle (textScaler) in settings & voice-to-text assessment
+- Context: Task B11 requires large-font toggle (`textScaler`) in settings. Voice-to-text only if a package works without extra platform setup; otherwise mark [!].
+- Decision:
+  1. Implemented `SettingsProvider` in `lib/core/providers/settings_provider.dart` with `TextScaler.linear(1.3)` when large-font is enabled and `TextScaler.linear(1.0)` otherwise, persisted in `SharedPreferences`.
+  2. Applied `MediaQuery.copyWith(textScaler: settings.textScaler)` at root `MaterialApp` builder in `main.dart`, dynamically scaling text across the entire application hierarchy.
+  3. Implemented `SettingsScreen` in `lib/features/settings/settings_screen.dart` featuring 'Large Text (1.3x)' toggle, live legibility preview card, and a voice-to-text info tile. Accessible via AppBar action in `HomeScreen` and OutlinedButton in `ProfileScreen`.
+  4. Voice-to-text package assessment: Any speech-to-text plugin requires platform-specific manifest permissions (`RECORD_AUDIO`, `NSSpeechRecognitionUsageDescription`), platform recognition engine bindings, and physical microphone hardware, which cannot function in an unattended, headless environment without extra platform setup. Marked B11 as `[!]` with BLOCKED notice per rule 3.
+  5. Added comprehensive unit and widget tests in `test/settings_test.dart` verifying state toggle, `SharedPreferences` persistence, `textScaler` propagation to `MediaQuery`, preview updates, and screen navigation (75/75 tests passing, gate clean).

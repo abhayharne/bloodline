@@ -12,6 +12,7 @@ import 'core/providers/requests_provider.dart';
 import 'core/providers/bank_stock_provider.dart';
 import 'core/providers/config_provider.dart';
 import 'core/providers/notifications_provider.dart';
+import 'core/providers/settings_provider.dart';
 
 import 'features/auth/register.dart';
 import 'features/requester/register.dart';
@@ -23,6 +24,7 @@ import 'features/debug/register.dart';
 import 'features/notifications/register.dart';
 import 'features/ranks/register.dart';
 import 'features/reminders/register.dart';
+import 'features/settings/register.dart';
 
 import 'features/auth/login_screen.dart';
 import 'features/home/home_screen.dart';
@@ -44,7 +46,7 @@ void main() async {
   registerNotificationsFeature();
   registerRanksFeature(features: features);
   registerRemindersFeature(features: features);
-  registerRemindersFeature(features: features);
+  registerSettingsFeature();
 
   // App key from dart-define, with fallback to .env default
   const appKey = String.fromEnvironment(
@@ -99,6 +101,13 @@ void main() async {
               return notif;
             },
           ),
+          ChangeNotifierProvider<SettingsProvider>(
+            create: (_) {
+              final settings = SettingsProvider();
+              settings.load();
+              return settings;
+            },
+          ),
         ],
         child: const BloodLineApp(),
       ),
@@ -111,6 +120,7 @@ class BloodLineApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
     return MaterialApp(
       title: 'BloodLine',
       debugShowCheckedModeBanner: false,
@@ -123,6 +133,14 @@ class BloodLineApp extends StatelessWidget {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: settings.textScaler,
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       home: const RootGate(),
     );
   }

@@ -5,6 +5,7 @@ import '../../core/location_service.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/config_provider.dart';
 import '../home/home_screen.dart';
+import '../settings/settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String? initialPhone;
@@ -582,6 +583,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
               ),
+              if (!widget.isNewUser) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                    );
+                  },
+                  icon: const Icon(Icons.accessibility_new),
+                  label: const Text('Settings & Accessibility'),
+                ),
+              ],
               const SizedBox(height: 24),
             ],
           ),
