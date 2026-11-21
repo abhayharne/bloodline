@@ -23,6 +23,55 @@ class _DonorScreenState extends State<DonorScreen> {
     });
   }
 
+  Future<void> _confirmAndRecordDonation(BloodRequest req) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirm Donation'),
+        content: Text(
+          'Did you donate blood for this request at ${req.hospital}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            icon: const Icon(Icons.volunteer_activism),
+            onPressed: () => Navigator.pop(ctx, true),
+            label: const Text('Yes, I donated'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final requestsProvider = context.read<RequestsProvider>();
+    final res = await requestsProvider.recordDonation(req.id);
+
+    if (!mounted) return;
+    if (res != null) {
+      final count = res['donation_count'] ?? 1;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Thank you! Your donation was recorded. You just helped up to 3 people. (Total: $count)',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to record donation. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   Future<void> _acceptAndOpen(BloodRequest request) async {
     setState(() => _acceptingId = request.id);
     final requestsProvider = context.read<RequestsProvider>();
@@ -253,17 +302,62 @@ class _DonorScreenState extends State<DonorScreen> {
                           const SizedBox(height: 14),
                           // Action button
                           if (req.joined)
-                            OutlinedButton.icon(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => BloodRequestChatScreen(request: req),
-                                  ),
+                            Builder(
+                              builder: (ctx) {
+                                final hasDonated = requestsProvider.isDonated(req.id);
+                                return Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => BloodRequestChatScreen(request: req),
+                                            ),
+                                          );
+                                        },
+                                        icon: const Icon(Icons.chat),
+                                        label: const Text('Joined — Open Room'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    if (hasDonated)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.shade50,
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(color: Colors.green.shade400),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.check_circle, size: 14, color: Colors.green.shade700),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              'Donated',
+                                              style: TextStyle(
+                                                color: Colors.green.shade700,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      )
+                                    else
+                                      FilledButton.icon(
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: Colors.red.shade700,
+                                        ),
+                                        onPressed: () => _confirmAndRecordDonation(req),
+                                        icon: const Icon(Icons.volunteer_activism, size: 16),
+                                        label: const Text('I donated'),
+                                      ),
+                                  ],
                                 );
                               },
-                              icon: const Icon(Icons.chat),
-                              label: const Text('Joined — Open Chat Room'),
                             )
                           else
                             FilledButton.icon(

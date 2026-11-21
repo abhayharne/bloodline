@@ -15,16 +15,19 @@ import 'package:bloodline/core/models/blood_request.dart';
 import 'package:bloodline/features/chat/blood_request_chat_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-Widget createTestApp(Widget child, {AuthProvider? authProvider}) {
+Widget createTestApp(
+  Widget child, {
+  AuthProvider? authProvider,
+  RequestsProvider? requestsProvider,
+}) {
   final apiClient = ApiClient(mockMode: true);
   final auth = authProvider ?? AuthProvider(apiClient: apiClient);
+  final requests = requestsProvider ?? RequestsProvider(apiClient: apiClient);
   return MultiProvider(
     providers: [
       Provider<ApiClient>.value(value: apiClient),
       ChangeNotifierProvider<AuthProvider>.value(value: auth),
-      ChangeNotifierProvider<RequestsProvider>(
-        create: (_) => RequestsProvider(apiClient: apiClient),
-      ),
+      ChangeNotifierProvider<RequestsProvider>.value(value: requests),
       ChangeNotifierProvider<BankStockProvider>(
         create: (_) => BankStockProvider(apiClient: apiClient),
       ),
@@ -123,14 +126,14 @@ void main() {
     expect(find.text('Emergency Care Center'), findsOneWidget);
     expect(find.text('O-'), findsOneWidget);
     expect(find.text('CRITICAL'), findsOneWidget);
-    expect(find.text('Request Fulfilled — This room is closed'), findsNothing);
+    expect(find.textContaining('Request Fulfilled — This room is closed'), findsNothing);
 
     // Fulfilled request
     final fulfilledReq = openReq.copyWith(status: 'fulfilled');
     await tester.pumpWidget(createTestApp(Scaffold(body: RequestSummaryHeader(request: fulfilledReq))));
     await tester.pumpAndSettle();
 
-    expect(find.text('Request Fulfilled — This room is closed'), findsOneWidget);
+    expect(find.textContaining('Request Fulfilled — This room is closed'), findsOneWidget);
   });
 
   testWidgets('LoginScreen OTP verify authenticates existing user and connects Nexconn', (tester) async {
@@ -208,5 +211,108 @@ void main() {
     expect(find.text('Complete Profile'), findsOneWidget);
     expect(find.text('Donor Consent *'), findsOneWidget);
     expect(find.text('Typed Area / Neighborhood (fallback)'), findsOneWidget);
+  });
+
+  testWidgets('Requester Mark fulfilled button marks request as fulfilled and shows closed banner', (tester) async {
+    final client = ApiClient(mockMode: true);
+    final auth = AuthProvider(apiClient: client);
+    await auth.login(name: 'Asha', role: 'requester');
+    final requests = RequestsProvider(apiClient: client);
+
+    final req = BloodRequest(
+      id: 'r1',
+      bloodGroup: 'O-',
+      units: 2,
+      hospital: 'Nagpur General Hospital',
+      urgency: 'critical',
+      status: 'open',
+      channelId: 'reqr1',
+      requesterName: 'Asha',
+    );
+
+    await tester.pumpWidget(createTestApp(
+      BloodRequestChatScreen(request: req),
+      authProvider: auth,
+      requestsProvider: requests,
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mark fulfilled'), findsWidgets);
+    expect(find.byKey(const ValueKey('closed_room_readonly_banner')), findsNothing);
+
+    // Tap Mark fulfilled button
+    await tester.tap(find.text('Mark fulfilled').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mark Request Fulfilled?'), findsOneWidget);
+    await tester.tap(find.text('Yes, Mark Fulfilled'));
+    await tester.pumpAndSettle();
+
+    // Verify closed-room read-only banner is displayed
+    expect(find.byKey(const ValueKey('closed_room_readonly_banner')), findsOneWidget);
+    expect(find.textContaining('Request Fulfilled — This room is closed'), findsOneWidget);
+    expect(find.text('This request is fulfilled. Room is closed and read-only.'), findsOneWidget);
+  });
+
+  testWidgets('Donor I donated button confirms and records donation', (tester) async {
+    final client = ApiClient(mockMode: true);
+    final auth = AuthProvider(apiClient: client);
+    await auth.login(name: 'Ravi', role: 'donor');
+    final requests = RequestsProvider(apiClient: client);
+
+    final req = BloodRequest(
+      id: 'r1',
+      bloodGroup: 'O-',
+      units: 2,
+      hospital: 'City Hospital',
+      urgency: 'high',
+      status: 'open',
+      channelId: 'reqr1',
+      requesterName: 'Asha',
+    );
+
+    await tester.pumpWidget(createTestApp(
+      BloodRequestChatScreen(request: req),
+      authProvider: auth,
+      requestsProvider: requests,
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('I donated'), findsWidgets);
+    expect(find.text('Donated'), findsNothing);
+
+    // Tap I donated
+    await tester.tap(find.text('I donated').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Confirm Donation'), findsOneWidget);
+    await tester.tap(find.text('Yes, I donated'));
+    await tester.pumpAndSettle();
+
+    expect(requests.isDonated('r1'), isTrue);
+    expect(find.text('Donated'), findsOneWidget);
+  });
+
+  testWidgets('RequesterScreen active request displays Mark fulfilled button and fulfills request', (tester) async {
+    final client = ApiClient(mockMode: true);
+    final auth = AuthProvider(apiClient: client);
+    await auth.login(name: 'Asha', role: 'requester');
+    final requests = RequestsProvider(apiClient: client);
+
+    await tester.pumpWidget(createTestApp(
+      const Scaffold(body: RequesterScreen()),
+      authProvider: auth,
+      requestsProvider: requests,
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mark fulfilled'), findsWidgets);
+    await tester.ensureVisible(find.text('Mark fulfilled').first);
+    await tester.tap(find.text('Mark fulfilled').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mark Request Fulfilled?'), findsOneWidget);
+    await tester.tap(find.text('Yes, Mark Fulfilled'));
+    await tester.pumpAndSettle();
   });
 }

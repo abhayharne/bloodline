@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/models/blood_request.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/requests_provider.dart';
 import '../chat/blood_request_chat_screen.dart';
@@ -111,6 +112,51 @@ class _RequesterScreenState extends State<RequesterScreen> {
               label: const Text('Enter Room'),
             ),
           ],
+        ),
+      );
+    }
+  }
+
+  Future<void> _confirmAndFulfill(BloodRequest req) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Mark Request Fulfilled?'),
+        content: Text(
+          'Mark emergency request for ${req.hospital} (${req.bloodGroup}) as fulfilled and close the room?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.green),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Yes, Mark Fulfilled'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final requestsProvider = context.read<RequestsProvider>();
+    final success = await requestsProvider.fulfillRequest(req.id);
+
+    if (!mounted) return;
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Request marked as fulfilled. Room is closed.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to mark fulfilled. Try again.'),
+          backgroundColor: Colors.red,
         ),
       );
     }
@@ -297,45 +343,112 @@ class _RequesterScreenState extends State<RequesterScreen> {
                 return Card(
                   elevation: 1,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    leading: Container(
-                      width: 48,
-                      height: 48,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: isClosed ? Colors.grey : Colors.red,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        req.bloodGroup,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                  child: Column(
+                    children: [
+                      ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        leading: Container(
+                          width: 48,
+                          height: 48,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: isClosed ? Colors.grey : Colors.red,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            req.bloodGroup,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                    title: Text(
-                      req.hospital,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text(
-                      '${req.units} units  •  ${req.urgency.toUpperCase()}  •  Status: ${req.status.toUpperCase()}',
-                      style: TextStyle(
-                        color: req.isOpen ? Colors.green.shade800 : Colors.grey,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => BloodRequestChatScreen(request: req),
+                        title: Text(
+                          req.hospital,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                      );
-                    },
+                        subtitle: Text(
+                          '${req.units} units  •  ${req.urgency.toUpperCase()}  •  Status: ${req.status.toUpperCase()}',
+                          style: TextStyle(
+                            color: req.isOpen ? Colors.green.shade800 : Colors.grey,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (req.isOpen)
+                          TextButton(
+                            onPressed: () => _confirmAndFulfill(req),
+                            child: const Text(
+                              'Mark fulfilled',
+                              style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        const Icon(Icons.chevron_right),
+                      ],
+                    ),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => BloodRequestChatScreen(request: req),
+                            ),
+                          );
+                        },
+                      ),
+                      if (req.isOpen)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              OutlinedButton.icon(
+                                icon: const Icon(Icons.chat_bubble_outline, size: 16),
+                                label: const Text('Open Room'),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => BloodRequestChatScreen(request: req),
+                                    ),
+                                  );
+                                },
+                              ),
+                              const SizedBox(width: 8),
+                              FilledButton.icon(
+                                style: FilledButton.styleFrom(backgroundColor: Colors.green.shade700),
+                                icon: const Icon(Icons.check_circle, size: 16),
+                                label: const Text('Mark fulfilled'),
+                                onPressed: () async {
+                                  final confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      title: const Text('Mark Request Fulfilled?'),
+                                      content: Text('Mark request at ${req.hospital} as fulfilled and close the room?'),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx, false),
+                                          child: const Text('Cancel'),
+                                        ),
+                                        FilledButton(
+                                          style: FilledButton.styleFrom(backgroundColor: Colors.green),
+                                          onPressed: () => Navigator.pop(ctx, true),
+                                          child: const Text('Yes, Mark Fulfilled'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  if (confirm == true && context.mounted) {
+                                    await context.read<RequestsProvider>().fulfillRequest(req.id);
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
                 );
               },

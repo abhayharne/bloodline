@@ -920,6 +920,10 @@ class MockApiClient implements ApiClient {
 
   @override
   Future<Map<String, dynamic>> recordDonation(String requestId) async {
+    final index = _mockRequests.indexWhere((r) => r.id == requestId);
+    if (index != -1) {
+      _mockRequests[index] = _mockRequests[index].copyWith(donated: true);
+    }
     return {
       'donation': {
         'id': 'd1',

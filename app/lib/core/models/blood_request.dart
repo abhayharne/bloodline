@@ -10,6 +10,7 @@ class BloodRequest {
   final double? distanceKm;
   final String? requesterName;
   final bool joined;
+  final bool donated;
   final double lat;
   final double lng;
 
@@ -25,6 +26,7 @@ class BloodRequest {
     this.distanceKm,
     this.requesterName,
     this.joined = false,
+    this.donated = false,
     this.lat = 0.0,
     this.lng = 0.0,
   });
@@ -54,6 +56,7 @@ class BloodRequest {
       distanceKm: (json['distance_km'] as num?)?.toDouble(),
       requesterName: json['requester_name']?.toString(),
       joined: json['joined'] == true,
+      donated: json['donated'] == true,
       lat: (json['lat'] as num?)?.toDouble() ?? 0.0,
       lng: (json['lng'] as num?)?.toDouble() ?? 0.0,
     );
@@ -71,6 +74,7 @@ class BloodRequest {
         if (distanceKm != null) 'distance_km': distanceKm,
         if (requesterName != null) 'requester_name': requesterName,
         'joined': joined,
+        'donated': donated,
         'lat': lat,
         'lng': lng,
       };
@@ -87,6 +91,7 @@ class BloodRequest {
     double? distanceKm,
     String? requesterName,
     bool? joined,
+    bool? donated,
     double? lat,
     double? lng,
   }) {
@@ -102,6 +107,7 @@ class BloodRequest {
       distanceKm: distanceKm ?? this.distanceKm,
       requesterName: requesterName ?? this.requesterName,
       joined: joined ?? this.joined,
+      donated: donated ?? this.donated,
       lat: lat ?? this.lat,
       lng: lng ?? this.lng,
     );

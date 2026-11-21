@@ -6,10 +6,13 @@ import '../api_client.dart';
 class RequestsProvider extends ChangeNotifier {
   final ApiClient apiClient;
   List<BloodRequest> _requests = [];
+  final Set<String> _donatedRequestIds = {};
   bool _isLoading = false;
   String? _error;
 
   List<BloodRequest> get requests => _requests;
+  Set<String> get donatedRequestIds => _donatedRequestIds;
+  bool isDonated(String requestId) => _donatedRequestIds.contains(requestId);
   bool get isLoading => _isLoading;
   String? get error => _error;
 
@@ -94,6 +97,23 @@ class RequestsProvider extends ChangeNotifier {
       _error = e.toString();
       notifyListeners();
       return false;
+    }
+  }
+
+  Future<Map<String, dynamic>?> recordDonation(String requestId) async {
+    try {
+      final res = await apiClient.recordDonation(requestId);
+      _donatedRequestIds.add(requestId);
+      final idx = _requests.indexWhere((r) => r.id == requestId);
+      if (idx != -1) {
+        _requests[idx] = _requests[idx].copyWith(donated: true);
+      }
+      notifyListeners();
+      return res;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return null;
     }
   }
 }
