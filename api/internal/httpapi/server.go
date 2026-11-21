@@ -2,10 +2,12 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 
 	"bloodline/internal/auth"
 	"bloodline/internal/service"
@@ -25,7 +27,40 @@ func New(svc *service.Service, jwt *auth.Issuer) http.Handler {
 	mux.HandleFunc("GET /health", health)
 	mux.HandleFunc("POST /auth/signup", s.signup)
 	mux.HandleFunc("POST /auth/login", s.login)
+	mux.Handle("GET /banks/me/stock", s.requireBank(s.getBankStock))
+	mux.Handle("PUT /banks/me/stock", s.requireBank(s.putBankStock))
 	return mux
+}
+
+type claimsContextKey struct{}
+
+func (s *Server) requireBank(next http.HandlerFunc) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		claims, err := s.claimsFromRequest(r)
+		if err != nil {
+			writeError(w, http.StatusUnauthorized, "missing or invalid token")
+			return
+		}
+		if claims.Role != "bank" {
+			writeError(w, http.StatusForbidden, "bank role required")
+			return
+		}
+		next(w, r.WithContext(context.WithValue(r.Context(), claimsContextKey{}, claims)))
+	})
+}
+
+func (s *Server) claimsFromRequest(r *http.Request) (auth.Claims, error) {
+	header := strings.TrimSpace(r.Header.Get("Authorization"))
+	const prefix = "Bearer "
+	if len(header) <= len(prefix) || !strings.EqualFold(header[:len(prefix)], prefix) {
+		return auth.Claims{}, auth.ErrInvalidToken
+	}
+	return s.jwt.Parse(strings.TrimSpace(header[len(prefix):]))
+}
+
+func claimsFromContext(ctx context.Context) (auth.Claims, bool) {
+	claims, ok := ctx.Value(claimsContextKey{}).(auth.Claims)
+	return claims, ok
 }
 
 func health(w http.ResponseWriter, _ *http.Request) {

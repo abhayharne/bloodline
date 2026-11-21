@@ -72,11 +72,19 @@ func newTestAPI(t *testing.T) *testAPI {
 
 func (a *testAPI) do(t *testing.T, method, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
+	return a.doWithToken(t, method, path, body, "")
+}
+
+func (a *testAPI) doWithToken(t *testing.T, method, path, body, token string) *httptest.ResponseRecorder {
+	t.Helper()
 	var req *http.Request
 	if body == "" {
 		req = httptest.NewRequest(method, path, nil)
 	} else {
 		req = httptest.NewRequest(method, path, strings.NewReader(body))
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
 	rec := httptest.NewRecorder()
 	a.handler.ServeHTTP(rec, req)
