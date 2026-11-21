@@ -23,7 +23,7 @@ Stretch only if all else is done: AI summary pinned in room; push notifications 
 
 ## P0 — Spikes (do first, blocks everything)
 - [x] T0.1 (human) Create Nexconn project (BloodLine, Singapore), get app key/secret into `.env`  <- verify .env filled
-- [ ] T0.2 (AG) Minimal Flutter app: init SDK, connect as user A and B on two devices, exchange messages. DONE WHEN: message sent on device 1 appears on device 2.
+- [x] T0.2 (AG) Minimal Flutter app: init SDK, connect as user A and B on two devices, exchange messages. DONE WHEN: message sent on device 1 appears on device 2.
 - [x] T0.3 (OC) Go spike (base URL https://api.sg-light-api.com, see DECISIONS D6/D7; first call to prove signing: POST /v4/auth/access-token/issue): with Nexconn server API, (a) mint a user token, (b) create a group channel, (c) add members. Record exact calls in DECISIONS.md. DONE WHEN: a curl-triggered Go call creates a room visible in the app. (SIGNED OFF 2026-11-21; see D8. Spike code removed.)
 - [x] T0.4 FALLBACK DECISION: NOT NEEDED — T0.3 succeeded, so client-side room creation fallback is not used.
 
