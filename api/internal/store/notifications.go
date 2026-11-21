@@ -15,7 +15,9 @@ type Notification struct {
 	Body      string  `json:"body"`
 	RequestID *string `json:"request_id"`
 	ReadAt    *string `json:"read_at"`
-	CreatedAt string  `json:"created_at"`
+	// Read is the client-facing boolean form of ReadAt (addendum v2 shape).
+	Read      bool   `json:"read"`
+	CreatedAt string `json:"created_at"`
 }
 
 // InsertNotification appends a notification. Duplicates are not expected
@@ -59,6 +61,7 @@ func (s *Store) Notifications(ctx context.Context, userID string) ([]Notificatio
 		}
 		if readAt.Valid {
 			n.ReadAt = &readAt.String
+			n.Read = true
 		}
 		items = append(items, n)
 	}
@@ -69,4 +72,35 @@ func (s *Store) Notifications(ctx context.Context, userID string) ([]Notificatio
 		return nil, err
 	}
 	return items, nil
+}
+
+// MarkNotificationRead marks a notification as read. It is owner-scoped (a
+// user can only mark their own rows) and idempotent (marking an already-read
+// row succeeds without changing its original read_at). A missing row or a row
+// owned by someone else is reported as ErrNotFound so callers cannot use this
+// method to probe another user's inbox.
+func (s *Store) MarkNotificationRead(ctx context.Context, id, userID string) error {
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE notifications SET read_at = datetime('now')
+		WHERE id = ? AND user_id = ? AND read_at IS NULL`, id, userID)
+	if err != nil {
+		return err
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if changed > 0 {
+		return nil
+	}
+
+	// Zero rows changed: either the row is already read (still a success) or
+	// it does not exist / is not owned by the caller (a 404).
+	var one int
+	err = s.db.QueryRowContext(ctx, `
+		SELECT 1 FROM notifications WHERE id = ? AND user_id = ?`, id, userID).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFound
+	}
+	return err
 }

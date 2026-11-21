@@ -108,3 +108,32 @@ func TestNotifierSurvivesStoreErrors(t *testing.T) {
 		Payload: events.RequestCreatedPayload{RequestID: "r1", RecipientIDs: []string{"udon1"}},
 	})
 }
+
+// flakyStore fails only the first write so we can prove one bad write does not
+// stop the rest of the recipients.
+type flakyStore struct {
+	calls   int
+	written []string
+}
+
+func (f *flakyStore) InsertNotification(_ context.Context, n store.Notification) error {
+	f.calls++
+	if f.calls == 1 {
+		return errors.New("db down")
+	}
+	f.written = append(f.written, n.UserID)
+	return nil
+}
+
+func TestNotifierContinuesAfterOneWriteFails(t *testing.T) {
+	st := &flakyStore{}
+	New(st).Handle(context.Background(), events.Event{
+		Name: events.RequestCreated,
+		Payload: events.RequestCreatedPayload{
+			RequestID: "r1", RecipientIDs: []string{"ubad", "ugood1", "ugood2"},
+		},
+	})
+	if len(st.written) != 2 || st.written[0] != "ugood1" || st.written[1] != "ugood2" {
+		t.Fatalf("written = %v, want [ugood1 ugood2]", st.written)
+	}
+}

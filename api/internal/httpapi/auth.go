@@ -43,10 +43,14 @@ type authResponse struct {
 
 type configResponse struct {
 	Features []string `json:"features"`
+	DemoMode bool     `json:"demo_mode"`
 }
 
+// config exposes client-safe flags only. demo_mode is a fixed marker for the
+// demo build (mock OTP, no real SMS/chat credentials in offline modes); no
+// secrets or tokens are ever returned here.
 func (s *Server) config(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, configResponse{Features: s.svc.Features()})
+	writeJSON(w, http.StatusOK, configResponse{Features: s.svc.Features(), DemoMode: true})
 }
 
 func (s *Server) otpSend(w http.ResponseWriter, r *http.Request) {

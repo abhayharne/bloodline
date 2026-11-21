@@ -22,12 +22,16 @@ func TestConfigDefaultsToNoFeatures(t *testing.T) {
 	}
 	var body struct {
 		Features []string `json:"features"`
+		DemoMode bool     `json:"demo_mode"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 	if len(body.Features) != 0 {
 		t.Errorf("features = %v, want empty", body.Features)
+	}
+	if !body.DemoMode {
+		t.Error("demo_mode = false, want true")
 	}
 }
 

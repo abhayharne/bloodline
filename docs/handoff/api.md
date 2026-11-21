@@ -1,41 +1,42 @@
 # Handoff
 **From:** opencode (api, overnight loop)  **To:** next api session  **Time:** 2026-11-22
-**Branch:** feat/api  **Last commit:** ace2fb8
+**Branch:** feat/api  **Last commit:** this iteration (see `git log -1`)
 
 ## Done this iteration
 - Gate was PASS at entry and PASS after the change (`bash scripts/gate-api.sh`).
-- A2: `nexconn.FakeClient` (`api/internal/nexconn/fake.go`) — stateful in-memory
-  token issue, room create/join, message send and freeze; idempotent join/freeze,
-  rejects unknown/duplicate rooms, frozen-room messages, empty ids and >100-member
-  joins, honours cancelled contexts. `Channel(id)` gives a defensive snapshot.
-- `NEXCONN_FAKE=1` selects the fake; real SDK stays default; legacy
-  `NEXCONN_MOCK=1` no-op still works; fake wins if both are set. Both offline
-  flags skip Nexconn credential validation (JWT_SECRET is still required).
-- Tests: fake lifecycle/errors/concurrency, config flag combinations,
-  `newChatClient` mode selection. D13 recorded in `docs/decisions-api.md`.
-- Verified offline end-to-end on a random port with no Nexconn credentials:
-  signup x3 -> bank stock -> request -> donor feed -> accept -> fulfill ->
-  notifications. Chat tokens were `fake-chat-token-<userID>` throughout.
+- A3 complete (first unchecked task; now ticked). Confirmed the already-present
+  `internal/events` bus, `notify.Notifier`, env-driven `GET /config`, and
+  `GET /notifications`, then filled the gap: `POST /notifications/{id}/read`.
+- Mark-read: auth required, 204, owner-scoped, idempotent (keeps original
+  `read_at`). Missing/not-owned both return 404 to avoid inbox probing. Added
+  `Store.MarkNotificationRead`, `Service.MarkNotificationRead`, handler + route.
+- `GET /notifications` now includes addendum `read` bool (derived from `read_at`);
+  legacy `read_at`/`user_id`/`request_id` kept as ignored extras.
+- `GET /config` now includes fixed `demo_mode: true` (addendum v2).
+- Tests added: store mark-read (idempotent/owner-scoped/missing), HTTP mark-read
+  (204/auth/owner-scope), `read` bool + `demo_mode` shape, concurrent pub/sub
+  (race-free), notifier continues after a partial store write failure.
+- Decision recorded as D14 in `docs/decisions-api.md`.
 
 ## State
-- `go build ./...`, `go vet ./...`, `go test -race -count=1 ./...` all pass.
-- First unchecked task is now A3. Much of A3 already exists in code from the
-  earlier session: `internal/events`, `internal/notify`, `GET /config`,
-  `GET /notifications`. Verify against the addendum instead of rebuilding.
-- `scripts/smoke.sh` exists but A9 is unticked, so the gate does not run it yet.
-- Working tree clean; nothing pushed.
+- `go build ./...`, `go vet ./...`, `go test -race -count=1 ./...` all pass via gate.
+- First unchecked task is now A9 (`scripts/smoke.sh`); gate skips it until A9 is
+  ticked. Note the gate will then run smoke with both `FEATURES=` and
+  `FEATURES=ranks,reminders`.
+- Working tree clean after the final commit; nothing pushed.
 
-## Next action (A3, first unchecked task)
-- Add `POST /notifications/{id}/read` (204, owner-only), add tests for it and
-  for the already-present bus/notifier/config/notifications code, and make
-  `GET /notifications` use the addendum shape (`read` bool) if needed.
-- Run `scripts/gate-api.sh`, tick A3 in `docs/tasks-api.md`, append decisions to
-  `docs/decisions-api.md`, rewrite this file, commit. Do not skip to A4+.
+## Next action (A9, first unchecked task)
+- Write `scripts/smoke.sh`, chmod +x. Random free port, start server with
+  `NEXCONN_FAKE=1` and `JWT_SECRET` set, curl the full flow (signup requester/
+  donor/bank, bank stock, create request, donor feed, accept, donated, fulfill)
+  and assert status codes + key fields. Must pass under the two FEATURES values
+  above. Make sure it kills the server on exit and uses a temp DB path.
+- Then gate, tick A9, append decisions, rewrite this file, commit. Do not skip A10+.
 
 ## Gotchas / blockers
-- No blockers; no human input needed. No device, real credentials or network
-  used. Do not edit `.env`, docs/PLAN.md or the other agent's `app/` files.
-- `NEXCONN_FAKE` is a dev env switch, not a `GET /config` feature flag.
-- `docs/decisions-api.md` was created this iteration; D11/D12 full text still
-  lives only in the shared `docs/DECISIONS.md` (append-only).
-- Add `.env.example` note for `NEXCONN_FAKE=0` during A14 doc pass.
+- No blockers; no human input needed. No device, real credentials or fixed port.
+- Do NOT edit `.env`, docs/PLAN.md, docs/API.md or the other agent's `app/` files
+  (overnight-loop rule 5 restricts edits to api/ + handoff/tasks/decisions).
+- docs/API.md still shows the old v1 notifications/config shape and "no mark-read
+  endpoint"; reconciling it is deferred to A14 (doc pass).
+- `NEXCONN_FAKE` / `NEXCONN_MOCK` are dev env switches, not `GET /config` flags.

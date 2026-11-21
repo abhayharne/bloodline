@@ -34,6 +34,7 @@ func New(svc *service.Service, jwt *auth.Issuer) http.Handler {
 	mux.Handle("GET /banks/me/stock", s.requireBank(s.getBankStock))
 	mux.Handle("PUT /banks/me/stock", s.requireBank(s.putBankStock))
 	mux.Handle("GET /notifications", s.requireAuth(s.getNotifications))
+	mux.Handle("POST /notifications/{id}/read", s.requireAuth(s.markNotificationRead))
 	mux.Handle("POST /requests", s.requireRole("requester")(s.createRequest))
 	mux.Handle("GET /requests", s.requireRole("requester", "donor", "bank")(s.listRequests))
 	mux.Handle("POST /requests/{id}/accept", s.requireRole("donor", "bank")(s.acceptRequest))

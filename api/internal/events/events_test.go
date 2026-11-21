@@ -2,6 +2,8 @@ package events
 
 import (
 	"context"
+	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -54,4 +56,35 @@ func TestPublishNilBusAndUnknownEventAreNoOps(t *testing.T) {
 
 	bus = New()
 	bus.Publish(context.Background(), Event{})
+}
+
+func TestConcurrentSubscribePublishUnsubscribeIsRaceFree(t *testing.T) {
+	bus := New()
+	var calls atomic.Int64
+	var wg sync.WaitGroup
+
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			unsubscribe := bus.Subscribe(RequestCreated, func(context.Context, Event) {
+				calls.Add(1)
+			})
+			bus.Publish(context.Background(), Event{Name: RequestCreated})
+			unsubscribe()
+		}()
+	}
+	wg.Wait()
+
+	// Every publisher saw at least its own handler; no race, no deadlock.
+	if calls.Load() == 0 {
+		t.Fatal("no handlers were called")
+	}
+	// All subscriptions were removed again.
+	var after atomic.Int64
+	bus.Subscribe(RequestCreated, func(context.Context, Event) { after.Add(1) })
+	bus.Publish(context.Background(), Event{Name: RequestCreated})
+	if after.Load() != 1 {
+		t.Fatalf("subscriber calls after cleanup = %d, want 1", after.Load())
+	}
 }
