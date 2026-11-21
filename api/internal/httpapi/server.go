@@ -44,6 +44,8 @@ func New(svc *service.Service, jwt *auth.Issuer, opts ...ServerOption) http.Hand
 	mux.HandleFunc("POST /auth/verify", s.verifyOTP)
 	mux.HandleFunc("POST /auth/signup", s.signup)
 	mux.HandleFunc("POST /auth/login", s.login)
+	mux.Handle("GET /me", s.requireAuth(s.getMe))
+	mux.Handle("PUT /me", s.requireAuth(s.putMe))
 	mux.Handle("GET /banks/me/stock", s.requireBank(s.getBankStock))
 	mux.Handle("PUT /banks/me/stock", s.requireBank(s.putBankStock))
 	mux.Handle("GET /notifications", s.requireAuth(s.getNotifications))
@@ -51,6 +53,7 @@ func New(svc *service.Service, jwt *auth.Issuer, opts ...ServerOption) http.Hand
 	mux.Handle("POST /requests", s.requireRole("requester")(s.createRequest))
 	mux.Handle("GET /requests", s.requireRole("requester", "donor", "bank")(s.listRequests))
 	mux.Handle("POST /requests/{id}/accept", s.requireRole("donor", "bank")(s.acceptRequest))
+	mux.Handle("POST /requests/{id}/donated", s.requireRole("donor")(s.recordDonation))
 	mux.Handle("POST /requests/{id}/fulfill", s.requireRole("requester")(s.fulfillRequest))
 	if s.dev {
 		mux.HandleFunc("POST /dev/reset", s.devReset)

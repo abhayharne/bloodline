@@ -240,6 +240,85 @@ func (s *Service) AcceptRequest(ctx context.Context, requestID, userID string) (
 	return request.ChannelID, nil
 }
 
+// DonationView is the client-facing shape of a recorded donation. The
+// database column is created_at; the v2 contract calls it donated_at.
+type DonationView struct {
+	ID        string `json:"id"`
+	RequestID string `json:"request_id"`
+	DonatedAt string `json:"donated_at"`
+}
+
+// DonationResult is returned by POST /requests/{id}/donated.
+type DonationResult struct {
+	Donation      DonationView `json:"donation"`
+	DonationCount int          `json:"donation_count"`
+}
+
+// RecordDonation marks a joined donor's pledge as recorded. Accepting a
+// request already writes the donation row (A8/A9), so an existing row is
+// reused: the operation is idempotent per (donor, request) and never inflates
+// donation_count. Only a donor who joined the room may record a donation.
+func (s *Service) RecordDonation(ctx context.Context, requestID, donorID string) (DonationResult, error) {
+	request, err := s.store.RequestByID(ctx, requestID)
+	if err != nil {
+		return DonationResult{}, err
+	}
+	user, err := s.store.UserByID(ctx, donorID)
+	if err != nil {
+		return DonationResult{}, err
+	}
+	if user.Role != "donor" {
+		return DonationResult{}, ErrForbidden
+	}
+	joined, err := s.store.HasRequestMember(ctx, requestID, donorID)
+	if err != nil {
+		return DonationResult{}, err
+	}
+	if !joined {
+		return DonationResult{}, ErrForbidden
+	}
+
+	donation, err := s.store.DonationFor(ctx, requestID, donorID)
+	if errors.Is(err, store.ErrNotFound) {
+		donationID, idErr := id.New("d")
+		if idErr != nil {
+			return DonationResult{}, idErr
+		}
+		if err := s.store.CreateDonation(ctx, store.Donation{
+			ID: donationID, RequestID: requestID, DonorID: donorID, Units: request.Units,
+		}); err != nil {
+			return DonationResult{}, err
+		}
+		// CreateDonation uses INSERT OR IGNORE, so reload to return the row
+		// that actually won in the store (including its created_at).
+		donation, err = s.store.DonationFor(ctx, requestID, donorID)
+		if err != nil {
+			return DonationResult{}, err
+		}
+	} else if err != nil {
+		return DonationResult{}, err
+	}
+
+	count, err := s.store.DonationCount(ctx, donorID)
+	if err != nil {
+		return DonationResult{}, err
+	}
+	s.Publish(ctx, events.DonationRecorded, events.DonationRecordedPayload{
+		DonationID:    donation.ID,
+		RequestID:     requestID,
+		DonorID:       donorID,
+		DonationCount: count,
+	})
+	return DonationResult{
+		Donation: DonationView{
+			ID:        donation.ID,
+			RequestID: donation.RequestID,
+			DonatedAt: donation.CreatedAt,
+		},
+		DonationCount: count,
+	}, nil
+}
+
 // FulfillRequest posts a system message, freezes the room and marks it fulfilled.
 func (s *Service) FulfillRequest(ctx context.Context, requestID, userID string) (store.Request, error) {
 	request, err := s.store.RequestByID(ctx, requestID)

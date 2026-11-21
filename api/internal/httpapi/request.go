@@ -97,6 +97,20 @@ func (s *Server) acceptRequest(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, acceptResponse{ChannelID: channelID})
 }
 
+func (s *Server) recordDonation(w http.ResponseWriter, r *http.Request) {
+	claims, ok := claimsFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing or invalid token")
+		return
+	}
+	result, err := s.svc.RecordDonation(r.Context(), r.PathValue("id"), claims.Subject)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, result)
+}
+
 func (s *Server) fulfillRequest(w http.ResponseWriter, r *http.Request) {
 	claims, ok := claimsFromContext(r.Context())
 	if !ok {
