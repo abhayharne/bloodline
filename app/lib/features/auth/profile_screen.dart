@@ -229,16 +229,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (!mounted) return;
     if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile saved successfully!')),
-      );
       if (widget.isNewUser) {
-        Navigator.pushReplacement(
-          context,
+        // Registration mode (Complete Profile): after success, go to the home screen
+        // with pushAndRemoveUntil so the back stack is clean.
+        Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const HomeScreen()),
+          (route) => false,
         );
       } else {
-        Navigator.pop(context);
+        // Edit mode (Profile tab): never leave the screen.
+        // Stay on the screen, show a "Profile saved" SnackBar, and refresh the user in the provider.
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile saved')),
+        );
+        await authProvider.fetchMe();
+
+        // If this screen was pushed standalone outside HomeScreen and can pop, pop it.
+        final isInHomeScreen = context.findAncestorWidgetOfExactType<HomeScreen>() != null;
+        if (!isInHomeScreen && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
       }
     }
   }
@@ -607,6 +617,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               // Submit Button
               FilledButton(
+                key: const Key('profile_save_button'),
                 onPressed: auth.isLoading ? null : _onSubmit,
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),

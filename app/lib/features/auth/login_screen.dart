@@ -90,9 +90,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       if (res['is_new'] == false && authProvider.isAuthenticated) {
-        Navigator.pushReplacement(
-          context,
+        Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const HomeScreen()),
+          (route) => false,
         );
         return;
       }
@@ -131,9 +131,9 @@ class _LoginScreenState extends State<LoginScreen> {
     );
     if (!mounted) return;
     if (success) {
-      Navigator.pushReplacement(
-        context,
+      Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const HomeScreen()),
+        (route) => false,
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(

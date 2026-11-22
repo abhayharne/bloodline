@@ -53,6 +53,14 @@ Widget createTestApp(
     child: MaterialApp(
       scaffoldMessengerKey: rootScaffoldMessengerKey,
       home: child,
+      onGenerateRoute: (settings) => MaterialPageRoute(
+        settings: settings,
+        builder: (_) => child,
+      ),
+      onUnknownRoute: (settings) => MaterialPageRoute(
+        settings: settings,
+        builder: (_) => child,
+      ),
     ),
   );
 }
@@ -973,6 +981,81 @@ void main() {
 
     expect(find.byKey(const Key('location_pin_shared_snackbar')), findsOneWidget);
     expect(find.textContaining('Location pin shared: Current Location'), findsOneWidget);
+  });
+
+  testWidgets('ProfileScreen inside bottom-nav shell saves profile and stays on screen without going blank', (tester) async {
+    final apiClient = MockApiClient();
+    final auth = AuthProvider(apiClient: apiClient);
+    final user = User(
+      id: 'u_donor_shell',
+      phone: '+919900000002',
+      name: 'Shell Test Donor',
+      role: 'donor',
+      bloodGroup: 'O-',
+      lat: 21.1458,
+      lng: 79.0882,
+      consent: true,
+      available: true,
+      age: 28,
+      weight: 65.0,
+      height: 175.0,
+    );
+    auth.setCurrentUserForTesting(user);
+
+    await tester.pumpWidget(createTestApp(
+      const HomeScreen(),
+      authProvider: auth,
+    ));
+    await tester.pumpAndSettle();
+
+    // Verify HomeScreen is rendered on Dashboard tab
+    expect(find.byType(HomeScreen), findsOneWidget);
+
+    // Switch to Profile tab via BottomNavigationBar
+    await tester.tap(find.text('Profile'));
+    await tester.pumpAndSettle();
+
+    // Verify ProfileScreen is showing inside bottom-nav shell
+    expect(find.byType(ProfileScreen), findsOneWidget);
+    expect(find.text('Edit Profile'), findsOneWidget);
+
+    // Scroll to and tap Save Changes button
+    final saveBtn = find.byKey(const Key('profile_save_button'));
+    await tester.ensureVisible(saveBtn);
+    await tester.tap(saveBtn);
+    await tester.pumpAndSettle();
+
+    // Assert ProfileScreen and HomeScreen are still showing (never pops to blank screen)
+    expect(find.byType(ProfileScreen), findsOneWidget);
+    expect(find.byType(HomeScreen), findsOneWidget);
+    expect(find.text('Profile saved'), findsOneWidget);
+    expect(find.text('Edit Profile'), findsOneWidget);
+  });
+
+  testWidgets('ProfileScreen registration mode (isNewUser=true) completes registration and navigates to HomeScreen', (tester) async {
+    final apiClient = MockApiClient();
+    final auth = AuthProvider(apiClient: apiClient);
+
+    await tester.pumpWidget(createTestApp(
+      const ProfileScreen(
+        initialPhone: '+919900000088',
+        initialName: 'New Requester Reg',
+        initialRole: 'requester',
+        isNewUser: true,
+      ),
+      authProvider: auth,
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Complete Profile'), findsOneWidget);
+
+    final submitBtn = find.byKey(const Key('profile_save_button'));
+    await tester.ensureVisible(submitBtn);
+    await tester.tap(submitBtn);
+    await tester.pumpAndSettle();
+
+    // Assert navigates to HomeScreen cleanly
+    expect(find.byType(HomeScreen), findsOneWidget);
   });
 }
 

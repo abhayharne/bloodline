@@ -148,6 +148,19 @@ class BloodLineApp extends StatelessWidget {
         );
       },
       home: const RootGate(),
+      // Fallback home routes so stray navigation/pop never produces a blank screen
+      onGenerateRoute: (routeSettings) {
+        return MaterialPageRoute(
+          settings: routeSettings,
+          builder: (_) => const RootGate(),
+        );
+      },
+      onUnknownRoute: (routeSettings) {
+        return MaterialPageRoute(
+          settings: routeSettings,
+          builder: (_) => const RootGate(),
+        );
+      },
     );
   }
 }
@@ -158,9 +171,10 @@ class RootGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    if (auth.isAuthenticated) {
-      return const HomeScreen();
-    }
-    return const LoginScreen();
+    final child = auth.isAuthenticated ? const HomeScreen() : const LoginScreen();
+    return PopScope(
+      canPop: false,
+      child: child,
+    );
   }
 }
