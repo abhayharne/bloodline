@@ -80,3 +80,6 @@ Stretch only if all else is done: AI summary pinned in room; push notifications 
 | Scope creep | Scope frozen above; extra ideas go in DECISIONS.md "parked" |
 | Agent context loss | /handoff and /resume every switch; commit often |
 | Demo fails live | Backup video; seed data; rehearsed script |
+
+## Human-requested launch video
+- [x] T5.5 (human/Codex) Create BloodLine launch video using the installed brag skill; render, inspect and deliver MP4, poster and editable composition.

@@ -1,0 +1,8 @@
+# Hyperframes Composition Brief: BloodLine
+Output: composition/ → brag.mp4, 1920×1080, 30fps, 22s, local only.
+Source: README.md; docs/PITCH.md; app/lib/main.dart; app/lib/features/requester/requester_screen.dart; app/lib/features/chat/blood_request_chat_screen.dart.
+Creative contract: brag-plan.md. Cinematic product film with readable source-grounded demo UI and humane urgency. Hook: Urgent blood. One live room. Outro: One request. One room.
+LOOK: #160B0D ground; #FFF8F7 light app stage; #FF645B film accent; #D32F2F critical/CTA; #FFFFFF on dark; #231918 on light. Archivo Black display 96–138px, IBM Plex Mono data 24–30px, neutral sans UI 28–38px. 100px title-safe margins, 28px app corners, 2px borders. BANNED: generic SaaS statistics, particle backgrounds, medical outcome promises, personal data, tiny unreadable phone UI.
+Scenes: need 0–3; broadcast 3–8.74; room 8.74–17.47; resolution 17.47–22. Recreated UI uses exact labels New Blood Request, Blood Group, Units, Whole blood, Emergency Request Broadcasted!, Mark fulfilled. Fictional examples always labeled DEMO DATA.
+Audio: local bundled Vol 12 bed at .32, 0.3s fade-in/1.2s fade-out; 8.74 and 17.47 strong beat locks. SFX analysis read; sparse low-HF-risk clicks and soft impacts. Music credit in CREDITS.txt and share-copy. Extract RMS/bands with media-use helper for subtle nontext object glow. No narration.
+Quality: current Hyperframes contract; one editable scene per subcomposition; check --json including visible-text contrast; inspect snapshots; render delivery; pick settled product hero poster and replace frame 0, preserving duration and audio.

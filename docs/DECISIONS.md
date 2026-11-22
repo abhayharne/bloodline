@@ -205,3 +205,11 @@ Reference: https://www.lifeblood.com.au/patients-recipients/blood-plasma-platele
   or schema change was needed.
 - Overpass mirrors did not yield usable results. Keep the embedded samples
   and identify them as samples in the hospital picker.
+
+
+## D19 — Public BloodLine launch video uses fictional demo records
+
+- The human requested a brag-skill launch video. Keep app/API code unchanged and place editable Hyperframes source and delivery assets in `brag-output/`.
+- Recreate request and chat UI at video-readable sizes with explicit demo labels. Exclude phone screenshots, production records, request IDs and contact details.
+- Use a 22-second landscape film, bundled music with attribution and CC0 effects. No narration, ungrounded performance or medical outcome promises.
+- Cache rendering dependencies in `/tmp/bloodline-hyperframes-cache` because home storage was nearly full. Final assets remain in the repository.

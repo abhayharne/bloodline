@@ -1,0 +1,6 @@
+composition/.hyperframes/
+composition/.waveform-cache/
+composition/.thumbnails/
+composition/node_modules/
+work-*/
+*.poster.mp4

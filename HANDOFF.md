@@ -1,25 +1,29 @@
 # Handoff
 
-**From:** opencode working on a human-assigned repository review
-**Scope:** API and Flutter. Flutter fixes cross antigravity's default ownership.
+**From:** Codex, human-requested BloodLine launch video
+**Scope:** `brag-output/` and project handoff/plan/decision docs. No app/API changes.
 
 ## Done
 
-- Corrected the red-cell compatibility helper and covered all ABO/Rh pairs.
-- Matched distinct banks, kept donor notifications within feed range, and
-  applied feed matching rules before new members can join request rooms.
-- Created the remote room before exposing the request. SQLite inserts the
-  request and initial members in one transaction. Fulfillment returns its timestamp.
-- Isolated the whole-blood stock editor from component stock. Scoped polling to
-  the signed-in session. Surfaced live hospital directory errors and removed
-  logging of OTPs, phone numbers, and request payloads.
-- Updated the API contract and recorded decisions in D17.
+- Created a 22-second 1920×1080, 30fps launch film using the brag skill and Hyperframes.
+- Story: urgent request → broadcast/matching → shared bank/donor chat → fulfilled room.
+- Delivered `brag-output/brag.mp4`, `brag.jpg`, share caption, credits and editable source.
+- UI recreations follow Flutter source with clearly labeled fictional demo records.
+- Music and restrained UI effects included; attribution is in share-copy and CREDITS.
+- Poster selected from the settled chat scene at 13.7s and replaces frame zero.
+- Hyperframes lint/runtime/layout/contrast/audio: zero errors, 39/39 contrast checks pass.
+- Inspected key snapshots and decoded output; final MP4 is 22 seconds/660 frames with AAC audio.
 
 ## Next action
 
-Resume T3.1 and T4.3 with the live two-device demo rehearsal.
+- Review/share the film, retaining the music credit in `brag-output/share-copy.txt`.
+- Editable preview: http://localhost:3017/#project/composition (background server).
+- Resume the earlier live two-device rehearsal (T3.1/T4.3) if continuing app work.
 
-## Follow-up risks
+## Notes
 
-- Auth still uses the documented mock OTP and legacy demo login.
-- A SQLite write failure after remote room creation can leave a remote orphan.
+- This is a launch film with reconstructed UI, not the T5.2 backup screen recording.
+- Render with the installed Hyperframes launcher; steps are in `brag-output/README.md`.
+- Chrome cache and optional NumPy helper live under `/tmp`; rebuild if cleared.
+- App limitations from the previous handoff remain: mock OTP/demo login and possible
+  orphaned remote room after a SQLite insert failure.
