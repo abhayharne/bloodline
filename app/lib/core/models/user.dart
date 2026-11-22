@@ -15,6 +15,7 @@ class User {
   final String? areaName;
   final bool available;
   final bool consent;
+  final bool canDonatePlatelets;
 
   const User({
     required this.id,
@@ -33,6 +34,7 @@ class User {
     this.areaName,
     this.available = true,
     this.consent = true,
+    this.canDonatePlatelets = false,
   });
 
   /// Factory constructor that safely ignores any unknown/unexpected fields from JSON
@@ -65,6 +67,7 @@ class User {
       areaName: json['area_name']?.toString(),
       available: json['available'] != false,
       consent: json['consent'] != false,
+      canDonatePlatelets: json['can_donate_platelets'] == true,
     );
   }
 
@@ -96,6 +99,7 @@ class User {
     if (areaName != null) map['area_name'] = areaName;
     map['available'] = available;
     map['consent'] = consent;
+    map['can_donate_platelets'] = canDonatePlatelets;
     return map;
   }
 
@@ -116,6 +120,7 @@ class User {
     String? areaName,
     bool? available,
     bool? consent,
+    bool? canDonatePlatelets,
   }) {
     return User(
       id: id ?? this.id,
@@ -134,6 +139,7 @@ class User {
       areaName: areaName ?? this.areaName,
       available: available ?? this.available,
       consent: consent ?? this.consent,
+      canDonatePlatelets: canDonatePlatelets ?? this.canDonatePlatelets,
     );
   }
 }

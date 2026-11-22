@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/providers/settings_provider.dart';
+import '../../core/auth_dialogs.dart';
 
 /// Settings & Accessibility screen providing user control over app typography
 /// scaling (TextScaler) and platform accessibility integrations.
@@ -119,6 +120,22 @@ class SettingsScreen extends StatelessWidget {
             leading: Icon(Icons.security),
             title: Text('Nexconn Chat Infrastructure'),
             subtitle: Text('AreaCode: SG (Singapore Data Center)'),
+          ),
+          const Divider(),
+          _buildSectionHeader(context, 'Account'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: OutlinedButton.icon(
+              key: const Key('settings_logout_button'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red,
+                side: const BorderSide(color: Colors.red),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              onPressed: () => confirmAndLogout(context),
+              icon: const Icon(Icons.logout),
+              label: const Text('Log Out'),
+            ),
           ),
         ],
       ),

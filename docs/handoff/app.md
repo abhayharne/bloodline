@@ -1,27 +1,27 @@
 # App Handoff
-**From:** agy (app agent)  **To:** next agent / human  **Time:** 2026-11-22 04:48 IST
-**Branch:** main
+**From:** antigravity (app agent)  **To:** next agent / human  **Time:** 2026-11-22 14:45 IST
+**Branch:** feat/app
 
 ## Done this iteration
-- Task B12 Final pass:
-  - Replaced test placeholder in `app/test/widget_test.dart` with `BloodLineApp` root gate widget test.
-  - Added widget tests for `ChannelInboxScreen` and `DebugScreen` in `app/test/core_screens_test.dart` (77/77 tests passing, gate clean, 100% of all 11 application screens covered with mock client).
-  - Enhanced `app/README.md` with clear instructions for running against real Go backend and Nexconn Singapore Chat SDK using `--dart-define=API_BASE=...` and `--dart-define=NEXCONN_APP_KEY=...`.
-  - Documented platform host address mapping (`10.0.2.2:8080` for Android emulator, `localhost:8080` for iOS simulator/desktop, and local Wi-Fi IP `192.168.x.x:8080` for physical devices), offline mock mode (`USE_MOCK=true`), and cleartext HTTP.
-  - Recorded decision D-APP-9 in `docs/decisions-app.md`.
-  - All tasks B0 through B12 in `docs/tasks-app.md` are completed (B11 marked `[!]` for voice-to-text hardware/platform requirement).
+1. **Location Pin Sharing in Chat (T2.7):**
+   - Added `chat_share_location_button` in `BloodRequestChatScreen` AppBar actions.
+   - Built bottom sheet picker supporting Hospital Location (coordinates from request) and Current Device GPS (high-accuracy/last-known with profile fallback).
+   - Integrated `MessageInputExtensionPlugin.location` in `ChatPageConfig` for in-chat input bar extension panel.
+   - Dispatches `LocationMessageParams` through Nexconn Chat SDK and surfaces `location_pin_shared_snackbar`.
+   - Tapping any `LocationMessage` bubble displays modal coordinates dialog (`location_details_dialog`).
+2. **Live Feed Synchronization (T2.9):**
+   - Added periodic polling (`startPolling`, `stopPolling`, `isPolling`) with silent loading to `RequestsProvider`.
+   - Wired polling at 10s interval in `main.dart` alongside `NotificationsProvider`.
+   - Marked T2.7 and T2.9 as complete in `docs/PLAN.md`.
+3. **Verification & Tests:**
+   - Added widget and unit tests for location pin sharing (hospital & GPS) and `RequestsProvider` polling in `core_screens_test.dart`.
+   - `scripts/gate-app.sh` 100% GREEN (95/95 tests passing, 0 analyzer errors/warnings).
+   - `scripts/gate-api.sh` and `scripts/smoke.sh` 100% GREEN.
 
 ## State of the code
-- Gate: `scripts/gate-app.sh` PASS (`flutter analyze` clean, 0 errors/warnings, 77/77 tests passing).
-- Complete Flutter app architecture ready: Auth & signup with donor consent, Requester flow, Donor feed & accept, Blood Bank 8-group stock manager, Chat inbox/rooms with summary header, Fulfill & donation recording, 10s notification polling & in-app banner, feature ranks, feature reminders, and large-font accessibility toggle.
+- All P2 App tasks in `docs/PLAN.md` (T2.1-T2.9) are DONE (`[x]`).
+- Verification gates passing: `scripts/gate-app.sh` PASS (95 tests), `scripts/gate-api.sh` PASS.
+- Working tree clean.
 
 ## Next action
-- All scheduled app tasks (B0–B12) are complete!
-- Morning handover: Human or physical device operator should perform physical device verification listed below.
-
-## Blockers / Human notes (Real Device Morning Checklist)
-1. **Real Android/iOS builds**: Execute `flutter build apk` / `flutter build ios` to verify vendored `ai_nexconn_chatui_plugin` Kotlin/CocoaPods linking.
-2. **Nexconn Live Chat**: Test live WebSocket connection to Singapore DC (`AreaCode.sg`) with real credentials and multi-device real-time message sync.
-3. **Hardware GPS Sensor**: Test real GPS location detection (`geolocator`) and runtime location permission dialog on a physical smartphone.
-4. **Voice-to-Text Microphone (B11)**: If voice-to-text accessibility is desired, add platform speech permission manifest entries (`RECORD_AUDIO`, `Info.plist`) and test with physical microphone hardware.
-5. **LAN Network Connectivity**: Verify physical phone connects to Go backend at `http://192.168.x.x:8080` over Wi-Fi.
+- Phase P3 / P4: Two-device integration rehearsal and live demo test with backend (`scripts/smoke.sh`).

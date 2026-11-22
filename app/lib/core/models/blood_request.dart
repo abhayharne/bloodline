@@ -1,9 +1,11 @@
+import '../scaffold_messenger.dart';
+
 class BloodRequest {
   final String id;
   final String bloodGroup;
   final int units;
   final String hospital;
-  final String urgency; // 'low' | 'medium' | 'high' | 'critical'
+  final String urgency; // 'critical' | 'urgent' | 'planned' (per docs/API.md)
   final String status; // 'open' | 'fulfilled' | 'cancelled'
   final String channelId;
   final DateTime? createdAt;
@@ -13,6 +15,8 @@ class BloodRequest {
   final bool donated;
   final double lat;
   final double lng;
+  final String? component; // 'Whole blood' | 'Red cells' | 'Platelets' | 'Plasma' | 'Other'
+  final String? notes;
 
   const BloodRequest({
     required this.id,
@@ -29,30 +33,41 @@ class BloodRequest {
     this.donated = false,
     this.lat = 0.0,
     this.lng = 0.0,
+    this.component,
+    this.notes,
   });
 
   bool get isOpen => status == 'open';
   bool get isFulfilled => status == 'fulfilled';
   bool get isCancelled => status == 'cancelled';
 
+  /// Defensively parse created_at: null or empty must not throw;
+  /// surfaces any other parse error in a SnackBar.
+  static DateTime? parseCreatedAt(dynamic raw) {
+    if (raw == null) return null;
+    final str = raw.toString().trim();
+    if (str.isEmpty) return null;
+    final parsed = DateTime.tryParse(str);
+    if (parsed == null) {
+      showParseErrorSnackBar(str);
+      return null;
+    }
+    return parsed;
+  }
+
   /// Factory constructor that safely ignores unknown fields
   factory BloodRequest.fromJson(Map<String, dynamic> json) {
-    DateTime? created;
-    if (json['created_at'] != null) {
-      try {
-        created = DateTime.parse(json['created_at'].toString());
-      } catch (_) {}
-    }
-
     return BloodRequest(
       id: json['id']?.toString() ?? '',
       bloodGroup: json['blood_group']?.toString() ?? 'O+',
       units: (json['units'] as num?)?.toInt() ?? 1,
       hospital: json['hospital']?.toString() ?? '',
-      urgency: json['urgency']?.toString() ?? 'medium',
+      urgency: json['urgency']?.toString() ?? 'planned',
+      component: json['component']?.toString(),
+      notes: json['notes']?.toString(),
       status: json['status']?.toString() ?? 'open',
       channelId: json['channel_id']?.toString() ?? 'req${json['id'] ?? ''}',
-      createdAt: created,
+      createdAt: parseCreatedAt(json['created_at']),
       distanceKm: (json['distance_km'] as num?)?.toDouble(),
       requesterName: json['requester_name']?.toString(),
       joined: json['joined'] == true,
@@ -77,6 +92,8 @@ class BloodRequest {
         'donated': donated,
         'lat': lat,
         'lng': lng,
+        if (component != null) 'component': component,
+        if (notes != null) 'notes': notes,
       };
 
   BloodRequest copyWith({
@@ -94,6 +111,8 @@ class BloodRequest {
     bool? donated,
     double? lat,
     double? lng,
+    String? component,
+    String? notes,
   }) {
     return BloodRequest(
       id: id ?? this.id,
@@ -110,6 +129,8 @@ class BloodRequest {
       donated: donated ?? this.donated,
       lat: lat ?? this.lat,
       lng: lng ?? this.lng,
+      component: component ?? this.component,
+      notes: notes ?? this.notes,
     );
   }
 }

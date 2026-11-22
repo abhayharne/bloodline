@@ -4,6 +4,7 @@ import '../../core/slot_registry.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/config_provider.dart';
 import '../../core/providers/notifications_provider.dart';
+import '../../core/auth_dialogs.dart';
 import '../requester/requester_screen.dart';
 import '../donor/donor_screen.dart';
 import '../bank/bank_screen.dart';
@@ -50,6 +51,27 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (auth.apiClient.mockMode) ...[
+            Container(
+              key: const Key('demo_mode_banner_home'),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: Colors.amber.shade100,
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: Colors.amber.shade900),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Demo mode (offline data)',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.amber.shade900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           // In-app notification banner (server-driven copy)
           const NotificationBanner(),
 
@@ -161,16 +183,25 @@ class _HomeScreenState extends State<HomeScreen> {
               const PopupMenuItem(value: 'bank', child: Text('Switch to Blood Bank')),
             ],
           ),
-          // Debug screen icon
+          // Debug screen icon (only in demo mode)
+          if (auth.apiClient.mockMode)
+            IconButton(
+              key: const Key('home_debug_button'),
+              icon: const Icon(Icons.bug_report_outlined),
+              tooltip: 'Debug & Token Settings',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DebugScreen()),
+                );
+              },
+            ),
+          // Logout button
           IconButton(
-            icon: const Icon(Icons.bug_report_outlined),
-            tooltip: 'Debug & Token Settings',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const DebugScreen()),
-              );
-            },
+            key: const Key('home_logout_button'),
+            icon: const Icon(Icons.logout),
+            tooltip: 'Logout',
+            onPressed: () => confirmAndLogout(context),
           ),
         ],
       ),

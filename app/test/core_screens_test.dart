@@ -12,14 +12,19 @@ import 'package:bloodline/features/requester/requester_screen.dart';
 import 'package:bloodline/features/donor/donor_screen.dart';
 import 'package:bloodline/features/bank/bank_screen.dart';
 import 'package:bloodline/core/models/blood_request.dart';
+import 'package:bloodline/core/models/user.dart';
+import 'package:bloodline/core/models/auth_response.dart';
 import 'package:bloodline/core/providers/notifications_provider.dart';
 import 'package:bloodline/features/chat/blood_request_chat_screen.dart';
 import 'package:bloodline/features/home/home_screen.dart';
 import 'package:bloodline/features/notifications/notifications_screen.dart';
 import 'package:bloodline/core/slot_registry.dart';
+import 'package:bloodline/core/scaffold_messenger.dart';
 import 'package:bloodline/core/providers/settings_provider.dart';
 import 'package:bloodline/features/chat/channel_inbox_screen.dart';
 import 'package:bloodline/features/debug/debug_screen.dart';
+import 'package:bloodline/features/settings/settings_screen.dart';
+import 'package:bloodline/core/location_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 Widget createTestApp(
@@ -45,7 +50,10 @@ Widget createTestApp(
       ChangeNotifierProvider<NotificationsProvider>.value(value: notif),
       ChangeNotifierProvider<SettingsProvider>.value(value: settings),
     ],
-    child: MaterialApp(home: child),
+    child: MaterialApp(
+      scaffoldMessengerKey: rootScaffoldMessengerKey,
+      home: child,
+    ),
   );
 }
 
@@ -464,4 +472,539 @@ void main() {
     expect(find.text('Force In-Memory Mock Mode'), findsOneWidget);
     expect(find.text('Connect Token'), findsOneWidget);
   });
+
+  testWidgets('LoginScreen shows "Demo mode (offline data)" banner when mock mode is on', (tester) async {
+    final client = MockApiClient(mockMode: true);
+    final auth = AuthProvider(apiClient: client);
+
+    await tester.pumpWidget(createTestApp(
+      const LoginScreen(),
+      authProvider: auth,
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('demo_mode_banner')), findsOneWidget);
+    expect(find.text('Demo mode (offline data)'), findsOneWidget);
+  });
+
+  testWidgets('LoginScreen when USE_MOCK is false: does not fall back to mock data on error, stays on login with SnackBar', (tester) async {
+    final client = _FailingApiClient();
+    final auth = AuthProvider(apiClient: client);
+
+    await tester.pumpWidget(createTestApp(
+      const LoginScreen(),
+      authProvider: auth,
+    ));
+    await tester.pumpAndSettle();
+
+    // Mock banner must NOT be visible when mockMode is false
+    expect(find.byKey(const Key('demo_mode_banner')), findsNothing);
+
+    // Tap Get Mock OTP with failing backend
+    await tester.tap(find.text('Get Mock OTP'));
+    await tester.pumpAndSettle();
+
+    // Verify error SnackBar is displayed and stays on initial phone screen
+    expect(find.textContaining('Failed to send OTP'), findsOneWidget);
+    expect(find.text('Enter 6-digit Mock OTP'), findsNothing);
+
+    // Tap quick login chip with failing backend
+    await tester.ensureVisible(find.text('Asha (Donor O+)'));
+    await tester.tap(find.text('Asha (Donor O+)'));
+    await tester.pumpAndSettle();
+
+    // Verify error SnackBar is displayed and stays on LoginScreen
+    expect(find.textContaining('Backend unreachable'), findsOneWidget);
+    expect(auth.isAuthenticated, isFalse);
+    expect(find.text('BloodLine'), findsOneWidget);
+  });
+
+  testWidgets('created_at defensive parsing surfaces parse error in a SnackBar on invalid date', (tester) async {
+    await tester.pumpWidget(createTestApp(
+      const Scaffold(body: Text('Container')),
+    ));
+    await tester.pumpAndSettle();
+
+    // Parsing null or empty must NOT throw or show SnackBar
+    final reqNull = BloodRequest.fromJson({'id': 'r_null', 'created_at': null});
+    expect(reqNull.createdAt, isNull);
+    final reqEmpty = BloodRequest.fromJson({'id': 'r_empty', 'created_at': ''});
+    expect(reqEmpty.createdAt, isNull);
+    await tester.pump();
+    expect(find.byType(SnackBar), findsNothing);
+
+    // Parsing invalid non-empty string must surface in a SnackBar
+    BloodRequest.fromJson({'id': 'r_bad', 'created_at': 'corrupted-timestamp-12345'});
+    await tester.pump();
+
+    expect(find.byType(SnackBar), findsOneWidget);
+    expect(find.text('Failed to parse date: corrupted-timestamp-12345'), findsOneWidget);
+  });
+
+  testWidgets('RequesterScreen broadcasts and immediately updates My Active Requests with refetched requests', (tester) async {
+    final client = ApiClient(mockMode: true);
+    final requests = RequestsProvider(apiClient: client);
+
+    await tester.pumpWidget(createTestApp(
+      const RequesterScreen(),
+      requestsProvider: requests,
+    ));
+    await tester.pumpAndSettle();
+
+    // Enter hospital name
+    final hospitalField = find.widgetWithText(TextFormField, 'Hospital / Delivery Location');
+    await tester.enterText(hospitalField, 'City Care Clinic');
+
+    // Broadcast request
+    await tester.ensureVisible(find.text('Broadcast Blood Request'));
+    await tester.tap(find.text('Broadcast Blood Request'));
+    await tester.pumpAndSettle();
+
+    // Dialog appears with success message
+    expect(find.text('Emergency Request Broadcasted!'), findsOneWidget);
+
+    // Tap View Requests to dismiss dialog
+    await tester.tap(find.text('View Requests'));
+    await tester.pumpAndSettle();
+
+    // Verify new request is shown immediately in My Active Requests list
+    expect(find.widgetWithText(ListTile, 'City Care Clinic'), findsOneWidget);
+  });
+
+  testWidgets('RequesterScreen urgency options support and send critical, urgent, and planned per docs/API.md', (tester) async {
+    final client = ApiClient(mockMode: true);
+    final requests = RequestsProvider(apiClient: client);
+
+    await tester.pumpWidget(createTestApp(
+      const RequesterScreen(),
+      requestsProvider: requests,
+    ));
+    await tester.pumpAndSettle();
+
+    // Verify all 3 urgency segment options exist per API contract
+    expect(find.text('Critical'), findsOneWidget);
+    expect(find.text('Urgent'), findsOneWidget);
+    expect(find.text('Planned'), findsOneWidget);
+
+    // Select Planned and broadcast
+    await tester.ensureVisible(find.text('Planned'));
+    await tester.tap(find.text('Planned'));
+    await tester.pumpAndSettle();
+    final hospitalField = find.widgetWithText(TextFormField, 'Hospital / Delivery Location');
+    await tester.enterText(hospitalField, 'Urgency Planned Hospital');
+    await tester.ensureVisible(find.text('Broadcast Blood Request'));
+    await tester.tap(find.text('Broadcast Blood Request'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('View Requests'));
+    await tester.pumpAndSettle();
+
+    expect(requests.requests.first.urgency, 'planned');
+  });
+
+  testWidgets('HomeScreen logout button displays confirm dialog, disconnects Nexconn, and clears session', (tester) async {
+    final client = ApiClient(mockMode: true);
+    final auth = AuthProvider(apiClient: client);
+    auth.setCurrentUserForTesting(
+      const User(id: 'u1', name: 'Ravi', role: 'requester', bloodGroup: 'O-'),
+      token: 'jwt_ravi',
+    );
+    await NexconnService.instance.connect('mock_token');
+
+    expect(auth.isAuthenticated, isTrue);
+    expect(NexconnService.instance.isConnected, isTrue);
+
+    await tester.pumpWidget(createTestApp(
+      const HomeScreen(),
+      authProvider: auth,
+    ));
+    await tester.pumpAndSettle();
+
+    // Tap home logout button
+    await tester.tap(find.byKey(const Key('home_logout_button')));
+    await tester.pumpAndSettle();
+
+    // Dialog appears
+    expect(find.text('Confirm Logout'), findsOneWidget);
+    expect(find.text('Are you sure you want to log out? This will disconnect chat and return to the login screen.'), findsOneWidget);
+
+    // Tap Cancel -> stays logged in
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(auth.isAuthenticated, isTrue);
+
+    // Tap logout again and confirm
+    await tester.tap(find.byKey(const Key('home_logout_button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Log Out'));
+    await tester.pumpAndSettle();
+
+    // Stored token, user cleared and Nexconn disconnected
+    expect(auth.isAuthenticated, isFalse);
+    expect(auth.currentUser, isNull);
+    expect(auth.token, isNull);
+    expect(NexconnService.instance.isConnected, isFalse);
+  });
+
+  testWidgets('ProfileScreen logout button displays confirm dialog and clears session', (tester) async {
+    final client = ApiClient(mockMode: true);
+    final auth = AuthProvider(apiClient: client);
+    auth.setCurrentUserForTesting(
+      const User(id: 'u2', name: 'Asha', role: 'donor', bloodGroup: 'O+'),
+      token: 'jwt_asha',
+    );
+
+    await tester.pumpWidget(createTestApp(
+      const ProfileScreen(isNewUser: false),
+      authProvider: auth,
+    ));
+    await tester.pumpAndSettle();
+
+    // Find profile logout button
+    final logoutBtn = find.byKey(const Key('profile_logout_button'));
+    await tester.ensureVisible(logoutBtn);
+    await tester.tap(logoutBtn);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Confirm Logout'), findsOneWidget);
+    await tester.tap(find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.text('Log Out'),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(auth.isAuthenticated, isFalse);
+    expect(auth.currentUser, isNull);
+  });
+
+  testWidgets('SettingsScreen logout button displays confirm dialog, resets providers, and returns to login', (tester) async {
+    final client = ApiClient(mockMode: true);
+    final auth = AuthProvider(apiClient: client);
+    final requests = RequestsProvider(apiClient: client);
+    auth.setCurrentUserForTesting(
+      const User(id: 'u3', name: 'Dr. Sunita', role: 'bank'),
+      token: 'jwt_sunita',
+    );
+    await NexconnService.instance.connect('mock_token_sunita');
+
+    expect(auth.isAuthenticated, isTrue);
+
+    await tester.pumpWidget(createTestApp(
+      const SettingsScreen(),
+      authProvider: auth,
+      requestsProvider: requests,
+    ));
+    await tester.pumpAndSettle();
+
+    final logoutBtn = find.byKey(const Key('settings_logout_button'));
+    await tester.scrollUntilVisible(logoutBtn, 200);
+    await tester.tap(logoutBtn);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Confirm Logout'), findsOneWidget);
+    await tester.tap(find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.text('Log Out'),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(auth.isAuthenticated, isFalse);
+    expect(auth.currentUser, isNull);
+    expect(requests.requests, isEmpty);
+  });
+
+  testWidgets('LoginScreen normalizes 10-digit phone to +91 before sending OTP', (tester) async {
+    String? capturedPhone;
+    final client = _RecordingApiClient(onSendOtp: (p) => capturedPhone = p);
+    final auth = AuthProvider(apiClient: client);
+
+    await tester.pumpWidget(createTestApp(
+      const LoginScreen(),
+      authProvider: auth,
+    ));
+    await tester.pumpAndSettle();
+
+    // Enter a 10-digit number without country code
+    final phoneField = find.widgetWithText(TextField, 'Phone Number');
+    await tester.enterText(phoneField, '9876543210');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Get Mock OTP'));
+    await tester.pumpAndSettle();
+
+    expect(capturedPhone, '+919876543210');
+    expect(find.text('demo mode, code 123456'), findsOneWidget);
+  });
+
+  test('LocationController defaults to "Location not set", last choice wins, and GPS clears preset', () {
+    final controller = LocationController();
+    expect(controller.displayText, 'Location not set');
+    expect(controller.hasLocation, isFalse);
+
+    // Set preset
+    controller.setPreset('Sitabuldi', 21.1458, 79.0882);
+    expect(controller.source, LocationSource.preset);
+    expect(controller.displayText, 'Sitabuldi (21.1458, 79.0882)');
+
+    // Last choice wins: typed overrides preset
+    controller.setTyped('Custom Clinic', 21.1500, 79.0900);
+    expect(controller.source, LocationSource.typed);
+    expect(controller.displayText, 'Custom Clinic (21.1500, 79.0900)');
+
+    // Choosing GPS clears preset selection
+    controller.clearPreset();
+    expect(controller.source, isNull);
+    expect(controller.label, isNull);
+
+    // Clear resets to Location not set
+    controller.clear();
+    expect(controller.displayText, 'Location not set');
+  });
+
+  testWidgets('RequesterScreen renders Component dropdown, Hospital picker with "Other" option, and notes field', (tester) async {
+    final client = ApiClient(mockMode: true);
+    final requests = RequestsProvider(apiClient: client);
+
+    await tester.pumpWidget(createTestApp(
+      const RequesterScreen(),
+      requestsProvider: requests,
+    ));
+    await tester.pumpAndSettle();
+
+    // Component dropdown
+    expect(find.text('Blood Component'), findsOneWidget);
+    expect(find.text('Whole blood'), findsOneWidget);
+
+    // Notes field
+    expect(find.byKey(const Key('notes_field')), findsOneWidget);
+
+    // Hospital picker
+    expect(find.text('Select Hospital (nearest first)'), findsOneWidget);
+
+    // Open hospital picker and select "Other (type a name)"
+    await tester.tap(find.byKey(const Key('hospital_picker_dropdown')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Other (type a name)').last, findsOneWidget);
+    await tester.tap(find.text('Other (type a name)').last);
+    await tester.pumpAndSettle();
+
+    // Now user types custom hospital
+    final hospitalField = find.widgetWithText(TextFormField, 'Hospital / Delivery Location');
+    await tester.enterText(hospitalField, 'St. John Trauma Care');
+    await tester.pumpAndSettle();
+
+    // Broadcast request
+    await tester.ensureVisible(find.text('Broadcast Blood Request'));
+    await tester.tap(find.text('Broadcast Blood Request'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Emergency Request Broadcasted!'), findsOneWidget);
+    expect(find.textContaining('Matched 2 blood bank(s) and 5 donor(s)'), findsOneWidget);
+    expect(find.text('Enter Room'), findsOneWidget);
+  });
+
+  testWidgets('RequestSummaryHeader shows component chip in room header', (tester) async {
+    final reqWithComponent = BloodRequest(
+      id: 'r_comp',
+      bloodGroup: 'B+',
+      units: 3,
+      hospital: 'Apollo Reach',
+      urgency: 'urgent',
+      status: 'open',
+      channelId: 'reqr_comp',
+      component: 'Platelets',
+    );
+
+    await tester.pumpWidget(createTestApp(
+      Scaffold(body: RequestSummaryHeader(request: reqWithComponent)),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('room_header_component_chip')), findsOneWidget);
+    expect(find.text('Platelets'), findsOneWidget);
+    expect(find.text('URGENT'), findsOneWidget);
+  });
+
+  testWidgets('ProfileScreen renders "I can donate platelets/plasma" switch for donor role', (tester) async {
+    await tester.pumpWidget(createTestApp(
+      const ProfileScreen(isNewUser: true, initialRole: 'donor'),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('I can donate platelets/plasma'), findsOneWidget);
+    expect(find.byKey(const Key('can_donate_platelets_tile')), findsOneWidget);
+  });
+
+  testWidgets('HomeScreen debug icon is hidden unless demo mode', (tester) async {
+    // When mockMode is false, debug icon must be hidden
+    final liveClient = _FailingApiClient();
+    final authLive = AuthProvider(apiClient: liveClient);
+
+    await tester.pumpWidget(createTestApp(
+      const HomeScreen(),
+      authProvider: authLive,
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('home_debug_button')), findsNothing);
+
+    // When mockMode is true, debug icon is visible
+    final mockClient = ApiClient(mockMode: true);
+    final authMock = AuthProvider(apiClient: mockClient);
+
+    await tester.pumpWidget(createTestApp(
+      const HomeScreen(),
+      authProvider: authMock,
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('home_debug_button')), findsOneWidget);
+  });
+
+  test('RequestsProvider startPolling periodically refreshes requests and stopPolling cancels timer', () async {
+    final apiClient = MockApiClient();
+    final provider = RequestsProvider(apiClient: apiClient);
+
+    expect(provider.isPolling, isFalse);
+
+    provider.startPolling(status: 'open', interval: const Duration(milliseconds: 50));
+    expect(provider.isPolling, isTrue);
+
+    await Future.delayed(const Duration(milliseconds: 120));
+    expect(provider.requests.isNotEmpty, isTrue);
+
+    provider.stopPolling();
+    expect(provider.isPolling, isFalse);
+
+    provider.reset();
+    expect(provider.requests.isEmpty, isTrue);
+    expect(provider.isPolling, isFalse);
+  });
+
+  testWidgets('BloodRequestChatScreen provides location pin sharing button and sends hospital pin', (tester) async {
+    final apiClient = MockApiClient();
+    final auth = AuthProvider(apiClient: apiClient);
+    final requestsProvider = RequestsProvider(apiClient: apiClient);
+
+    await auth.login(name: 'Asha Donor', role: 'donor');
+
+    final testRequest = BloodRequest(
+      id: 'req_loc_test',
+      bloodGroup: 'O-',
+      units: 2,
+      hospital: 'Orange City Hospital',
+      urgency: 'critical',
+      status: 'open',
+      channelId: 'req_loc_test',
+      lat: 21.1458,
+      lng: 79.0882,
+      requesterName: 'Ravi Requester',
+      component: 'Whole blood',
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: auth),
+          ChangeNotifierProvider.value(value: requestsProvider),
+        ],
+        child: MaterialApp(
+          home: BloodRequestChatScreen(request: testRequest),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final shareBtn = find.byKey(const Key('chat_share_location_button'));
+    expect(shareBtn, findsOneWidget);
+
+    await tester.tap(shareBtn);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('share_hospital_location_tile')), findsOneWidget);
+    expect(find.byKey(const Key('share_gps_location_tile')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('share_hospital_location_tile')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('location_pin_shared_snackbar')), findsOneWidget);
+    expect(find.textContaining('Location pin shared: Orange City Hospital'), findsOneWidget);
+  });
+
+  testWidgets('BloodRequestChatScreen provides location pin sharing for GPS location', (tester) async {
+    final apiClient = MockApiClient();
+    final auth = AuthProvider(apiClient: apiClient);
+    final requestsProvider = RequestsProvider(apiClient: apiClient);
+
+    await auth.login(name: 'Asha Donor', role: 'donor');
+
+    final testRequest = BloodRequest(
+      id: 'req_loc_gps',
+      bloodGroup: 'A+',
+      units: 1,
+      hospital: 'Apex Trauma Center',
+      urgency: 'urgent',
+      status: 'open',
+      channelId: 'req_loc_gps',
+      lat: 21.1500,
+      lng: 79.0900,
+      requesterName: 'Suresh',
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: auth),
+          ChangeNotifierProvider.value(value: requestsProvider),
+        ],
+        child: MaterialApp(
+          home: BloodRequestChatScreen(request: testRequest),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('chat_share_location_button')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('share_gps_location_tile')));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('location_pin_shared_snackbar')), findsOneWidget);
+    expect(find.textContaining('Location pin shared: Current Location'), findsOneWidget);
+  });
+}
+
+class _RecordingApiClient extends MockApiClient {
+  final Function(String phone) onSendOtp;
+
+  _RecordingApiClient({required this.onSendOtp}) : super(mockMode: true);
+
+  @override
+  Future<Map<String, dynamic>> sendOtp(String phone) async {
+    onSendOtp(phone);
+    return {'sent': true, 'demo': true};
+  }
+}
+
+class _FailingApiClient extends MockApiClient {
+  _FailingApiClient() : super(mockMode: false);
+
+  @override
+  bool mockMode = false;
+
+  @override
+  Future<Map<String, dynamic>> sendOtp(String phone) async {
+    throw ApiException(503, 'Backend unreachable');
+  }
+
+  @override
+  Future<AuthResponse> login({
+    required String name,
+    required String role,
+    String? phone,
+  }) async {
+    throw ApiException(503, 'Backend unreachable');
+  }
 }

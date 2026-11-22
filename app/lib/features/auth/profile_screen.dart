@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/slot_registry.dart';
 import '../../core/location_service.dart';
+import '../../core/location_controller.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/config_provider.dart';
+import '../../core/auth_dialogs.dart';
 import '../home/home_screen.dart';
 import '../settings/settings_screen.dart';
+import 'login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String? initialPhone;
@@ -43,12 +46,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _donatedBefore = false;
   DateTime? _lastDonationDate;
   bool _consent = true;
+  bool _canDonatePlatelets = false;
 
-  double _latitude = 21.1458;
-  double _longitude = 79.0882;
-  String _locationDisplay = 'Nagpur Central, MH';
-  bool _isGpsActive = false;
-  bool _isFetchingLocation = false;
+  late final LocationController _locationController;
 
   final List<String> _bloodGroups = [
     'O+',
@@ -73,22 +73,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _ageController = TextEditingController(text: u?.age != null ? u!.age.toString() : '26');
     _weightController = TextEditingController(text: u?.weight != null ? u!.weight.toString() : '68');
     _heightController = TextEditingController(text: u?.height != null ? u!.height.toString() : '172');
-    _customAreaController = TextEditingController(text: u?.areaName ?? 'Nagpur Central, MH');
+    _customAreaController = TextEditingController(text: u?.areaName ?? '');
 
     if (u != null) {
       _bloodGroup = u.bloodGroup ?? 'O+';
       _sex = u.sex ?? 'male';
       _donatedBefore = u.donatedBefore;
       _lastDonationDate = u.lastDonationDate;
-      _latitude = u.lat != 0.0 ? u.lat : 21.1458;
-      _longitude = u.lng != 0.0 ? u.lng : 79.0882;
-      _locationDisplay = u.areaName ?? 'Nagpur Central, MH';
       _consent = u.consent;
+      _canDonatePlatelets = u.canDonatePlatelets;
+      if (u.lat != 0.0 && u.lng != 0.0) {
+        _locationController = LocationController(
+          initialLat: u.lat,
+          initialLng: u.lng,
+          initialLabel: u.areaName,
+          initialSource: LocationSource.preset,
+        );
+      } else {
+        _locationController = LocationController();
+      }
+    } else {
+      _locationController = LocationController();
     }
+    _locationController.addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
+    _locationController.dispose();
     _nameController.dispose();
     _phoneController.dispose();
     _ageController.dispose();
@@ -99,42 +113,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _fetchGpsLocation() async {
-    setState(() => _isFetchingLocation = true);
-    final loc = await LocationService.instance.getDeviceLocation();
-    setState(() => _isFetchingLocation = false);
+    final success = await _locationController.fetchGpsLocation();
     if (!mounted) return;
-
-    if (loc != null) {
-      setState(() {
-        _latitude = loc.latitude;
-        _longitude = loc.longitude;
-        _locationDisplay = loc.label;
-        _isGpsActive = true;
-      });
+    if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('GPS located: ${loc.latitude.toStringAsFixed(4)}, ${loc.longitude.toStringAsFixed(4)}'),
+          content: Text(_locationController.displayText),
           backgroundColor: Colors.green,
         ),
       );
-    } else {
+    } else if (_locationController.lastError != null) {
+      final err = _locationController.lastError!;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('GPS unavailable or permission denied. Please choose a typed area below.'),
-          backgroundColor: Colors.orange,
+        SnackBar(
+          content: Text(err.message),
+          backgroundColor: Colors.orange.shade800,
+          action: err.actionLabel != null
+              ? SnackBarAction(
+                  label: err.actionLabel!,
+                  textColor: Colors.white,
+                  onPressed: () => _locationController.handleAction(),
+                )
+              : null,
         ),
       );
     }
   }
 
   void _onAreaSelected(TypedArea area) {
-    setState(() {
-      _latitude = area.lat;
-      _longitude = area.lng;
-      _locationDisplay = area.name;
-      _customAreaController.text = area.name;
-      _isGpsActive = false;
-    });
+    _locationController.setPreset(area.name, area.lat, area.lng);
+    _customAreaController.text = area.name;
   }
 
   Future<void> _pickLastDonationDate() async {
@@ -164,11 +172,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final authProvider = context.read<AuthProvider>();
     final name = _nameController.text.trim();
-    final phone = _phoneController.text.trim();
+    final phone = normalizePhone(_phoneController.text.trim());
     final age = int.tryParse(_ageController.text.trim());
     final weight = double.tryParse(_weightController.text.trim());
     final height = double.tryParse(_heightController.text.trim());
     final bloodGroup = _role == 'bank' ? null : _bloodGroup;
+    final lat = _locationController.latitude ?? 0.0;
+    final lng = _locationController.longitude ?? 0.0;
+    final areaName = _locationController.displayText;
 
     bool success;
     if (widget.isNewUser || !authProvider.isAuthenticated) {
@@ -176,8 +187,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         name: name,
         role: _role,
         bloodGroup: bloodGroup,
-        lat: _latitude,
-        lng: _longitude,
+        lat: lat,
+        lng: lng,
         phone: phone,
         age: age,
         weight: weight,
@@ -185,17 +196,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
         sex: _sex,
         donatedBefore: _donatedBefore,
         lastDonationDate: _lastDonationDate,
-        areaName: _locationDisplay,
+        areaName: areaName,
         consent: _consent,
         otp: widget.initialOtp ?? '123456',
       );
+      if (success && authProvider.currentUser != null) {
+        await authProvider.updateProfile(
+          authProvider.currentUser!.copyWith(canDonatePlatelets: _canDonatePlatelets),
+        );
+      }
     } else {
       final updated = authProvider.currentUser!.copyWith(
         name: name,
         role: _role,
         bloodGroup: bloodGroup,
-        lat: _latitude,
-        lng: _longitude,
+        lat: lat,
+        lng: lng,
         phone: phone,
         age: age,
         weight: weight,
@@ -203,8 +219,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         sex: _sex,
         donatedBefore: _donatedBefore,
         lastDonationDate: _lastDonationDate,
-        areaName: _locationDisplay,
+        areaName: areaName,
         consent: _consent,
+        canDonatePlatelets: _canDonatePlatelets,
       );
       await authProvider.updateProfile(updated);
       success = true;
@@ -459,7 +476,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             'Location Settings',
                             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                           ),
-                          if (_isGpsActive)
+                          if (_locationController.source == LocationSource.gps)
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
@@ -481,21 +498,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Current: $_locationDisplay (${_latitude.toStringAsFixed(4)}, ${_longitude.toStringAsFixed(4)})',
+                        'Current: ${_locationController.displayText}',
                         style: const TextStyle(fontSize: 13, color: Colors.black87),
                       ),
                       const SizedBox(height: 14),
-                      // GPS Button
+                      // GPS Button - ALWAYS ENABLED
                       FilledButton.tonalIcon(
-                        onPressed: _isFetchingLocation ? null : _fetchGpsLocation,
-                        icon: _isFetchingLocation
+                        key: const Key('use_device_gps_button'),
+                        onPressed: _fetchGpsLocation,
+                        icon: _locationController.isFetching
                             ? const SizedBox(
                                 width: 16,
                                 height: 16,
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               )
                             : const Icon(Icons.my_location),
-                        label: Text(_isFetchingLocation ? 'Detecting GPS…' : 'Use Device GPS Location'),
+                        label: Text(_locationController.isFetching ? 'Detecting GPS…' : 'Use Device GPS Location'),
                       ),
                       const SizedBox(height: 14),
                       TextFormField(
@@ -507,10 +525,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           prefixIcon: Icon(Icons.edit_location_alt),
                         ),
                         onChanged: (val) {
-                          setState(() {
-                            _locationDisplay = val;
-                            _isGpsActive = false;
-                          });
+                          _locationController.setTyped(val);
                         },
                       ),
                       const SizedBox(height: 12),
@@ -523,7 +538,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         spacing: 8,
                         runSpacing: 8,
                         children: kPopularAreas.take(6).map((area) {
-                          final isSelected = _locationDisplay == area.name;
+                          final isSelected = _locationController.source == LocationSource.preset &&
+                              _locationController.label == area.name;
                           return ChoiceChip(
                             label: Text(area.name.split(' (').first),
                             selected: isSelected,
@@ -544,19 +560,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: CheckboxListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: _consent,
-                      onChanged: (val) => setState(() => _consent = val ?? false),
-                      title: const Text(
-                        'Donor Consent *',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                      ),
-                      subtitle: const Text(
-                        'I agree to donate blood voluntarily and receive notifications',
-                        style: TextStyle(fontSize: 13),
-                      ),
-                      controlAffinity: ListTileControlAffinity.leading,
+                    child: Column(
+                      children: [
+                        SwitchListTile(
+                          key: const Key('can_donate_platelets_tile'),
+                          contentPadding: EdgeInsets.zero,
+                          value: _canDonatePlatelets,
+                          onChanged: (val) => setState(() => _canDonatePlatelets = val),
+                          title: const Text(
+                            'I can donate platelets/plasma',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                          ),
+                          subtitle: const Text(
+                            'Available for apheresis / component donation',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ),
+                        const Divider(),
+                        CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          value: _consent,
+                          onChanged: (val) => setState(() => _consent = val ?? false),
+                          title: const Text(
+                            'Donor Consent *',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                          ),
+                          subtitle: const Text(
+                            'I agree to donate blood voluntarily and receive notifications',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                          controlAffinity: ListTileControlAffinity.leading,
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -594,6 +629,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   },
                   icon: const Icon(Icons.accessibility_new),
                   label: const Text('Settings & Accessibility'),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  key: const Key('profile_logout_button'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                  ),
+                  onPressed: () => confirmAndLogout(context),
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Log Out'),
                 ),
               ],
               const SizedBox(height: 24),

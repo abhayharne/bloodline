@@ -124,6 +124,17 @@ class NotificationsProvider extends ChangeNotifier {
     }
   }
 
+  void reset() {
+    stopPolling();
+    _notifications = [];
+    _dismissedBannerIds.clear();
+    _activeBanner = null;
+    _isLoading = false;
+    _isFetching = false;
+    _error = null;
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     _isDisposed = true;

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/api_client.dart';
+import '../../core/location_controller.dart';
 import '../../core/models/blood_request.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/requests_provider.dart';
@@ -15,9 +17,13 @@ class RequesterScreen extends StatefulWidget {
 class _RequesterScreenState extends State<RequesterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _hospitalController = TextEditingController(text: 'City Hospital, Nagpur');
+  final _notesController = TextEditingController();
+  late final LocationController _locationController;
+
   String _selectedGroup = 'O-';
   int _units = 2;
   String _urgency = 'critical';
+  String _selectedComponent = 'Whole blood';
 
   final List<String> _bloodGroups = [
     'O-',
@@ -30,18 +36,96 @@ class _RequesterScreenState extends State<RequesterScreen> {
     'AB+',
   ];
 
+  final List<String> _components = [
+    'Whole blood',
+    'Red cells',
+    'Platelets',
+    'Plasma',
+    'Other',
+  ];
+
+  List<Map<String, dynamic>> _nearbyHospitals = [];
+  String? _selectedHospital;
+  bool _isOtherHospital = false;
+
   @override
   void initState() {
     super.initState();
+    final auth = context.read<AuthProvider>();
+    final user = auth.currentUser;
+    if (user != null && user.lat != 0.0 && user.lng != 0.0) {
+      _locationController = LocationController(
+        initialLat: user.lat,
+        initialLng: user.lng,
+        initialLabel: user.areaName,
+        initialSource: LocationSource.preset,
+      );
+    } else {
+      _locationController = LocationController();
+    }
+    _locationController.addListener(() {
+      if (mounted) setState(() {});
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<RequestsProvider>().loadRequests(status: 'all');
+      _loadHospitals();
     });
+  }
+
+  Future<void> _loadHospitals() async {
+    try {
+      final apiClient = context.read<ApiClient>();
+      final user = context.read<AuthProvider>().currentUser;
+      final lat = _locationController.latitude ?? user?.lat;
+      final lng = _locationController.longitude ?? user?.lng;
+      final list = await apiClient.getHospitals(lat: lat, lng: lng);
+      if (mounted) {
+        setState(() {
+          _nearbyHospitals = list;
+        });
+      }
+    } catch (e) {
+      debugPrint('[RequesterScreen] Failed to load hospitals: $e');
+    }
   }
 
   @override
   void dispose() {
+    _locationController.dispose();
     _hospitalController.dispose();
+    _notesController.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchGpsLocation() async {
+    final ok = await _locationController.fetchGpsLocation();
+    if (!mounted) return;
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_locationController.displayText),
+          backgroundColor: Colors.green,
+        ),
+      );
+      // Reload hospitals with new GPS coordinates
+      _loadHospitals();
+    } else if (_locationController.lastError != null) {
+      final err = _locationController.lastError!;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(err.message),
+          backgroundColor: Colors.orange.shade800,
+          action: err.actionLabel != null
+              ? SnackBarAction(
+                  label: err.actionLabel!,
+                  textColor: Colors.white,
+                  onPressed: () => _locationController.handleAction(),
+                )
+              : null,
+        ),
+      );
+    }
   }
 
   Future<void> _submitRequest() async {
@@ -51,8 +135,8 @@ class _RequesterScreenState extends State<RequesterScreen> {
     final requestsProvider = context.read<RequestsProvider>();
 
     final user = auth.currentUser;
-    final lat = user?.lat != 0.0 ? user!.lat : 21.1458;
-    final lng = user?.lng != 0.0 ? user!.lng : 79.0882;
+    final lat = _locationController.latitude ?? ((user != null && user.lat != 0.0) ? user.lat : 21.1458);
+    final lng = _locationController.longitude ?? ((user != null && user.lng != 0.0) ? user.lng : 79.0882);
 
     final resp = await requestsProvider.createRequest(
       bloodGroup: _selectedGroup,
@@ -61,10 +145,14 @@ class _RequesterScreenState extends State<RequesterScreen> {
       urgency: _urgency,
       lat: lat,
       lng: lng,
+      component: _selectedComponent,
+      notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
     );
 
     if (!mounted) return;
     if (resp != null) {
+      await requestsProvider.loadRequests(status: 'all');
+      if (!mounted) return;
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -245,15 +333,141 @@ class _RequesterScreenState extends State<RequesterScreen> {
                     ),
                     const SizedBox(height: 14),
 
+                    // Component dropdown
+                    DropdownButtonFormField<String>(
+                      key: const Key('component_dropdown'),
+                      value: _selectedComponent,
+                      decoration: const InputDecoration(
+                        labelText: 'Blood Component',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.colorize),
+                      ),
+                      items: _components
+                          .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) setState(() => _selectedComponent = v);
+                      },
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Hospital picker (searchable / selectable backed by GET /hospitals)
+                    if (_nearbyHospitals.isNotEmpty) ...[
+                      DropdownButtonFormField<String>(
+                        key: const Key('hospital_picker_dropdown'),
+                        value: _selectedHospital,
+                        decoration: const InputDecoration(
+                          labelText: 'Select Hospital (nearest first)',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.local_hospital_outlined),
+                        ),
+                        isExpanded: true,
+                        items: [
+                          ..._nearbyHospitals.map((h) {
+                            final name = h['name'].toString();
+                            final dist = h['distance_km'] != null ? ' (${(h['distance_km'] as num).toStringAsFixed(1)} km)' : '';
+                            return DropdownMenuItem<String>(
+                              value: name,
+                              child: Text('$name$dist', overflow: TextOverflow.ellipsis),
+                            );
+                          }),
+                          const DropdownMenuItem<String>(
+                            value: 'Other (type a name)',
+                            child: Text('Other (type a name)'),
+                          ),
+                        ],
+                        onChanged: (val) {
+                          if (val == null) return;
+                          setState(() {
+                            _selectedHospital = val;
+                            if (val == 'Other (type a name)') {
+                              _isOtherHospital = true;
+                              _hospitalController.text = '';
+                            } else {
+                              _isOtherHospital = false;
+                              _hospitalController.text = val;
+                              final h = _nearbyHospitals.firstWhere((e) => e['name'] == val, orElse: () => {});
+                              if (h['lat'] != null && h['lng'] != null) {
+                                _locationController.setPreset(val, (h['lat'] as num).toDouble(), (h['lng'] as num).toDouble());
+                              }
+                            }
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+
                     // Hospital input
                     TextFormField(
                       controller: _hospitalController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Hospital / Delivery Location',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.local_hospital),
+                        hintText: _isOtherHospital ? 'Type hospital name' : null,
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.local_hospital),
                       ),
                       validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Optional notes field
+                    TextFormField(
+                      key: const Key('notes_field'),
+                      controller: _notesController,
+                      decoration: const InputDecoration(
+                        labelText: 'Notes / Special instructions (optional)',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.note_alt_outlined),
+                      ),
+                      maxLines: 2,
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Location Controller section
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.35),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Request Location',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                              ),
+                              if (_locationController.source == LocationSource.gps)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.shade100,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text('GPS Live', style: TextStyle(color: Colors.green, fontSize: 11, fontWeight: FontWeight.bold)),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Current: ${_locationController.displayText}',
+                            style: const TextStyle(fontSize: 12, color: Colors.black87),
+                          ),
+                          const SizedBox(height: 8),
+                          FilledButton.tonalIcon(
+                            key: const Key('requester_gps_button'),
+                            onPressed: _fetchGpsLocation,
+                            icon: _locationController.isFetching
+                                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                                : const Icon(Icons.my_location, size: 16),
+                            label: Text(_locationController.isFetching ? 'Detecting GPS…' : 'Use Device GPS Location'),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 14),
 
@@ -265,10 +479,9 @@ class _RequesterScreenState extends State<RequesterScreen> {
                     const SizedBox(height: 6),
                     SegmentedButton<String>(
                       segments: const [
-                        ButtonSegment(value: 'low', label: Text('Low')),
-                        ButtonSegment(value: 'medium', label: Text('Med')),
-                        ButtonSegment(value: 'high', label: Text('High')),
                         ButtonSegment(value: 'critical', label: Text('Critical')),
+                        ButtonSegment(value: 'urgent', label: Text('Urgent')),
+                        ButtonSegment(value: 'planned', label: Text('Planned')),
                       ],
                       selected: {_urgency},
                       onSelectionChanged: (set) => setState(() => _urgency = set.first),

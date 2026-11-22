@@ -103,13 +103,12 @@ class _DonorScreenState extends State<DonorScreen> {
     switch (urgency.toLowerCase()) {
       case 'critical':
         return Colors.red.shade700;
-      case 'high':
+      case 'urgent':
         return Colors.deepOrange;
-      case 'medium':
-        return Colors.amber.shade800;
-      case 'low':
-      default:
+      case 'planned':
         return Colors.blueGrey;
+      default:
+        return Colors.amber.shade800;
     }
   }
 

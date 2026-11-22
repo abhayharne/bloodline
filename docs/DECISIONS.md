@@ -148,3 +148,24 @@ Authentication uses phone number with 6-digit mock OTP (default 123456) and quic
 Profile form captures name, age, weight, height, sex, previous donation history, and location via device GPS
 with typed-area fallback (preset popular areas).
 
+## D14 — Error Handling, Defensive Timestamps, and Explicit Demo/Logout Semantics
+1. Real error surfacing: Never silently fall back to mock data when USE_MOCK is false. Connection and login errors are displayed via SnackBar while remaining on the LoginScreen. A prominent "Demo mode (offline data)" banner displays when mockMode is active.
+2. Defensive timestamp parsing: null or empty created_at never throws; invalid date strings surface in a SnackBar via rootScaffoldMessengerKey.
+3. Request broadcast: Upon creating a request, GET /requests is immediately refetched and active requests list updates.
+4. Urgency enum: Segmented button sends low|medium|high|critical.
+5. Logout with confirmation dialog: Clears tokens, user profile, SharedPreferences, disconnects Nexconn chat, and navigates to login.
+
+## D15 — LocationController, Hospital Picker, Component Dropdown, and Reconciled Urgency Contract
+1. Urgency contract reconciliation: API contract (docs/API.md line 195 and Go service validation) strictly mandates urgency as `critical|urgent|planned`. The backend rejects non-conforming urgency with HTTP 400 Bad Request, which caused requests to be rejected and fail to appear in the active feed. SegmentedButton now sends `critical|urgent|planned`, and full request/response payloads are logged.
+2. LocationController architecture: Centralized `LocationController` supporting source `gps|preset|typed`. "Use Device GPS" button remains perpetually active; choosing GPS clears preset selection; the last selection wins. High-accuracy location query configured with 15s timeout and fallback to `getLastKnownPosition`. Explicit handling and user messages for services disabled (`Geolocator.openLocationSettings`), permission denied (retry action), denied forever (`Geolocator.openAppSettings`), and timeout. "Location not set" is shown when unset rather than defaulting silently to a preset.
+3. Phone number normalization: 10-digit phone inputs normalize by prepending `+91` before calling OTP endpoints and profile registration. "demo mode, code 123456" is displayed on the OTP verification screen.
+4. Hospital picker with GET /hospitals: Searchable picker backed by `GET /hospitals` sorted nearest first using user coordinates, including an "Other (type a name)" option. Selecting a hospital sets the request's geographical coordinates.
+5. Component dropdown & notes: Added component dropdown (`Whole blood`, `Red cells`, `Platelets`, `Plasma`, `Other`) and optional notes field to the requester form. Room header displays component chip in live chat. Donor profile gets "I can donate platelets/plasma" capability toggle.
+6. Unified logout with provider reset: `confirmAndLogout` dialog in Profile and Settings screens clears auth tokens, user profile, SharedPreferences, disconnects Nexconn, resets `RequestsProvider` and `NotificationsProvider`, and navigates to login. Debug screen launcher is hidden unless running in demo/mock mode.
+
+## D16 — Location Pin Sharing in Chat and Live Requests Polling
+1. Location pin message in chat (T2.7): Added `chat_share_location_button` to `BloodRequestChatScreen` AppBar actions and integrated `MessageInputExtensionPlugin.location` with `ChatPageConfig`. Users can share either the hospital location or current device GPS coordinates (with graceful fallback to profile coordinates). Messages are sent as `LocationMessageParams` through Nexconn Chat and surfaced via `location_pin_shared_snackbar`. Tapping any `LocationMessage` bubble presents coordinates and POI metadata in a modal details dialog.
+2. Live feed synchronization (T2.9): Added periodic polling (`startPolling`, `stopPolling`, `isPolling`) to `RequestsProvider`, initialized in `main.dart` at a 10s interval matching `NotificationsProvider`. Uses silent background loading to refresh open requests without UI loading flicker or unhandled timer leaks in widget tests.
+
+
+

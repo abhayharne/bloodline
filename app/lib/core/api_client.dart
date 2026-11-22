@@ -15,8 +15,24 @@ class ApiException implements Exception {
 
   ApiException(this.statusCode, this.message);
 
+  factory ApiException.fromResponse(int statusCode, String body, [String fallback = 'API call failed']) {
+    String msg = fallback;
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map && decoded['error'] != null) {
+        msg = decoded['error'].toString();
+      } else if (body.isNotEmpty) {
+        msg = body;
+      }
+    } catch (_) {
+      if (body.isNotEmpty) msg = body;
+    }
+    debugPrint('[ApiException] HTTP $statusCode: $msg');
+    return ApiException(statusCode, msg);
+  }
+
   @override
-  String toString() => 'ApiException($statusCode): $message';
+  String toString() => message;
 }
 
 /// Abstract API client contract for the BloodLine backend.
@@ -68,12 +84,17 @@ abstract class ApiClient {
     required String urgency,
     required double lat,
     required double lng,
+    String? component,
+    String? notes,
   });
 
   Future<List<BloodRequest>> getRequests({String status = 'open'});
   Future<String> acceptRequest(String requestId);
   Future<BloodRequest> fulfillRequest(String requestId);
   Future<BloodRequest> cancelRequest(String requestId);
+
+  /// Fetch hospitals nearest to given lat/lng. Falls back to mock list when endpoint is unavailable.
+  Future<List<Map<String, dynamic>>> getHospitals({double? lat, double? lng});
 
   // V2 Addendum endpoints
   Future<Map<String, dynamic>> sendOtp(String phone);
@@ -338,6 +359,8 @@ class HttpApiClient implements ApiClient {
     required String urgency,
     required double lat,
     required double lng,
+    String? component,
+    String? notes,
   }) async {
     if (mockMode) {
       return _fallbackMock.createRequest(
@@ -347,6 +370,8 @@ class HttpApiClient implements ApiClient {
         urgency: urgency,
         lat: lat,
         lng: lng,
+        component: component,
+        notes: notes,
       );
     }
 
@@ -357,7 +382,11 @@ class HttpApiClient implements ApiClient {
       'urgency': urgency,
       'lat': lat,
       'lng': lng,
+      if (component != null) 'component': component,
+      if (notes != null) 'notes': notes,
     };
+
+    debugPrint('[HttpApiClient] POST /requests body: ${jsonEncode(body)}');
 
     final res = await _httpClient
         .post(
@@ -367,11 +396,37 @@ class HttpApiClient implements ApiClient {
         )
         .timeout(const Duration(seconds: 5));
 
+    debugPrint('[HttpApiClient] POST /requests status=${res.statusCode} body=${res.body}');
+
     if (res.statusCode == 200 || res.statusCode == 201) {
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       return BloodRequestResponse.fromJson(data);
     }
-    throw ApiException(res.statusCode, 'Failed to create request: ${res.body}');
+    throw ApiException.fromResponse(res.statusCode, res.body, 'Failed to create request');
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getHospitals({double? lat, double? lng}) async {
+    if (mockMode) return _fallbackMock.getHospitals(lat: lat, lng: lng);
+
+    try {
+      final query = <String, String>{};
+      if (lat != null) query['lat'] = lat.toString();
+      if (lng != null) query['lng'] = lng.toString();
+      final uri = Uri.parse('$baseUrl/hospitals').replace(queryParameters: query.isNotEmpty ? query : null);
+      final res = await _httpClient.get(uri, headers: _headers()).timeout(const Duration(seconds: 4));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data is Map && data['hospitals'] is List) {
+          return (data['hospitals'] as List).cast<Map<String, dynamic>>();
+        } else if (data is List) {
+          return data.cast<Map<String, dynamic>>();
+        }
+      }
+    } catch (e) {
+      debugPrint('[HttpApiClient] GET /hospitals error ($e), falling back to mock');
+    }
+    return _fallbackMock.getHospitals(lat: lat, lng: lng);
   }
 
   @override
@@ -856,6 +911,8 @@ class MockApiClient implements ApiClient {
     required String urgency,
     required double lat,
     required double lng,
+    String? component,
+    String? notes,
   }) async {
     final newId = 'r${DateTime.now().millisecondsSinceEpoch % 100000}';
     final newReq = BloodRequest(
@@ -872,6 +929,8 @@ class MockApiClient implements ApiClient {
       joined: true,
       lat: lat,
       lng: lng,
+      component: component ?? 'Whole blood',
+      notes: notes,
     );
     _mockRequests.insert(0, newReq);
 
@@ -879,6 +938,68 @@ class MockApiClient implements ApiClient {
       request: newReq,
       matches: const BloodRequestMatches(banks: 2, donors: 5),
     );
+  }
+
+  static final List<Map<String, dynamic>> _mockHospitals = [
+    {
+      'name': 'AIIMS Nagpur',
+      'lat': 21.0900,
+      'lng': 79.0600,
+      'address': 'MIHAN, Nagpur',
+    },
+    {
+      'name': 'Government Medical College & Hospital (GMCH)',
+      'lat': 21.1270,
+      'lng': 79.0980,
+      'address': 'Medical Square, Nagpur',
+    },
+    {
+      'name': 'Kingsway Hospitals',
+      'lat': 21.1550,
+      'lng': 79.0850,
+      'address': 'Near Kasturchand Park, Nagpur',
+    },
+    {
+      'name': 'Orange City Hospital & Research Institute',
+      'lat': 21.1200,
+      'lng': 79.0800,
+      'address': 'Khamla Square, Nagpur',
+    },
+    {
+      'name': 'Alexis Multispeciality Hospital',
+      'lat': 21.1850,
+      'lng': 79.0700,
+      'address': 'Mankapur, Nagpur',
+    },
+    {
+      'name': 'Wockhardt Super Speciality Hospital',
+      'lat': 21.1350,
+      'lng': 79.0750,
+      'address': 'Shankar Nagar, Nagpur',
+    },
+  ];
+
+  @override
+  Future<List<Map<String, dynamic>>> getHospitals({double? lat, double? lng}) async {
+    final list = List<Map<String, dynamic>>.from(
+      _mockHospitals.map((h) => Map<String, dynamic>.from(h)),
+    );
+    if (lat != null && lng != null && lat != 0.0 && lng != 0.0) {
+      for (final h in list) {
+        final hLat = (h['lat'] as num).toDouble();
+        final hLng = (h['lng'] as num).toDouble();
+        final dLat = (hLat - lat) * 111.0;
+        final dLng = (hLng - lng) * 111.0 * 0.93;
+        final dist = (dLat * dLat + dLng * dLng);
+        h['distance_km'] = (dist > 0 ? (dist > 0.01 ? (dist * 10).round() / 10 : 0.1) : 0.0);
+      }
+      list.sort((a, b) {
+        final dA = (a['distance_km'] as num?)?.toDouble() ?? 0.0;
+        final dB = (b['distance_km'] as num?)?.toDouble() ?? 0.0;
+        return dA.compareTo(dB);
+      });
+    }
+    return list;
   }
 
   @override

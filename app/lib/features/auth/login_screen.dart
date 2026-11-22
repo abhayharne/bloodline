@@ -1,8 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import '../../core/providers/auth_provider.dart';
 import 'profile_screen.dart';
 import '../home/home_screen.dart';
+
+/// Normalize phone: strip spaces/parens/hyphens; prepend +91 for bare 10-digit numbers.
+String normalizePhone(String raw) {
+  final stripped = raw.replaceAll(RegExp(r'[\s()\-]'), '');
+  // If it's exactly 10 digits (no +), prepend +91
+  if (RegExp(r'^\d{10}$').hasMatch(stripped)) {
+    return '+91$stripped';
+  }
+  return stripped;
+}
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,7 +27,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final _nameController = TextEditingController(text: 'Ravi');
   String _selectedRole = 'donor'; // 'requester' | 'donor' | 'bank'
   bool _otpSent = false;
-  bool _isDemo = true;
   final _otpController = TextEditingController(text: '123456');
 
   @override
@@ -28,20 +38,20 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _onSendOtp() async {
-    final phone = _phoneController.text.trim();
+    final phone = normalizePhone(_phoneController.text.trim());
     if (phone.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a valid phone number')),
       );
       return;
     }
+    debugPrint('[LoginScreen] sendOtp phone=$phone');
     final auth = context.read<AuthProvider>();
     try {
-      final res = await auth.sendOtp(phone);
+      await auth.sendOtp(phone);
       if (!mounted) return;
       setState(() {
         _otpSent = true;
-        _isDemo = res['demo'] == true;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -49,12 +59,15 @@ class _LoginScreenState extends State<LoginScreen> {
           backgroundColor: Colors.teal,
         ),
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[LoginScreen] sendOtp error: $e');
       if (!mounted) return;
-      setState(() {
-        _otpSent = true;
-        _isDemo = true;
-      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to send OTP: $e'),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
     }
   }
 
@@ -69,9 +82,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
     final authProvider = context.read<AuthProvider>();
     final name = _nameController.text.trim();
-    final phone = _phoneController.text.trim();
+    final phone = normalizePhone(_phoneController.text.trim());
 
     try {
+      debugPrint('[LoginScreen] verifyOtp phone=$phone otp=$otp');
       final res = await authProvider.verifyOtp(phone: phone, otp: otp);
       if (!mounted) return;
 
@@ -97,6 +111,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
     } catch (e) {
+      debugPrint('[LoginScreen] verifyOtp error: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -120,6 +135,13 @@ class _LoginScreenState extends State<LoginScreen> {
         context,
         MaterialPageRoute(builder: (_) => const HomeScreen()),
       );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(authProvider.error ?? 'Login failed'),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
     }
   }
 
@@ -134,6 +156,34 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (authProvider.apiClient.mockMode) ...[
+                Container(
+                  key: const Key('demo_mode_banner'),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.amber.shade600),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, size: 20, color: Colors.amber.shade900),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Demo mode (offline data)',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.amber.shade900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 20),
               // App logo / Title
               Center(
@@ -262,32 +312,31 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (_isDemo)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          margin: const EdgeInsets.only(bottom: 12),
-                          decoration: BoxDecoration(
-                            color: Colors.amber.shade100,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.amber.shade400),
-                          ),
-                          child: const Row(
-                            children: [
-                              Icon(Icons.info_outline, size: 18, color: Colors.orange),
-                              SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'demo mode, code 123456',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
-                                  ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade100,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.amber.shade400),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.info_outline, size: 18, color: Colors.orange),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'demo mode, code 123456',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
                                 ),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
+                      ),
                       const Text(
                         'Enter 6-digit Mock OTP',
                         style: TextStyle(
