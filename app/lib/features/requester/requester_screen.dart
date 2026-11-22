@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/location_controller.dart';
 import '../../core/models/blood_request.dart';
+import '../../core/models/json_numbers.dart';
+import '../../core/models/request_urgency.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/requests_provider.dart';
 import '../chat/blood_request_chat_screen.dart';
@@ -22,7 +24,8 @@ class _RequesterScreenState extends State<RequesterScreen> {
 
   String _selectedGroup = 'O-';
   int _units = 2;
-  String _urgency = 'critical';
+  RequestUrgency _urgency = RequestUrgency.critical;
+  bool _isBroadcasting = false;
   String _selectedComponent = 'Whole blood';
 
   final List<String> _bloodGroups = [
@@ -133,7 +136,7 @@ class _RequesterScreenState extends State<RequesterScreen> {
   }
 
   Future<void> _submitRequest() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (_isBroadcasting || !_formKey.currentState!.validate()) return;
 
     final auth = context.read<AuthProvider>();
     final requestsProvider = context.read<RequestsProvider>();
@@ -142,21 +145,22 @@ class _RequesterScreenState extends State<RequesterScreen> {
     final lat = _locationController.latitude ?? ((user != null && user.lat != 0.0) ? user.lat : 21.1458);
     final lng = _locationController.longitude ?? ((user != null && user.lng != 0.0) ? user.lng : 79.0882);
 
-    final resp = await requestsProvider.createRequest(
-      bloodGroup: _selectedGroup,
-      units: _units,
-      hospital: _hospitalController.text.trim(),
-      urgency: _urgency,
-      lat: lat,
-      lng: lng,
-      component: _selectedComponent,
-      notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
-    );
-
-    if (!mounted) return;
-    if (resp != null) {
-      await requestsProvider.loadRequests(status: 'all');
+    setState(() => _isBroadcasting = true);
+    try {
+      final resp = await requestsProvider.createRequest(
+        bloodGroup: _selectedGroup,
+        units: _units,
+        hospital: _hospitalController.text.trim(),
+        urgency: _urgency.name,
+        lat: lat,
+        lng: lng,
+        component: _selectedComponent,
+        notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
+      );
       if (!mounted) return;
+      if (resp == null) {
+        throw ApiException(0, requestsProvider.error ?? 'Failed to broadcast request');
+      }
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -206,6 +210,13 @@ class _RequesterScreenState extends State<RequesterScreen> {
           ],
         ),
       );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _isBroadcasting = false);
     }
   }
 
@@ -361,7 +372,7 @@ class _RequesterScreenState extends State<RequesterScreen> {
                         key: const Key('hospital_picker_dropdown'),
                         value: _selectedHospital,
                         decoration: const InputDecoration(
-                          labelText: 'Select Hospital (nearest first)',
+                          labelText: 'Sample hospitals',
                           border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.local_hospital_outlined),
                         ),
@@ -369,7 +380,8 @@ class _RequesterScreenState extends State<RequesterScreen> {
                         items: [
                           ..._nearbyHospitals.map((h) {
                             final name = h['name'].toString();
-                            final dist = h['distance_km'] != null ? ' (${(h['distance_km'] as num).toStringAsFixed(1)} km)' : '';
+                            final distance = jsonDouble(h['distance_km']);
+                            final dist = distance == null ? '' : ' (${distance.toStringAsFixed(1)} km)';
                             return DropdownMenuItem<String>(
                               value: name,
                               child: Text('$name$dist', overflow: TextOverflow.ellipsis),
@@ -391,8 +403,10 @@ class _RequesterScreenState extends State<RequesterScreen> {
                               _isOtherHospital = false;
                               _hospitalController.text = val;
                               final h = _nearbyHospitals.firstWhere((e) => e['name'] == val, orElse: () => {});
-                              if (h['lat'] != null && h['lng'] != null) {
-                                _locationController.setPreset(val, (h['lat'] as num).toDouble(), (h['lng'] as num).toDouble());
+                              final lat = jsonDouble(h['lat']);
+                              final lng = jsonDouble(h['lng']);
+                              if (lat != null && lng != null) {
+                                _locationController.setPreset(val, lat, lng);
                               }
                             }
                           });
@@ -481,11 +495,10 @@ class _RequesterScreenState extends State<RequesterScreen> {
                       style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                     ),
                     const SizedBox(height: 6),
-                    SegmentedButton<String>(
-                      segments: const [
-                        ButtonSegment(value: 'critical', label: Text('Critical')),
-                        ButtonSegment(value: 'urgent', label: Text('Urgent')),
-                        ButtonSegment(value: 'planned', label: Text('Planned')),
+                    SegmentedButton<RequestUrgency>(
+                      segments: [
+                        for (final urgency in RequestUrgency.values)
+                          ButtonSegment(value: urgency, label: Text(urgency.label)),
                       ],
                       selected: {_urgency},
                       onSelectionChanged: (set) => setState(() => _urgency = set.first),
@@ -499,8 +512,8 @@ class _RequesterScreenState extends State<RequesterScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         minimumSize: const Size.fromHeight(48),
                       ),
-                      onPressed: requestsProvider.isLoading ? null : _submitRequest,
-                      icon: requestsProvider.isLoading
+                      onPressed: _isBroadcasting ? null : _submitRequest,
+                      icon: _isBroadcasting
                           ? const SizedBox(
                               width: 18,
                               height: 18,

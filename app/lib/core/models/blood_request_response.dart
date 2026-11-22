@@ -1,3 +1,4 @@
+import 'json_numbers.dart';
 import 'blood_request.dart';
 
 class BloodRequestMatches {
@@ -8,8 +9,8 @@ class BloodRequestMatches {
 
   factory BloodRequestMatches.fromJson(Map<String, dynamic> json) {
     return BloodRequestMatches(
-      banks: (json['banks'] as num?)?.toInt() ?? 0,
-      donors: (json['donors'] as num?)?.toInt() ?? 0,
+      banks: jsonInt(json['banks']) ?? 0,
+      donors: jsonInt(json['donors']) ?? 0,
     );
   }
 

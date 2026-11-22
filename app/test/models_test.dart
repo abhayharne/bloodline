@@ -8,6 +8,19 @@ import 'package:bloodline/core/models/blood_stock.dart';
 import 'package:bloodline/core/models/app_config.dart';
 
 void main() {
+  test('Numeric model fields tolerate whole numbers, empty strings and null', () {
+    final user = User.fromJson({'lat': 21, 'lng': 79.0, 'age': ' ', 'weight_kg': '70', 'height_cm': null});
+    expect(user.lat, 21.0);
+    expect(user.lng, 79.0);
+    expect(user.age, isNull);
+    expect(user.weight, 70.0);
+    expect(user.height, isNull);
+    final request = BloodRequest.fromJson({'units': '', 'distance_km': '', 'urgency': ' URGENT '});
+    expect(request.units, 1);
+    expect(request.distanceKm, isNull);
+    expect(request.urgency, 'high');
+  });
+
   group('JSON Models Ignore Unknown Fields', () {
     test('UserDerived and UserRank safely parse and ignore unknown fields', () {
       final json = {

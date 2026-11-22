@@ -1,4 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:bloodline/main.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:bloodline/core/api_client.dart';
@@ -34,7 +39,7 @@ Widget createTestApp(
   NotificationsProvider? notificationsProvider,
   SettingsProvider? settingsProvider,
 }) {
-  final apiClient = ApiClient(mockMode: true);
+  final apiClient = authProvider?.apiClient ?? requestsProvider?.apiClient ?? ApiClient(mockMode: true);
   final auth = authProvider ?? AuthProvider(apiClient: apiClient);
   final requests = requestsProvider ?? RequestsProvider(apiClient: apiClient);
   final notif = notificationsProvider ?? NotificationsProvider(apiClient: apiClient);
@@ -50,7 +55,7 @@ Widget createTestApp(
       ChangeNotifierProvider<NotificationsProvider>.value(value: notif),
       ChangeNotifierProvider<SettingsProvider>.value(value: settings),
     ],
-    child: MaterialApp(
+    child: child is BloodLineApp ? child : MaterialApp(
       scaffoldMessengerKey: rootScaffoldMessengerKey,
       home: child,
       onGenerateRoute: (settings) => MaterialPageRoute(
@@ -124,7 +129,9 @@ void main() {
   });
 
   testWidgets('DonorScreen renders emergency feed with accept button', (tester) async {
-    await tester.pumpWidget(createTestApp(const DonorScreen()));
+    final auth = AuthProvider(apiClient: MockApiClient());
+    auth.setCurrentUserForTesting(const User(id: 'donor', name: 'Donor', role: 'donor'));
+    await tester.pumpWidget(createTestApp(const DonorScreen(), authProvider: auth));
     await tester.pumpAndSettle();
 
     expect(find.text('Emergency Requests Feed'), findsOneWidget);
@@ -304,6 +311,7 @@ void main() {
       status: 'open',
       channelId: 'reqr1',
       requesterName: 'Asha',
+      joined: true,
     );
 
     await tester.pumpWidget(createTestApp(
@@ -513,8 +521,11 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify error SnackBar is displayed and stays on initial phone screen
-    expect(find.textContaining('Failed to send OTP'), findsOneWidget);
+    expect(find.text('Backend unreachable'), findsOneWidget);
     expect(find.text('Enter 6-digit Mock OTP'), findsNothing);
+
+    ScaffoldMessenger.of(tester.element(find.byType(LoginScreen))).removeCurrentSnackBar();
+    await tester.pumpAndSettle();
 
     // Tap quick login chip with failing backend
     await tester.ensureVisible(find.text('Asha (Donor O+)'));
@@ -550,11 +561,34 @@ void main() {
   });
 
   testWidgets('RequesterScreen broadcasts and immediately updates My Active Requests with refetched requests', (tester) async {
-    final client = ApiClient(mockMode: true);
+    Map<String, dynamic>? created;
+    var feedReads = 0;
+    var broadcasts = 0;
+    final client = HttpApiClient(httpClient: MockClient((request) async {
+      switch ((request.method, request.url.path)) {
+        case ('GET', '/hospitals'):
+          return _response(200, {'hospitals': []});
+        case ('GET', '/requests'):
+          feedReads++;
+          return _response(200, {'requests': [if (created != null) {
+            ...created!,
+            'hospital': 'City Care Clinic (from feed)',
+          }]});
+        case ('POST', '/requests'):
+          broadcasts++;
+          if (broadcasts == 1) return _response(400, {'error': 'component rejected'});
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body['component'], 'whole_blood');
+          created = {...body, 'id': 'r101', 'channel_id': 'reqr101'};
+          return _response(201, {'request': created});
+        default:
+          fail('Unexpected ${request.method} ${request.url.path}');
+      }
+    }));
     final requests = RequestsProvider(apiClient: client);
 
     await tester.pumpWidget(createTestApp(
-      const RequesterScreen(),
+      const Scaffold(body: RequesterScreen()),
       requestsProvider: requests,
     ));
     await tester.pumpAndSettle();
@@ -568,6 +602,12 @@ void main() {
     await tester.tap(find.text('Broadcast Blood Request'));
     await tester.pumpAndSettle();
 
+    expect(find.text('component rejected'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    await tester.ensureVisible(find.text('Broadcast Blood Request'));
+    await tester.tap(find.text('Broadcast Blood Request'));
+    await tester.pumpAndSettle();
+
     // Dialog appears with success message
     expect(find.text('Emergency Request Broadcasted!'), findsOneWidget);
 
@@ -576,10 +616,11 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify new request is shown immediately in My Active Requests list
-    expect(find.widgetWithText(ListTile, 'City Care Clinic'), findsOneWidget);
+    expect(feedReads, 2);
+    expect(find.widgetWithText(ListTile, 'City Care Clinic (from feed)'), findsOneWidget);
   });
 
-  testWidgets('RequesterScreen urgency options support and send critical, urgent, and planned per docs/API.md', (tester) async {
+  testWidgets('RequesterScreen sends canonical urgency values', (tester) async {
     final client = ApiClient(mockMode: true);
     final requests = RequestsProvider(apiClient: client);
 
@@ -589,14 +630,15 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    // Verify all 3 urgency segment options exist per API contract
+    // All canonical urgency values are selectable.
     expect(find.text('Critical'), findsOneWidget);
-    expect(find.text('Urgent'), findsOneWidget);
-    expect(find.text('Planned'), findsOneWidget);
+    expect(find.text('High'), findsOneWidget);
+    expect(find.text('Medium'), findsOneWidget);
+    expect(find.text('Low'), findsOneWidget);
 
-    // Select Planned and broadcast
-    await tester.ensureVisible(find.text('Planned'));
-    await tester.tap(find.text('Planned'));
+    // Select Low and broadcast
+    await tester.ensureVisible(find.text('Low'));
+    await tester.tap(find.text('Low'));
     await tester.pumpAndSettle();
     final hospitalField = find.widgetWithText(TextFormField, 'Hospital / Delivery Location');
     await tester.enterText(hospitalField, 'Urgency Planned Hospital');
@@ -606,7 +648,7 @@ void main() {
     await tester.tap(find.text('View Requests'));
     await tester.pumpAndSettle();
 
-    expect(requests.requests.first.urgency, 'planned');
+    expect(requests.requests.first.urgency, 'low');
   });
 
   testWidgets('HomeScreen logout button displays confirm dialog, disconnects Nexconn, and clears session', (tester) async {
@@ -786,7 +828,7 @@ void main() {
     expect(find.byKey(const Key('notes_field')), findsOneWidget);
 
     // Hospital picker
-    expect(find.text('Select Hospital (nearest first)'), findsOneWidget);
+    expect(find.text('Sample hospitals'), findsOneWidget);
 
     // Open hospital picker and select "Other (type a name)"
     await tester.tap(find.byKey(const Key('hospital_picker_dropdown')));
@@ -984,7 +1026,14 @@ void main() {
   });
 
   testWidgets('ProfileScreen inside bottom-nav shell saves profile and stays on screen without going blank', (tester) async {
-    final apiClient = MockApiClient();
+    var writes = 0;
+    final apiClient = HttpApiClient(httpClient: MockClient((request) async {
+      expect((request.method, request.url.path), ('PUT', '/me'));
+      writes++;
+      expect(jsonDecode(request.body)['weight_kg'], 79);
+      if (writes == 1) return _response(400, {'error': 'profile rejected'});
+      return _response(200, {'derived': {'donation_count': 0}});
+    }));
     final auth = AuthProvider(apiClient: apiClient);
     final user = User(
       id: 'u_donor_shell',
@@ -1019,11 +1068,25 @@ void main() {
     expect(find.byType(ProfileScreen), findsOneWidget);
     expect(find.text('Edit Profile'), findsOneWidget);
 
+    final weight = find.widgetWithText(TextFormField, 'Weight (kg)');
+    await tester.ensureVisible(weight);
+    await tester.enterText(weight, '79');
+
     // Scroll to and tap Save Changes button
     final saveBtn = find.byKey(const Key('profile_save_button'));
     await tester.ensureVisible(saveBtn);
     await tester.tap(saveBtn);
     await tester.pumpAndSettle();
+
+    expect(find.text('profile rejected'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    ScaffoldMessenger.of(tester.element(saveBtn)).clearSnackBars();
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(saveBtn);
+    await tester.tap(saveBtn);
+    await tester.pumpAndSettle();
+    expect(writes, 2);
+    expect(auth.currentUser?.weight, 79);
 
     // Assert ProfileScreen and HomeScreen are still showing (never pops to blank screen)
     expect(find.byType(ProfileScreen), findsOneWidget);
@@ -1032,32 +1095,103 @@ void main() {
     expect(find.text('Edit Profile'), findsOneWidget);
   });
 
-  testWidgets('ProfileScreen registration mode (isNewUser=true) completes registration and navigates to HomeScreen', (tester) async {
-    final apiClient = MockApiClient();
+  testWidgets('Live OTP registration finishes on HomeScreen with a clean back stack', (tester) async {
+    var signups = 0;
+    final user = {'id': 'u101', 'name': 'New Requester', 'role': 'requester', 'weight_kg': 68};
+    final apiClient = HttpApiClient(httpClient: MockClient((request) async {
+      switch ((request.method, request.url.path)) {
+        case ('POST', '/auth/otp/send'):
+          return _response(200, {'sent': true});
+        case ('POST', '/auth/verify'):
+          return _response(404, {'error': 'user not found'});
+        case ('POST', '/auth/signup'):
+          signups++;
+          if (signups == 1) return _response(400, {'error': 'registration rejected'});
+          return _response(201, {'user': user, 'token': 'test-token', 'nexconn_token': ''});
+        case ('GET', '/me'):
+          return _response(200, {'user': user, 'derived': {}});
+        default:
+          return _response(200, {'requests': [], 'hospitals': []});
+      }
+    }));
     final auth = AuthProvider(apiClient: apiClient);
+    await tester.pumpWidget(createTestApp(const LoginScreen(), authProvider: auth));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Phone Number'), '9900000088');
+    await tester.tap(find.text('Get Mock OTP'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, '123456');
+    await tester.ensureVisible(find.text('Verify & Continue'));
+    await tester.tap(find.text('Verify & Continue'));
+    await tester.pumpAndSettle();
+    expect(find.text('Complete Profile'), findsOneWidget);
+    await tester.enterText(find.widgetWithText(TextFormField, 'Full Name / Organization *'), 'New Requester');
+    final submit = find.byKey(const Key('profile_save_button'));
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+    expect(find.text('registration rejected'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+    expect(find.byType(HomeScreen), findsOneWidget);
+    expect(Navigator.of(tester.element(find.byType(HomeScreen))).canPop(), isFalse);
+    expect(find.byType(LoginScreen, skipOffstage: false), findsNothing);
+  });
 
+  testWidgets('BloodLineApp resolves unknown root routes to the login gate', (tester) async {
+    await tester.pumpWidget(createTestApp(const BloodLineApp()));
+    await tester.pumpAndSettle();
+    final navigator = Navigator.of(tester.element(find.byType(LoginScreen)));
+    navigator.pushNamedAndRemoveUntil('/unknown', (_) => false);
+    await tester.pumpAndSettle();
+    expect(find.byType(LoginScreen), findsOneWidget);
+    expect(navigator.canPop(), isFalse);
+  });
+
+  testWidgets('Requester never sees donation or accept actions on their own request', (tester) async {
+    const owner = User(id: 'uowner', name: 'Owner', role: 'requester');
+    final auth = AuthProvider(apiClient: MockApiClient())..setCurrentUserForTesting(owner);
+    const request = BloodRequest(
+      id: 'rOwn', requesterId: 'uowner', bloodGroup: 'O+', units: 2,
+      hospital: 'Own Hospital', urgency: 'high', status: 'open', channelId: 'reqrOwn',
+      joined: true,
+    );
+    await tester.pumpWidget(createTestApp(BloodRequestChatScreen(request: request), authProvider: auth));
+    await tester.pumpAndSettle();
+    expect(find.text('Mark fulfilled'), findsWidgets);
+    expect(find.text('I donated'), findsNothing);
+
+    await tester.pumpWidget(createTestApp(const DonorScreen(), authProvider: auth));
+    await tester.pumpAndSettle();
+    expect(find.text('Emergency Requests Feed'), findsOneWidget);
+    expect(find.text('I Can Help (Accept & Join Room)'), findsNothing);
+    expect(find.text('I donated'), findsNothing);
+  });
+
+  testWidgets('Only a joined donor sees the donation action in a request room', (tester) async {
+    final auth = AuthProvider(apiClient: MockApiClient())..setCurrentUserForTesting(
+      const User(id: 'udonor', name: 'Donor', role: 'donor'),
+    );
+    const request = BloodRequest(
+      id: 'r2', requesterId: 'uowner', bloodGroup: 'O+', units: 2,
+      hospital: 'Donation Hospital', urgency: 'high', status: 'open', channelId: 'reqr2',
+    );
+    await tester.pumpWidget(createTestApp(BloodRequestChatScreen(request: request), authProvider: auth));
+    await tester.pumpAndSettle();
+    expect(find.text('I donated'), findsNothing);
     await tester.pumpWidget(createTestApp(
-      const ProfileScreen(
-        initialPhone: '+919900000088',
-        initialName: 'New Requester Reg',
-        initialRole: 'requester',
-        isNewUser: true,
-      ),
-      authProvider: auth,
+      BloodRequestChatScreen(request: request.copyWith(joined: true)), authProvider: auth,
     ));
     await tester.pumpAndSettle();
-
-    expect(find.text('Complete Profile'), findsOneWidget);
-
-    final submitBtn = find.byKey(const Key('profile_save_button'));
-    await tester.ensureVisible(submitBtn);
-    await tester.tap(submitBtn);
-    await tester.pumpAndSettle();
-
-    // Assert navigates to HomeScreen cleanly
-    expect(find.byType(HomeScreen), findsOneWidget);
+    expect(find.text('I donated'), findsWidgets);
   });
+
 }
+
+http.Response _response(int status, Map<String, dynamic> body) =>
+    http.Response(jsonEncode(body), status, headers: {'content-type': 'application/json'});
 
 class _RecordingApiClient extends MockApiClient {
   final Function(String phone) onSendOtp;

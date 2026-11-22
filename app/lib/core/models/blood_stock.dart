@@ -1,3 +1,4 @@
+import 'json_numbers.dart';
 class BloodStockItem {
   final String bloodGroup;
   final int units;
@@ -23,7 +24,7 @@ class BloodStockItem {
     return BloodStockItem(
       bloodGroup: json['blood_group']?.toString() ?? '',
       component: json['component']?.toString() ?? 'whole_blood',
-      units: (json['units'] as num?)?.toInt() ?? 0,
+      units: jsonInt(json['units']) ?? 0,
       updatedAt: updated,
     );
   }

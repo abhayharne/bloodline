@@ -170,21 +170,21 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           ),
-          // Role switch quick popup menu
-          PopupMenuButton<String>(
-            tooltip: 'Switch Role',
-            icon: const Icon(Icons.swap_horiz),
-            onSelected: (newRole) {
-              if (user != null) {
-                auth.updateProfile(user.copyWith(role: newRole));
-              }
-            },
-            itemBuilder: (ctx) => [
-              const PopupMenuItem(value: 'donor', child: Text('Switch to Donor')),
-              const PopupMenuItem(value: 'requester', child: Text('Switch to Requester')),
-              const PopupMenuItem(value: 'bank', child: Text('Switch to Blood Bank')),
-            ],
-          ),
+          if (auth.apiClient.mockMode)
+            PopupMenuButton<String>(
+              tooltip: 'Switch Role',
+              icon: const Icon(Icons.swap_horiz),
+              onSelected: (newRole) {
+                if (user != null) {
+                  auth.updateProfile(user.copyWith(role: newRole));
+                }
+              },
+              itemBuilder: (ctx) => [
+                const PopupMenuItem(value: 'donor', child: Text('Switch to Donor')),
+                const PopupMenuItem(value: 'requester', child: Text('Switch to Requester')),
+                const PopupMenuItem(value: 'bank', child: Text('Switch to Blood Bank')),
+              ],
+            ),
           // Debug screen icon (only in demo mode)
           if (auth.apiClient.mockMode)
             IconButton(

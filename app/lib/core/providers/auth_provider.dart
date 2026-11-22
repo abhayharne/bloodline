@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -50,7 +51,7 @@ class AuthProvider extends ChangeNotifier {
         apiClient.authToken = token;
 
         if (nexconnToken != null && nexconnToken.isNotEmpty) {
-          NexconnService.instance.connect(nexconnToken);
+          _connectChat(nexconnToken);
         }
         notifyListeners();
         // Fetch derived profile & rank
@@ -89,18 +90,22 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       final res = await apiClient.verifyOtp(phone, otp);
-      if (res['is_new'] == false && res['user'] != null) {
-        final authResp = AuthResponse.fromJson(res);
-        await _saveSession(authResp);
+      if (res['user'] != null && res['is_new'] != true) {
+        await _saveSession(AuthResponse.fromJson(res));
       }
-      _isLoading = false;
-      notifyListeners();
       return res;
-    } catch (e) {
-      _isLoading = false;
-      _error = e.toString();
-      notifyListeners();
+    } on ApiException catch (e) {
+      if (e.statusCode == 404 && e.message == 'user not found') {
+        return {'is_new': true};
+      }
+      _error = e.message;
       rethrow;
+    } catch (e) {
+      _error = e.toString();
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
@@ -167,15 +172,30 @@ class AuthProvider extends ChangeNotifier {
         otp: otp,
       );
       await _saveSession(resp);
-      _isLoading = false;
-      notifyListeners();
       return true;
     } catch (e) {
-      _isLoading = false;
       _error = e.toString();
-      notifyListeners();
       return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
+  }
+
+  Future<void> saveProfile(User updatedUser) async {
+    final response = await apiClient.updateMe({
+      'lat': updatedUser.lat,
+      'lng': updatedUser.lng,
+      if (updatedUser.weight != null) 'weight_kg': updatedUser.weight,
+      if (updatedUser.height != null) 'height_cm': updatedUser.height,
+      'last_donated_at': updatedUser.lastDonationDate?.toIso8601String().split('T').first ?? '',
+      'apheresis_ok': updatedUser.canDonatePlatelets,
+    });
+    final derived = response['derived'];
+    if (derived is Map<String, dynamic>) {
+      _derived = UserDerived.fromJson(derived);
+    }
+    await updateProfile(updatedUser);
   }
 
   Future<void> updateProfile(User updatedUser) async {
@@ -187,9 +207,19 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> fetchMe() async {
     try {
+      final token = _token;
       final res = await apiClient.getMe();
-      if (_currentUser == null && res['user'] != null && res['user'] is Map) {
-        _currentUser = User.fromJson(Map<String, dynamic>.from(res['user'] as Map));
+      if (token != _token) return;
+      final data = res['user'];
+      if (data is Map<String, dynamic>) {
+        final serverUser = User.fromJson(data);
+        final current = _currentUser;
+        if (current == null) {
+          _currentUser = serverUser;
+        } else if (!apiClient.mockMode && current.id == serverUser.id &&
+            current.role != serverUser.role) {
+          await updateProfile(current.copyWith(role: serverUser.role));
+        }
       }
       if (res['derived'] != null && res['derived'] is Map) {
         _derived = UserDerived.fromJson(Map<String, dynamic>.from(res['derived'] as Map));
@@ -236,11 +266,16 @@ class AuthProvider extends ChangeNotifier {
     await prefs.setString(_kTokenPrefKey, resp.token);
     await prefs.setString(_kNexconnTokenPrefKey, resp.nexconnToken);
 
-    // Auto connect chat SDK
-    if (resp.nexconnToken.isNotEmpty) {
-      await NexconnService.instance.connect(resp.nexconnToken);
-    }
+    // The API session is usable before the native chat connection finishes.
+    if (resp.nexconnToken.isNotEmpty) _connectChat(resp.nexconnToken);
+    unawaited(fetchMe());
+  }
 
-    await fetchMe();
+  void _connectChat(String token) {
+    unawaited(NexconnService.instance.connect(token).then<void>((_) {},
+      onError: (Object error, StackTrace stack) {
+        debugPrint('[AuthProvider] Chat connection failed: ${error.runtimeType}');
+      },
+    ));
   }
 }

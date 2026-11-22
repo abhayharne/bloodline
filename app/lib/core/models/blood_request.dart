@@ -1,11 +1,14 @@
+import 'json_numbers.dart';
+import 'request_urgency.dart';
 import '../scaffold_messenger.dart';
 
 class BloodRequest {
   final String id;
+  final String? requesterId;
   final String bloodGroup;
   final int units;
   final String hospital;
-  final String urgency; // 'critical' | 'urgent' | 'planned' (per docs/API.md)
+  final String urgency;
   final String status; // 'open' | 'fulfilled' | 'cancelled'
   final String channelId;
   final DateTime? createdAt;
@@ -20,6 +23,7 @@ class BloodRequest {
 
   const BloodRequest({
     required this.id,
+    this.requesterId,
     required this.bloodGroup,
     required this.units,
     required this.hospital,
@@ -59,26 +63,28 @@ class BloodRequest {
   factory BloodRequest.fromJson(Map<String, dynamic> json) {
     return BloodRequest(
       id: json['id']?.toString() ?? '',
+      requesterId: json['requester_id']?.toString(),
       bloodGroup: json['blood_group']?.toString() ?? 'O+',
-      units: (json['units'] as num?)?.toInt() ?? 1,
+      units: jsonInt(json['units']) ?? 1,
       hospital: json['hospital']?.toString() ?? '',
-      urgency: json['urgency']?.toString() ?? 'planned',
+      urgency: RequestUrgency.parse(json['urgency']).name,
       component: json['component']?.toString(),
       notes: json['notes']?.toString(),
       status: json['status']?.toString() ?? 'open',
       channelId: json['channel_id']?.toString() ?? 'req${json['id'] ?? ''}',
       createdAt: parseCreatedAt(json['created_at']),
-      distanceKm: (json['distance_km'] as num?)?.toDouble(),
+      distanceKm: jsonDouble(json['distance_km']),
       requesterName: json['requester_name']?.toString(),
       joined: json['joined'] == true,
       donated: json['donated'] == true,
-      lat: (json['lat'] as num?)?.toDouble() ?? 0.0,
-      lng: (json['lng'] as num?)?.toDouble() ?? 0.0,
+      lat: jsonDouble(json['lat']) ?? 0.0,
+      lng: jsonDouble(json['lng']) ?? 0.0,
     );
   }
 
   Map<String, dynamic> toJson() => {
         'id': id,
+        if (requesterId != null) 'requester_id': requesterId,
         'blood_group': bloodGroup,
         'units': units,
         'hospital': hospital,
@@ -116,6 +122,7 @@ class BloodRequest {
   }) {
     return BloodRequest(
       id: id ?? this.id,
+      requesterId: requesterId,
       bloodGroup: bloodGroup ?? this.bloodGroup,
       units: units ?? this.units,
       hospital: hospital ?? this.hospital,

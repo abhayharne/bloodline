@@ -52,6 +52,7 @@ Stretch only if all else is done: AI summary pinned in room; push notifications 
 - [x] T2.7 Location pin message in chat (send current location / hospital location)
 - [x] T2.8 Fulfill button for requester; closed rooms show read-only banner
 - [x] T2.9 Notification: in-app banner when new matching request arrives (poll `GET /requests` every 10s as fallback; push if time)
+- [x] T2.10 Verify and repair live profile, registration, broadcast and donation flows with Go-backed Dart and widget tests
 
 ## P3 — Integration
 - [ ] T3.1 Run API on laptop, phones on same Wi-Fi (or tunnel), full flow on 2 phones

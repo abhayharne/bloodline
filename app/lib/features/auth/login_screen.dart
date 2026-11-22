@@ -59,11 +59,10 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
     } catch (e) {
-      debugPrint('[LoginScreen] sendOtp error: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to send OTP: $e'),
+          content: Text(e.toString()),
           backgroundColor: Colors.red.shade700,
         ),
       );
@@ -84,10 +83,10 @@ class _LoginScreenState extends State<LoginScreen> {
     final phone = normalizePhone(_phoneController.text.trim());
 
     try {
-      final res = await authProvider.verifyOtp(phone: phone, otp: otp);
+      await authProvider.verifyOtp(phone: phone, otp: otp);
       if (!mounted) return;
 
-      if (res['is_new'] == false && authProvider.isAuthenticated) {
+      if (authProvider.isAuthenticated) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const HomeScreen()),
           (route) => false,
@@ -109,11 +108,10 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
     } catch (e) {
-      debugPrint('[LoginScreen] verifyOtp error: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Verification failed: $e'),
+          content: Text(e.toString()),
           backgroundColor: Colors.red.shade700,
         ),
       );

@@ -58,7 +58,8 @@ resp="$work/resp.json"
 # Build once into the temp dir; `go run` would leave a child process to clean up.
 (cd "$api_dir" && go build -o "$work/server" ./cmd/server) || fail "go build"
 
-# Explicit env values win over any local .env the server loads on boot.
+# Run from the temporary working directory to isolate local configuration.
+cd "$work"
 PORT="$port" \
 DB_PATH="$work/bloodline.db" \
 JWT_SECRET="smoke-only-${port}" \

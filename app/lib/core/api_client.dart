@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'models/user.dart';
+import 'models/json_numbers.dart';
+import 'models/request_urgency.dart';
 import 'models/auth_response.dart';
 import 'models/blood_request.dart';
 import 'models/blood_request_response.dart';
@@ -21,13 +23,10 @@ class ApiException implements Exception {
       final decoded = jsonDecode(body);
       if (decoded is Map && decoded['error'] != null) {
         msg = decoded['error'].toString();
-      } else if (body.isNotEmpty) {
-        msg = body;
       }
-    } catch (_) {
-      if (body.isNotEmpty) msg = body;
+    } on FormatException {
+      // Non-JSON responses use the endpoint's fallback message.
     }
-    debugPrint('[ApiException] HTTP $statusCode: $msg');
     return ApiException(statusCode, msg);
   }
 
@@ -93,7 +92,7 @@ abstract class ApiClient {
   Future<BloodRequest> fulfillRequest(String requestId);
   Future<BloodRequest> cancelRequest(String requestId);
 
-  /// Fetch hospitals nearest to given lat/lng. Falls back to mock list when endpoint is unavailable.
+  /// Fetch hospitals nearest to the given coordinates.
   Future<List<Map<String, dynamic>>> getHospitals({double? lat, double? lng});
 
   // V2 Addendum endpoints
@@ -132,6 +131,72 @@ abstract class ApiClient {
   }
 }
 
+/// Logs response metadata without recording headers, parameters or request bodies.
+class _LoggingClient extends http.BaseClient {
+  _LoggingClient(this._client);
+
+  final http.Client _client;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final response = await _client.send(request);
+    final summary = '[HTTP] ${request.method} ${request.url.path} ${response.statusCode}';
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      debugPrint(summary);
+      return response;
+    }
+
+    final bytes = await response.stream.toBytes();
+    var body = utf8.decode(bytes, allowMalformed: true);
+    final authorization = request.headers['Authorization'];
+    final bearer = authorization?.split(' ').last;
+    if (bearer != null && bearer.isNotEmpty) {
+      body = body.replaceAll(bearer, '[redacted]');
+    }
+    // Auth endpoints carry credentials. Log only known credential-free API errors.
+    if (request.url.path.startsWith('/auth/')) {
+      final error = ApiException.fromResponse(response.statusCode, body, '').message;
+      const safeAuthErrors = {
+        'invalid otp', 'user not found', 'user already exists', 'invalid phone',
+      };
+      if (!safeAuthErrors.contains(error)) {
+        body = '[authentication response redacted]';
+      } else {
+        body = jsonEncode({'error': error});
+      }
+    } else {
+      body = body
+          .replaceAll(
+            RegExp(
+              r'"[^"]*(?:token|otp|password|secret|code)[^"]*"\s*:\s*(?:"(?:[^"\\]|\\.)*"|\d+)',
+              caseSensitive: false,
+            ),
+            '"credential":"[redacted]"',
+          )
+          .replaceAll(
+            RegExp(
+              r'Bearer\s+[^\s"]+|[\w-]+\.[\w-]+\.[\w-]+|\b\d{6}\b',
+              caseSensitive: false,
+            ),
+            '[redacted]',
+          );
+    }
+    debugPrint('$summary ${body.length > 300 ? body.substring(0, 300) : body}');
+    return http.StreamedResponse(
+      Stream.value(bytes),
+      response.statusCode,
+      request: response.request,
+      headers: response.headers,
+      isRedirect: response.isRedirect,
+      persistentConnection: response.persistentConnection,
+      reasonPhrase: response.reasonPhrase,
+    );
+  }
+
+  @override
+  void close() => _client.close();
+}
+
 /// Real HTTP implementation of [ApiClient] that connects to the BloodLine REST API.
 /// If [mockMode] is toggled to true at runtime, it falls back to an in-memory mock.
 class HttpApiClient implements ApiClient {
@@ -152,7 +217,7 @@ class HttpApiClient implements ApiClient {
     this.authToken,
     this.mockMode = false,
     http.Client? httpClient,
-  })  : _httpClient = httpClient ?? http.Client(),
+  })  : _httpClient = _LoggingClient(httpClient ?? http.Client()),
         _fallbackMock = MockApiClient(baseUrl: baseUrl, authToken: authToken);
 
   Map<String, String> _headers() {
@@ -181,18 +246,13 @@ class HttpApiClient implements ApiClient {
   @override
   Future<AppConfig> getConfig() async {
     if (mockMode) return _fallbackMock.getConfig();
-    try {
-      final res = await _httpClient
-          .get(Uri.parse('$baseUrl/config'), headers: _headers())
-          .timeout(const Duration(seconds: 4));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body) as Map<String, dynamic>;
-        return AppConfig.fromJson(data);
-      }
-    } catch (e) {
-      debugPrint('[HttpApiClient] GET /config error: $e');
+    final res = await _httpClient
+        .get(Uri.parse('$baseUrl/config'), headers: _headers())
+        .timeout(const Duration(seconds: 4));
+    if (res.statusCode != 200) {
+      throw ApiException.fromResponse(res.statusCode, res.body, 'Failed to load config');
     }
-    return const AppConfig();
+    return AppConfig.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
   @override
@@ -249,7 +309,7 @@ class HttpApiClient implements ApiClient {
       if (sex != null) 'sex': sex,
       'donated_before': donatedBefore,
       if (lastDonationDate != null)
-        'last_donated_at': lastDonationDate.toIso8601String(),
+        'last_donated_at': lastDonationDate.toIso8601String().split('T').first,
       'consent': consent,
     };
 
@@ -267,7 +327,7 @@ class HttpApiClient implements ApiClient {
       authToken = parsed.token;
       return parsed;
     }
-    throw ApiException(res.statusCode, 'Signup failed: ${res.body}');
+    throw ApiException.fromResponse(res.statusCode, res.body, 'Signup failed');
   }
 
   @override
@@ -302,7 +362,7 @@ class HttpApiClient implements ApiClient {
       authToken = parsed.token;
       return parsed;
     }
-    throw ApiException(res.statusCode, 'Login failed: ${res.body}');
+    throw ApiException.fromResponse(res.statusCode, res.body, 'Login failed');
   }
 
   @override
@@ -320,7 +380,7 @@ class HttpApiClient implements ApiClient {
           .map((item) => BloodStockItem.fromJson(item as Map<String, dynamic>))
           .toList();
     }
-    throw ApiException(res.statusCode, 'Failed to fetch stock: ${res.body}');
+    throw ApiException.fromResponse(res.statusCode, res.body, 'Failed to fetch stock');
   }
 
   @override
@@ -352,7 +412,7 @@ class HttpApiClient implements ApiClient {
           .map((item) => BloodStockItem.fromJson(item as Map<String, dynamic>))
           .toList();
     }
-    throw ApiException(res.statusCode, 'Failed to update stock: ${res.body}');
+    throw ApiException.fromResponse(res.statusCode, res.body, 'Failed to update stock');
   }
 
   @override
@@ -386,7 +446,8 @@ class HttpApiClient implements ApiClient {
       'urgency': urgency,
       'lat': lat,
       'lng': lng,
-      if (component != null) 'component': component,
+      if (component != null)
+        'component': component.trim().toLowerCase().replaceAll(' ', '_'),
       if (notes != null) 'notes': notes,
     };
 
@@ -450,7 +511,7 @@ class HttpApiClient implements ApiClient {
           .map((item) => BloodRequest.fromJson(item as Map<String, dynamic>))
           .toList();
     }
-    throw ApiException(res.statusCode, 'Failed to get requests: ${res.body}');
+    throw ApiException.fromResponse(res.statusCode, res.body, 'Failed to get requests');
   }
 
   @override
@@ -468,7 +529,7 @@ class HttpApiClient implements ApiClient {
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       return data['channel_id']?.toString() ?? 'req$requestId';
     }
-    throw ApiException(res.statusCode, 'Failed to accept request: ${res.body}');
+    throw ApiException.fromResponse(res.statusCode, res.body, 'Failed to accept request');
   }
 
   @override
@@ -489,7 +550,7 @@ class HttpApiClient implements ApiClient {
           : data;
       return BloodRequest.fromJson(reqJson);
     }
-    throw ApiException(res.statusCode, 'Failed to fulfill request: ${res.body}');
+    throw ApiException.fromResponse(res.statusCode, res.body, 'Failed to fulfill request');
   }
 
   @override
@@ -510,7 +571,7 @@ class HttpApiClient implements ApiClient {
           : data;
       return BloodRequest.fromJson(reqJson);
     }
-    throw ApiException(res.statusCode, 'Failed to cancel request: ${res.body}');
+    throw ApiException.fromResponse(res.statusCode, res.body, 'Failed to cancel request');
   }
 
   @override
@@ -528,7 +589,7 @@ class HttpApiClient implements ApiClient {
     if (res.statusCode == 200) {
       return jsonDecode(res.body) as Map<String, dynamic>;
     }
-    throw ApiException(res.statusCode, 'Failed to send OTP: ${res.body}');
+    throw ApiException.fromResponse(res.statusCode, res.body, 'Failed to send OTP');
   }
 
   @override
@@ -550,7 +611,7 @@ class HttpApiClient implements ApiClient {
       }
       return data;
     }
-    throw ApiException(res.statusCode, 'Failed to verify OTP: ${res.body}');
+    throw ApiException.fromResponse(res.statusCode, res.body, 'Failed to verify OTP');
   }
 
   @override
@@ -564,7 +625,7 @@ class HttpApiClient implements ApiClient {
     if (res.statusCode == 200) {
       return jsonDecode(res.body) as Map<String, dynamic>;
     }
-    throw ApiException(res.statusCode, 'Failed to fetch /me: ${res.body}');
+    throw ApiException.fromResponse(res.statusCode, res.body, 'Failed to fetch /me');
   }
 
   @override
@@ -582,7 +643,7 @@ class HttpApiClient implements ApiClient {
     if (res.statusCode == 200) {
       return jsonDecode(res.body) as Map<String, dynamic>;
     }
-    throw ApiException(res.statusCode, 'Failed to update /me: ${res.body}');
+    throw ApiException.fromResponse(res.statusCode, res.body, 'Failed to update /me');
   }
 
   @override
@@ -598,8 +659,7 @@ class HttpApiClient implements ApiClient {
       final list = data['notifications'] as List<dynamic>? ?? [];
       return list.cast<Map<String, dynamic>>();
     }
-    throw ApiException(
-        res.statusCode, 'Failed to get notifications: ${res.body}');
+    throw ApiException.fromResponse(res.statusCode, res.body, 'Failed to get notifications');
   }
 
   @override
@@ -614,8 +674,7 @@ class HttpApiClient implements ApiClient {
         .timeout(const Duration(seconds: 5));
 
     if (res.statusCode != 200 && res.statusCode != 204) {
-      throw ApiException(
-          res.statusCode, 'Failed to mark notification read: ${res.body}');
+      throw ApiException.fromResponse(res.statusCode, res.body, 'Failed to mark notification read');
     }
   }
 
@@ -633,8 +692,7 @@ class HttpApiClient implements ApiClient {
     if (res.statusCode == 200 || res.statusCode == 201) {
       return jsonDecode(res.body) as Map<String, dynamic>;
     }
-    throw ApiException(
-        res.statusCode, 'Failed to record donation: ${res.body}');
+    throw ApiException.fromResponse(res.statusCode, res.body, 'Failed to record donation');
   }
 }
 
@@ -923,7 +981,7 @@ class MockApiClient implements ApiClient {
       bloodGroup: bloodGroup,
       units: units,
       hospital: hospital,
-      urgency: urgency,
+      urgency: RequestUrgency.parse(urgency).name,
       status: 'open',
       channelId: 'req$newId',
       createdAt: DateTime.now(),
@@ -989,16 +1047,16 @@ class MockApiClient implements ApiClient {
     );
     if (lat != null && lng != null && lat != 0.0 && lng != 0.0) {
       for (final h in list) {
-        final hLat = (h['lat'] as num).toDouble();
-        final hLng = (h['lng'] as num).toDouble();
+        final hLat = (jsonDouble(h['lat']) ?? 0.0);
+        final hLng = (jsonDouble(h['lng']) ?? 0.0);
         final dLat = (hLat - lat) * 111.0;
         final dLng = (hLng - lng) * 111.0 * 0.93;
         final dist = (dLat * dLat + dLng * dLng);
         h['distance_km'] = (dist > 0 ? (dist > 0.01 ? (dist * 10).round() / 10 : 0.1) : 0.0);
       }
       list.sort((a, b) {
-        final dA = (a['distance_km'] as num?)?.toDouble() ?? 0.0;
-        final dB = (b['distance_km'] as num?)?.toDouble() ?? 0.0;
+        final dA = jsonDouble(a['distance_km']) ?? 0.0;
+        final dB = jsonDouble(b['distance_km']) ?? 0.0;
         return dA.compareTo(dB);
       });
     }

@@ -1,3 +1,4 @@
+import 'json_numbers.dart';
 class AppConfig {
   final String appName;
   final bool enableAiSummary;
@@ -40,7 +41,7 @@ class AppConfig {
       enableAiSummary: json['enable_ai_summary'] == true,
       enableInAppBanner: json['enable_in_app_banner'] ?? true,
       defaultMatchRadiusKm:
-          (json['default_match_radius_km'] as num?)?.toDouble() ?? 10.0,
+          jsonDouble(json['default_match_radius_km']) ?? 10.0,
       features: featList,
       demoMode: json['demo_mode'] == true,
     );

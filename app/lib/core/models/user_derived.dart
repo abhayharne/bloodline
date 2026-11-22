@@ -1,3 +1,4 @@
+import 'json_numbers.dart';
 class UserRank {
   final String key;
   final String label;
@@ -62,7 +63,7 @@ class UserDerived {
       rank = UserRank.fromJson(Map<String, dynamic>.from(json['rank'] as Map));
     }
 
-    final count = (json['donation_count'] as num?)?.toInt() ?? 0;
+    final count = jsonInt(json['donation_count']) ?? 0;
     rank ??= UserRank.fromDonationCount(count);
 
     return UserDerived(

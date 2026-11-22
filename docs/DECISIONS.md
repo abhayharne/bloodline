@@ -190,3 +190,18 @@ with typed-area fallback (preset popular areas).
    live hospital lookup errors so users can fall back to manual entry.
 
 Reference: https://www.lifeblood.com.au/patients-recipients/blood-plasma-platelets/blood-for-transfusion/matching-blood-groups
+
+## D18 — Verify the Flutter client against the shipped Go contract
+
+- The live API accepted whole-number profile fields and canonical and legacy
+  urgency values. The broadcast failure was the component display label on
+  the wire. Flutter now sends snake_case component values and presents the
+  canonical urgency options.
+- Flutter accepts the existing OTP response shapes in API.md. The HTTP
+  session is ready once saved, while native Nexconn connection proceeds
+  asynchronously. Live role controls use the account's server-assigned role.
+- Profile saving uses PUT /me for server-supported fields and retains the
+  existing local storage for fields outside that contract. No API contract
+  or schema change was needed.
+- Overpass mirrors did not yield usable results. Keep the embedded samples
+  and identify them as samples in the hospital picker.

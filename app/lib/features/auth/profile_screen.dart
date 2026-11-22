@@ -1,3 +1,4 @@
+import '../../core/api_client.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/slot_registry.dart';
@@ -157,6 +158,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  bool _isSaving = false;
+
   Future<void> _onSubmit() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -171,6 +174,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     final authProvider = context.read<AuthProvider>();
+    final messenger = ScaffoldMessenger.of(context);
     final name = _nameController.text.trim();
     final phone = normalizePhone(_phoneController.text.trim());
     final age = int.tryParse(_ageController.text.trim());
@@ -181,85 +185,92 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final lng = _locationController.longitude ?? 0.0;
     final areaName = _locationController.displayText;
 
-    bool success;
-    if (widget.isNewUser || !authProvider.isAuthenticated) {
-      success = await authProvider.signup(
-        name: name,
-        role: _role,
-        bloodGroup: bloodGroup,
-        lat: lat,
-        lng: lng,
-        phone: phone,
-        age: age,
-        weight: weight,
-        height: height,
-        sex: _sex,
-        donatedBefore: _donatedBefore,
-        lastDonationDate: _lastDonationDate,
-        areaName: areaName,
-        consent: _consent,
-        otp: widget.initialOtp ?? '123456',
-      );
-      if (success && authProvider.currentUser != null) {
-        await authProvider.updateProfile(
-          authProvider.currentUser!.copyWith(canDonatePlatelets: _canDonatePlatelets),
+    if (_isSaving) return;
+    setState(() => _isSaving = true);
+    try {
+      if (widget.isNewUser || !authProvider.isAuthenticated) {
+        final success = await authProvider.signup(
+          name: name,
+          role: _role,
+          bloodGroup: bloodGroup,
+          lat: lat,
+          lng: lng,
+          phone: phone,
+          age: age,
+          weight: weight,
+          height: height,
+          sex: _sex,
+          donatedBefore: _donatedBefore,
+          lastDonationDate: _lastDonationDate,
+          areaName: areaName,
+          consent: _consent,
+          otp: widget.initialOtp,
         );
-      }
-    } else {
-      final updated = authProvider.currentUser!.copyWith(
-        name: name,
-        role: _role,
-        bloodGroup: bloodGroup,
-        lat: lat,
-        lng: lng,
-        phone: phone,
-        age: age,
-        weight: weight,
-        height: height,
-        sex: _sex,
-        donatedBefore: _donatedBefore,
-        lastDonationDate: _lastDonationDate,
-        areaName: areaName,
-        consent: _consent,
-        canDonatePlatelets: _canDonatePlatelets,
-      );
-      await authProvider.updateProfile(updated);
-      success = true;
-    }
-
-    if (!mounted) return;
-    if (success) {
-      if (widget.isNewUser) {
-        // Registration mode (Complete Profile): after success, go to the home screen
-        // with pushAndRemoveUntil so the back stack is clean.
+        if (!success) {
+          throw ApiException(0, authProvider.error ?? 'Registration failed');
+        }
+        if (_canDonatePlatelets && _role == 'donor') {
+          try {
+            await authProvider.saveProfile(
+              authProvider.currentUser!.copyWith(canDonatePlatelets: true),
+            );
+          } catch (e) {
+            if (mounted) messenger.showSnackBar(SnackBar(content: Text(e.toString())));
+          }
+        }
+        if (!mounted) return;
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const HomeScreen()),
           (route) => false,
         );
       } else {
-        // Edit mode (Profile tab): never leave the screen.
-        // Stay on the screen, show a "Profile saved" SnackBar, and refresh the user in the provider.
+        await authProvider.saveProfile(authProvider.currentUser!.copyWith(
+          name: name,
+          role: _role,
+          bloodGroup: bloodGroup,
+          lat: lat,
+          lng: lng,
+          phone: phone,
+          age: age,
+          weight: weight,
+          height: height,
+          sex: _sex,
+          donatedBefore: _donatedBefore,
+          lastDonationDate: _lastDonationDate,
+          areaName: areaName,
+          consent: _consent,
+          canDonatePlatelets: _canDonatePlatelets,
+        ));
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Profile saved')),
         );
-        await authProvider.fetchMe();
-
-        // If this screen was pushed standalone outside HomeScreen and can pop, pop it.
-        final isInHomeScreen = context.findAncestorWidgetOfExactType<HomeScreen>() != null;
-        if (!isInHomeScreen && Navigator.of(context).canPop()) {
+        if (context.findAncestorWidgetOfExactType<HomeScreen>() == null &&
+            ModalRoute.of(context)?.isCurrent == true &&
+            Navigator.of(context).canPop()) {
           Navigator.of(context).pop();
         }
       }
+    } catch (e) {
+      if (!mounted) return;
+      messenger
+        ..clearSnackBars()
+        ..removeCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+        );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
     try {
       context.watch<ConfigProvider>();
     } catch (_) {}
     final profileSlots = SlotRegistry.instance.profileSections;
+    final canChangeRole = widget.isNewUser || context.read<AuthProvider>().apiClient.mockMode;
 
     return Scaffold(
       appBar: AppBar(
@@ -300,7 +311,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           DropdownMenuItem(value: 'requester', child: Text('Requester')),
                           DropdownMenuItem(value: 'bank', child: Text('Blood Bank')),
                         ],
-                        onChanged: (val) {
+                        onChanged: !canChangeRole ? null : (val) {
                           if (val != null) setState(() => _role = val);
                         },
                       ),
@@ -618,11 +629,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               // Submit Button
               FilledButton(
                 key: const Key('profile_save_button'),
-                onPressed: auth.isLoading ? null : _onSubmit,
+                onPressed: _isSaving ? null : _onSubmit,
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                child: auth.isLoading
+                child: _isSaving
                     ? const CircularProgressIndicator(color: Colors.white)
                     : Text(
                         widget.isNewUser ? 'Complete Registration' : 'Save Changes',

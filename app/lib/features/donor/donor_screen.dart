@@ -1,6 +1,9 @@
+import '../../core/api_client.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/models/blood_request.dart';
+import '../../core/models/json_numbers.dart';
+import '../../core/models/request_urgency.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/requests_provider.dart';
 import '../chat/blood_request_chat_screen.dart';
@@ -14,6 +17,7 @@ class DonorScreen extends StatefulWidget {
 
 class _DonorScreenState extends State<DonorScreen> {
   String? _acceptingId;
+  String? _donatingId;
 
   @override
   void initState() {
@@ -46,34 +50,31 @@ class _DonorScreenState extends State<DonorScreen> {
       ),
     );
 
-    if (confirm != true) return;
+    if (confirm != true || !mounted || _donatingId != null) return;
 
+    setState(() => _donatingId = req.id);
     final requestsProvider = context.read<RequestsProvider>();
-    final res = await requestsProvider.recordDonation(req.id);
-
-    if (!mounted) return;
-    if (res != null) {
-      final count = res['donation_count'] ?? 1;
-      try {
-        if (count is num) {
-          context.read<AuthProvider>().updateDonationCount(count.toInt());
-        }
-      } catch (_) {}
+    try {
+      final result = await requestsProvider.recordDonation(req.id);
+      if (!mounted) return;
+      if (result == null) {
+        throw ApiException(0, requestsProvider.error ?? 'Failed to record donation');
+      }
+      final count = jsonInt(result['donation_count']) ?? 1;
+      context.read<AuthProvider>().updateDonationCount(count);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Thank you! Your donation was recorded. You just helped up to 3 people. (Total: $count)',
-          ),
+          content: Text('Thank you! Your donation was recorded. You just helped up to 3 people. (Total: $count)'),
           backgroundColor: Colors.green,
         ),
       );
-    } else {
+    } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to record donation. Please try again.'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
       );
+    } finally {
+      if (mounted) setState(() => _donatingId = null);
     }
   }
 
@@ -81,9 +82,8 @@ class _DonorScreenState extends State<DonorScreen> {
     setState(() => _acceptingId = request.id);
     final requestsProvider = context.read<RequestsProvider>();
     final channelId = await requestsProvider.acceptRequest(request.id);
-    setState(() => _acceptingId = null);
-
     if (!mounted) return;
+    setState(() => _acceptingId = null);
     if (channelId != null) {
       final joinedReq = request.copyWith(channelId: channelId, joined: true);
       Navigator.push(
@@ -100,14 +100,14 @@ class _DonorScreenState extends State<DonorScreen> {
   }
 
   Color _getUrgencyBadgeColor(String urgency) {
-    switch (urgency.toLowerCase()) {
-      case 'critical':
+    switch (RequestUrgency.parse(urgency)) {
+      case RequestUrgency.critical:
         return Colors.red.shade700;
-      case 'urgent':
+      case RequestUrgency.high:
         return Colors.deepOrange;
-      case 'planned':
+      case RequestUrgency.low:
         return Colors.blueGrey;
-      default:
+      case RequestUrgency.medium:
         return Colors.amber.shade800;
     }
   }
@@ -305,10 +305,10 @@ class _DonorScreenState extends State<DonorScreen> {
                           ),
                           const SizedBox(height: 14),
                           // Action button
-                          if (req.joined)
+                          if (user?.role == 'donor' && req.requesterId != user?.id && req.joined)
                             Builder(
                               builder: (ctx) {
-                                final hasDonated = requestsProvider.isDonated(req.id);
+                                final hasDonated = req.donated || requestsProvider.isDonated(req.id);
                                 return Row(
                                   children: [
                                     Expanded(
@@ -355,15 +355,17 @@ class _DonorScreenState extends State<DonorScreen> {
                                         style: FilledButton.styleFrom(
                                           backgroundColor: Colors.red.shade700,
                                         ),
-                                        onPressed: () => _confirmAndRecordDonation(req),
-                                        icon: const Icon(Icons.volunteer_activism, size: 16),
+                                        onPressed: _donatingId != null || !req.isOpen ? null : () => _confirmAndRecordDonation(req),
+                                        icon: _donatingId == req.id
+                                            ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                            : const Icon(Icons.volunteer_activism, size: 16),
                                         label: const Text('I donated'),
                                       ),
                                   ],
                                 );
                               },
                             )
-                          else
+                          else if (user?.role == 'donor' && req.requesterId != user?.id && req.isOpen)
                             FilledButton.icon(
                               style: FilledButton.styleFrom(
                                 backgroundColor: Colors.red.shade700,

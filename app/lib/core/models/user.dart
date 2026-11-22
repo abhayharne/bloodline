@@ -1,3 +1,4 @@
+import 'json_numbers.dart';
 class User {
   final String id;
   final String name;
@@ -55,19 +56,19 @@ class User {
       name: json['name']?.toString() ?? '',
       role: json['role']?.toString() ?? 'donor',
       bloodGroup: json['blood_group']?.toString(),
-      lat: (json['lat'] as num?)?.toDouble() ?? 0.0,
-      lng: (json['lng'] as num?)?.toDouble() ?? 0.0,
+      lat: jsonDouble(json['lat']) ?? 0.0,
+      lng: jsonDouble(json['lng']) ?? 0.0,
       phone: json['phone']?.toString(),
-      age: (json['age'] as num?)?.toInt(),
-      weight: (weightVal as num?)?.toDouble(),
-      height: (heightVal as num?)?.toDouble(),
+      age: jsonInt(json['age']),
+      weight: jsonDouble(weightVal),
+      height: jsonDouble(heightVal),
       sex: json['sex']?.toString(),
       donatedBefore: json['donated_before'] == true,
       lastDonationDate: parsedDate,
       areaName: json['area_name']?.toString(),
       available: json['available'] != false,
       consent: json['consent'] != false,
-      canDonatePlatelets: json['can_donate_platelets'] == true,
+      canDonatePlatelets: (json['apheresis_ok'] ?? json['can_donate_platelets']) == true,
     );
   }
 

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:bloodline/core/models/blood_request.dart';
@@ -56,6 +57,32 @@ void main() {
       api.getHospitals(),
       throwsA(isA<ApiException>().having((e) => e.statusCode, 'status', 503)),
     );
+  });
+
+  test('HTTP logs status and bounded errors without bearer tokens or OTPs', () async {
+    final logs = <String>[];
+    final previousPrint = debugPrint;
+    debugPrint = (message, {wrapWidth}) => logs.add(message ?? '');
+    addTearDown(() => debugPrint = previousPrint);
+
+    const token = 'opaque-test-token';
+    const otp = '879013';
+    final api = HttpApiClient(authToken: token, httpClient: MockClient((request) async {
+      if (request.url.path == '/auth/verify') {
+        return http.Response(jsonEncode({'error': 'rejected $otp'}), 401);
+      }
+      return http.Response(jsonEncode({'error': 'Bearer $token $otp ${'a' * 400}'}), 403);
+    }));
+    await expectLater(api.verifyOtp('+919900000001', otp), throwsA(isA<ApiException>()));
+    await expectLater(api.recordDonation('r1'), throwsA(isA<ApiException>()));
+
+    expect(logs, hasLength(2));
+    expect(logs.first, startsWith('[HTTP] POST /auth/verify 401 '));
+    const prefix = '[HTTP] POST /requests/r1/donated 403 ';
+    expect(logs.last, startsWith(prefix));
+    expect(logs.last.length, prefix.length + 300);
+    expect(logs.join(), isNot(contains(token)));
+    expect(logs.join(), isNot(contains(otp)));
   });
 
   group('ApiClient Factory & Architecture', () {

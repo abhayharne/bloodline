@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ai_nexconn_chat_plugin/ai_nexconn_chat_plugin.dart';
@@ -30,9 +33,23 @@ import 'features/settings/register.dart';
 import 'features/auth/login_screen.dart';
 import 'features/home/home_screen.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+void main() {
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    FlutterError.onError = FlutterError.presentError;
+    PlatformDispatcher.instance.onError = (error, stack) {
+      _reportUnhandledError(error, stack);
+      return true;
+    };
+    await _startApp();
+  }, _reportUnhandledError);
+}
 
+void _reportUnhandledError(Object error, StackTrace stack) {
+  debugPrint('[BloodLine] Unhandled ${error.runtimeType}\n$stack');
+}
+
+Future<void> _startApp() async {
   final apiClient = ApiClient();
   final features = await Features.load(apiClient);
 
@@ -121,20 +138,23 @@ class BloodLineApp extends StatefulWidget {
 
 class _BloodLineAppState extends State<BloodLineApp> {
   String? _pollingToken;
+  String? _pollingRole;
 
   void _syncPolling(AuthProvider auth) {
     final token = auth.token;
-    if (token == _pollingToken) return;
+    final role = auth.currentUser?.role;
+    if (token == _pollingToken && role == _pollingRole) return;
     _pollingToken = token;
+    _pollingRole = role;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || auth.token != token) return;
+      if (!mounted || auth.token != token || auth.currentUser?.role != role) return;
       final requests = context.read<RequestsProvider>();
       final notifications = context.read<NotificationsProvider>();
       requests.reset();
       notifications.reset();
       if (token != null) {
         requests.startPolling(
-          status: auth.currentUser?.role == 'requester' ? 'all' : 'open',
+          status: role == 'requester' ? 'all' : 'open',
         );
         notifications.startPolling();
       }

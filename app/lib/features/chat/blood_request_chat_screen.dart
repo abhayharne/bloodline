@@ -1,22 +1,25 @@
+import '../../core/api_client.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import 'package:ai_nexconn_chat_plugin/ai_nexconn_chat_plugin.dart';
 import 'package:ai_nexconn_chatui_plugin/ai_nexconn_chatui_plugin.dart';
 import '../../core/models/blood_request.dart';
+import '../../core/models/json_numbers.dart';
+import '../../core/models/request_urgency.dart';
 import '../../core/slot_registry.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/requests_provider.dart';
 
 Color getUrgencyColor(String urgency) {
-  switch (urgency.toLowerCase()) {
-    case 'critical':
+  switch (RequestUrgency.parse(urgency)) {
+    case RequestUrgency.critical:
       return Colors.red.shade700;
-    case 'urgent':
+    case RequestUrgency.high:
       return Colors.deepOrange;
-    case 'planned':
+    case RequestUrgency.low:
       return Colors.blueGrey;
-    default:
+    case RequestUrgency.medium:
       return Colors.amber.shade800;
   }
 }
@@ -44,9 +47,11 @@ class RequestSummaryHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    final isRequester = auth.currentUser?.role == 'requester' ||
-        auth.currentUser?.name == request.requesterName;
-    final isDonor = auth.currentUser?.role == 'donor';
+    final user = auth.currentUser;
+    final isRequester = user?.role == 'requester' &&
+        (request.requesterId == null || request.requesterId == user?.id);
+    final isDonor = user?.role == 'donor' &&
+        request.joined && request.requesterId != user?.id && request.isOpen;
     final isClosed = request.isFulfilled || request.isCancelled;
     final badges = SlotRegistry.instance.roomHeaderBadges;
 
@@ -317,36 +322,31 @@ class _BloodRequestChatScreenState extends State<BloodRequestChatScreen> {
       ),
     );
 
-    if (confirm != true) return;
+    if (confirm != true || !mounted || _isDonating) return;
 
     setState(() => _isDonating = true);
     final requestsProvider = context.read<RequestsProvider>();
-    final res = await requestsProvider.recordDonation(_currentRequest.id);
-    setState(() => _isDonating = false);
-
-    if (!mounted) return;
-    if (res != null) {
-      final count = res['donation_count'] ?? 1;
-      try {
-        if (count is num) {
-          context.read<AuthProvider>().updateDonationCount(count.toInt());
-        }
-      } catch (_) {}
+    try {
+      final result = await requestsProvider.recordDonation(_currentRequest.id);
+      if (!mounted) return;
+      if (result == null) {
+        throw ApiException(0, requestsProvider.error ?? 'Failed to record donation');
+      }
+      final count = jsonInt(result['donation_count']) ?? 1;
+      context.read<AuthProvider>().updateDonationCount(count);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Thank you! Your donation was recorded. You just helped up to 3 people. (Total: $count)',
-          ),
+          content: Text('Thank you! Your donation was recorded. You just helped up to 3 people. (Total: $count)'),
           backgroundColor: Colors.green,
         ),
       );
-    } else {
+    } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to record donation. Please try again.'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
       );
+    } finally {
+      if (mounted) setState(() => _isDonating = false);
     }
   }
 
@@ -600,10 +600,12 @@ class _BloodRequestChatScreenState extends State<BloodRequestChatScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final requestsProvider = context.watch<RequestsProvider>();
-    final isRequester = auth.currentUser?.role == 'requester' ||
-        auth.currentUser?.name == _currentRequest.requesterName;
-    final isDonor = auth.currentUser?.role == 'donor';
-    final hasDonated = requestsProvider.isDonated(_currentRequest.id);
+    final user = auth.currentUser;
+    final isRequester = user?.role == 'requester' &&
+        (_currentRequest.requesterId == null || _currentRequest.requesterId == user?.id);
+    final isDonor = user?.role == 'donor' &&
+        _currentRequest.joined && _currentRequest.requesterId != user?.id && _currentRequest.isOpen;
+    final hasDonated = _currentRequest.donated || requestsProvider.isDonated(_currentRequest.id);
     final isClosed = _currentRequest.isFulfilled || _currentRequest.isCancelled;
     final channel = BaseChannel(ChannelType.group, _currentRequest.channelId);
 
