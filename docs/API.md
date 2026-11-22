@@ -18,6 +18,13 @@ non-alphanumeric channel ids. User ids look like `u<hex>`, request ids `r<hex>`,
 donation ids `d<hex>`, notification ids `n<hex>`, and `channel_id` is always
 `"req" + request id` (request `r1` -> channel `reqr1`).
 
+**Timestamps:** every `created_at` returned by the API (signup/verify/login
+`user`, `/me`, requests, notifications, and `donated_at`, which maps from a
+donation's `created_at`) is RFC3339 UTC with a trailing `Z`, for example
+`2026-11-22T10:00:00Z`. New rows are written in that format; legacy SQLite
+`YYYY-MM-DD HH:MM:SS` rows are normalised on read, and a missing/unparseable
+legacy value is reported as `1970-01-01T00:00:00Z` so the field is never empty.
+
 ## Configuration (environment)
 
 Secrets are read from the environment / `.env` only and never appear in a response.
@@ -56,6 +63,11 @@ logged. In production this must be replaced with a real OTP provider.
 Phone syntax: 7-15 digits, optional leading `+`; spaces, parentheses and hyphens
 are stripped before validation.
 
+Both `POST /auth/verify` and `POST /auth/signup` accept the one-time code in
+either the `code` or `otp` field (aliases for the same value). If both are
+supplied, `code` wins. Signup treats a supplied code as optional for legacy
+clients, but a wrong value is rejected with 401 `invalid otp`.
+
 ### POST /auth/otp/send
 
 ```json
@@ -71,6 +83,7 @@ invalid phone.
 ```json
 { "phone": "+919876543210", "code": "123456" }
 ```
+`otp` may be used instead of `code` (or as well; `code` wins).
 
 200 with the same shape as signup **if the phone belongs to an existing user**
 (this is the login path). 401 `{"error":"invalid otp"}` for a wrong code, 404
@@ -81,7 +94,7 @@ invalid fields.
 
 ```json
 {
-  "phone": "+919876543210", "name": "Asha", "role": "donor", "blood_group": "O+",
+  "phone": "+919876543210", "otp": "123456", "name": "Asha", "role": "donor", "blood_group": "O+",
   "lat": 21.1458, "lng": 79.0882,
   "sex": "female", "age": 28, "weight_kg": 58, "height_cm": 163,
   "donated_before": false, "last_donated_at": null, "available": true,
@@ -94,14 +107,16 @@ for requester and donor and must be **omitted** for bank; `phone` unique; `sex`
 is `male|female|other`; `age` is 0-120 (0/absent = unknown); `weight_kg` and
 `height_cm` must not be negative; `last_donated_at` is an RFC3339 timestamp or a
 `YYYY-MM-DD` date; `available` defaults to `true`; an explicit `consent: false`
-is rejected and `consent: true` records `consent_at`.
+is rejected and `consent: true` records `consent_at`. `otp`/`code` is optional
+but, when present, must equal `DEMO_OTP` (401 otherwise).
 
 201:
 ```json
 { "user":{ "id":"u...", "phone":"+919876543210", "name":"Asha", "role":"donor",
            "blood_group":"O+", "lat":21.14, "lng":79.08, "sex":"female", "age":28,
            "weight_kg":58, "height_cm":163, "donated_before":false,
-           "last_donated_at":null, "available":true, "consent_at":"2026-11-22 10:00:00" },
+           "last_donated_at":null, "available":true, "consent_at":"2026-11-22 10:00:00",
+           "created_at":"2026-11-22T10:00:00Z" },
   "token":"<app jwt>", "nexconn_token":"<chat token>" }
 ```
 
@@ -118,9 +133,10 @@ and older clients; new clients should use `POST /auth/verify`.
 
 ### GET /me
 
-Any authenticated role. 200:
+Any authenticated role. `user.created_at` is included in RFC3339 UTC `Z` form
+(as in signup). 200:
 ```json
-{ "user":{...profile...},
+{ "user":{...profile..., "created_at":"2026-11-22T10:00:00Z"},
   "derived":{ "eligible":true, "next_eligible_at":null,
               "donation_count":2,
               "rank":{ "key":"helper", "label":"Helper" } } }
@@ -163,12 +179,13 @@ GET needed).
 
 ### GET /notifications
 
-Newest first (`created_at DESC`, insertion-order tiebreak).
+Newest first (`created_at DESC`, insertion-order tiebreak); `created_at` is
+RFC3339 UTC with a `Z` suffix.
 ```json
 { "notifications":[{
     "id":"n...", "user_id":"u...", "type":"request.created",
     "title":"New blood request", "body":"O- needed at City Hospital",
-    "request_id":"r...", "read_at":null, "read":false, "created_at":"..."
+    "request_id":"r...", "read_at":null, "read":false, "created_at":"2026-11-22T10:00:00Z"
   }] }
 ```
 `read` is the client-facing boolean derived from `read_at`; `user_id`,
@@ -192,12 +209,15 @@ the endpoint cannot be used to probe another user's inbox).
   "lat":21.15, "lng":79.09 }
 ```
 `blood_group` must be one of A+, A-, B+, B-, AB+, AB-, O+, O-; `units` must be
-positive; `hospital` is required; `urgency` is `critical|urgent|planned`.
+positive; `hospital` is required. Canonical `urgency` values are
+`low|medium|high|critical`; the aliases `planned`→`low`, `med`→`medium` and
+`urgent`→`high` are accepted and normalised before storage (400 for anything
+else). `created_at` is RFC3339 UTC with a `Z` suffix.
 201:
 ```json
 { "request":{ "id":"r...", "requester_id":"u...", "blood_group":"O-", "units":2,
               "hospital":"City Hospital", "urgency":"critical", "status":"open",
-              "lat":21.15, "lng":79.09, "channel_id":"reqr...", "created_at":"...",
+              "lat":21.15, "lng":79.09, "channel_id":"reqr...", "created_at":"2026-11-22T10:00:00Z",
               "fulfilled_at":null },
   "matches":{ "banks":1, "donors":4 } }
 ```
@@ -208,7 +228,9 @@ the `isAvailable` and `isEligible` filters also apply to donors. Publishes
 
 ### GET /requests (requester, donor or bank)
 
-Query: `status=open|fulfilled|cancelled|all` (default `open`).
+Query: `status=open|fulfilled|cancelled|all` (default `open`). Rows are ordered
+by urgency priority (`critical`, `high`, `medium`, `low`) and then by
+`created_at` descending with an insertion-order tiebreak.
 - requester: own requests
 - donor: open requests whose `blood_group` equals the donor's and within `MATCH_RADIUS_KM`
 - bank: requests within `MATCH_RADIUS_KM`
@@ -272,15 +294,14 @@ on a random free port; `scripts/gate-api.sh` runs it with `FEATURES=` and
 ## Deviations from docs/API-addendum-v2.md (as shipped)
 
 These are known gaps between the running code and the addendum; clients should
-tolerate them until the code is reconciled (the smoke script sends both `otp`
-and `code` so it works either way):
+tolerate them until the code is reconciled:
 
 - `POST /auth/otp/send` returns `{"sent":true}` without the addendum's `demo` field.
-- `POST /auth/verify` reads the field **`code`**, not `otp`, and has no
-  `is_new` pre-signup path: an unknown phone returns 404 `user not found`, not
+- `POST /auth/verify` now accepts `otp` and `code`, but has no `is_new`
+  pre-signup path: an unknown phone returns 404 `user not found`, not
   200 `{"is_new":true}`.
-- `POST /auth/signup` does not read `otp` and only rejects an **explicit** `consent:false`;
-  it does not require `consent:true` for donors.
+- `POST /auth/signup` now accepts `otp`/`code` when supplied, but only rejects an
+  **explicit** `consent:false`; it does not require `consent:true` for donors.
 - `GET /notifications` rows carry additive `user_id`, `request_id` and `read_at`
   beyond the addendum's minimal shape.
 - `GET /config` exposes `features:[]` by default; there is no `notifications`

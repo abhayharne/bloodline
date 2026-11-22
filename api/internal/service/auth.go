@@ -15,6 +15,7 @@ import (
 // profile fields are optional so legacy name+role signups keep working.
 type SignupInput struct {
 	Phone         string
+	Code          string // either "code" or "otp" from the wire; optional for legacy clients
 	Name          string
 	Role          string
 	BloodGroup    string
@@ -78,6 +79,9 @@ func (s *Service) Verify(ctx context.Context, in OTPInput) (AuthResult, error) {
 
 // Signup creates the account and returns an app JWT plus a Nexconn chat token.
 func (s *Service) Signup(ctx context.Context, in SignupInput) (AuthResult, error) {
+	if code := strings.TrimSpace(in.Code); code != "" && code != s.demoOTP {
+		return AuthResult{}, ErrInvalidOTP
+	}
 	name := strings.TrimSpace(in.Name)
 	if name == "" {
 		return AuthResult{}, invalid("name is required")
@@ -162,6 +166,7 @@ func (s *Service) Signup(ctx context.Context, in SignupInput) (AuthResult, error
 		LastDonatedAt: &lastDonatedAt,
 		Available:     available,
 		ConsentAt:     consentAt,
+		CreatedAt:     store.Timestamp(),
 	}
 	if lastDonatedAt == "" {
 		user.LastDonatedAt = nil

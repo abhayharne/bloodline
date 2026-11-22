@@ -341,3 +341,34 @@ owns the current task and handoff, so this session owned A14. The tree was clean
 at every write, edits were committed with explicit pathspecs, and no peer work
 was reverted. A human still needs to stop one of the duplicate `loop.sh opencode
 api` processes.
+
+## D28 — Canonical urgency, RFC3339 created_at, OTP field aliases (human task)
+
+Human-assigned fixes (docs updated first in `docs/API.md` and
+`docs/DATA_MODEL.md`), then code, tests and smoke:
+
+* **Urgency.** Canonical values are `low|medium|high|critical`; the service maps
+  `planned`→`low`, `med`→`medium`, `urgent`→`high` (case/whitespace insensitive)
+  before the store sees a request. Fresh schema CHECK lists only canonical
+  values. Existing databases are rebuilt on boot with `PRAGMA foreign_keys=OFF`
+  around a transaction: rows are copied with the alias mapping and the new
+  CHECK/default, indexes are recreated, and child FKs stay intact. The request
+  feed SQL orders by `CASE urgency` priority then `created_at DESC, rowid DESC`,
+  so "matching by urgency" is observable in `GET /requests`. Seed data uses the
+  canonical `critical` value plus an explicit RFC3339 `created_at`.
+* **Timestamps.** All `created_at` writes (users, requests, notifications,
+  donations, plus stock `updated_at` and `fulfilled_at`/`read_at`) use
+  `time.Now().UTC().Format(time.RFC3339)` or `strftime('%Y-%m-%dT%H:%M:%SZ')`.
+  Reads normalise legacy SQLite `YYYY-MM-DD HH:MM:SS` (and RFC3339 offsets) to
+  UTC `Z`; empty/unparseable legacy values become `1970-01-01T00:00:00Z` rather
+  than `""`. `User.CreatedAt` is now a JSON field, so `/me` and auth responses
+  expose it; `donated_at` is normalised the same way.
+* **OTP aliases.** `/auth/verify` accepts `otp` as an alias of `code` and
+  `/auth/signup` accepts either field; `code` wins when both are present. Signup
+  keeps treating a missing code as legacy-compatible but validates a supplied
+  one against `DEMO_OTP` and returns 401 `invalid otp` on a mismatch. `is_new`
+  and `demo` from the addendum remain deliberately unimplemented (documented
+  deviations).
+* No app files, `.env`, `AGENTS.md` or `docs/PLAN.md` were touched. The
+  untracked empty `api/data/hospitals.json` predates this task and was left
+  alone; it is not part of the commit.

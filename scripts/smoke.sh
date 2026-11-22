@@ -99,7 +99,7 @@ jq_ok() {
   jq -e "${jq_args[@]}" "$resp" >/dev/null 2>&1 || fail "$label"
 }
 
-step "1/10 health + config"
+step "1/11 health + config"
 code="$(req GET /health)"
 expect 200 "$code" "health"
 jq_ok '.status == "ok"' "health body"
@@ -107,17 +107,19 @@ code="$(req GET /config)"
 expect 200 "$code" "config"
 jq_ok '.demo_mode == true and (.features | type == "array")' "config body"
 
-# Signup bodies carry the addendum's `otp` as an ignored extra; this server
-# reads `code` for /auth/verify and does not require an OTP for signup.
+# Signup and verify both accept either `otp` or `code` (code wins when both are
+# present). Signup keeps accepting legacy clients that omit it, but validates a
+# supplied value.
 requester_phone="+919900000001"
 donor_phone="+919900000002"
 bank_phone="+919900000003"
 
-step "2/10 signup requester, donor and bank"
+step "2/11 signup requester, donor and bank"
 code="$(req POST /auth/signup "{\"phone\":\"${requester_phone}\",\"otp\":\"123456\",\"name\":\"Smoke Requester\",\"role\":\"requester\",\"blood_group\":\"O-\",\"lat\":21.1458,\"lng\":79.0882,\"consent\":true}")"
 expect 201 "$code" "requester signup"
 jq_ok '.user.id | test("^u[0-9a-f]+$")' "requester id"
 jq_ok '(.token | length) > 0 and (.nexconn_token | length) > 0' "requester tokens"
+jq_ok '.user.created_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")' "requester created_at"
 requester_token="$(jq -r '.token' "$resp")"
 requester_id="$(jq -r '.user.id' "$resp")"
 
@@ -132,17 +134,26 @@ expect 201 "$code" "bank signup"
 jq_ok '(.user.id | test("^u[0-9a-f]+$")) and .user.blood_group == null' "bank profile"
 bank_token="$(jq -r '.token' "$resp")"
 
-step "3/10 mock OTP send + verify (login path)"
+step "3/11 mock OTP send + verify (login path, both aliases)"
 code="$(req POST /auth/otp/send "{\"phone\":\"${donor_phone}\"}" "$donor_token")"
 expect 200 "$code" "otp send"
 jq_ok '.sent == true' "otp send body"
-code="$(req POST /auth/verify "{\"phone\":\"${donor_phone}\",\"otp\":\"123456\",\"code\":\"123456\"}")"
-expect 200 "$code" "otp verify"
-jq_ok --arg id "$donor_id" '.user.id == $id and (.token | length) > 0' "verify body"
-code="$(req POST /auth/verify "{\"phone\":\"${donor_phone}\",\"otp\":\"000000\",\"code\":\"000000\"}")"
+code="$(req POST /auth/verify "{\"phone\":\"${donor_phone}\",\"otp\":\"123456\"}")"
+expect 200 "$code" "otp verify via otp"
+jq_ok --arg id "$donor_id" '
+  .user.id == $id and (.token | length) > 0 and
+  (.user.created_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))
+' "verify body"
+code="$(req POST /auth/verify "{\"phone\":\"${donor_phone}\",\"code\":\"123456\"}")"
+expect 200 "$code" "verify via code"
+code="$(req POST /auth/verify "{\"phone\":\"${donor_phone}\",\"code\":\"123456\",\"otp\":\"000000\"}")"
+expect 200 "$code" "verify code wins when both supplied"
+code="$(req POST /auth/verify "{\"phone\":\"${donor_phone}\",\"otp\":\"000000\"}")"
 expect 401 "$code" "wrong otp rejected"
+code="$(req POST /auth/verify "{\"phone\":\"${donor_phone}\",\"code\":\"000000\"}")"
+expect 401 "$code" "wrong code rejected"
 
-step "4/10 bank stock PUT + GET"
+step "4/11 bank stock PUT + GET"
 code="$(req PUT /banks/me/stock '{"stock":[{"blood_group":"O-","units":3},{"blood_group":"O+","units":5}]}' "$bank_token")"
 expect 200 "$code" "put bank stock"
 jq_ok '(.stock | map(select(.blood_group == "O-" and .units == 3)) | length) == 1' "stock body"
@@ -150,23 +161,50 @@ code="$(req GET /banks/me/stock "" "$bank_token")"
 expect 200 "$code" "get bank stock"
 jq_ok '(.stock | map(select(.blood_group == "O-" and .units == 3)) | length) == 1' "stock round-trip"
 
-step "5/10 create request (matches bank stock + donor)"
+step "5/11 create request (matches bank stock + donor)"
 code="$(req POST /requests '{"blood_group":"O-","units":2,"hospital":"City Hospital","urgency":"critical","lat":21.1458,"lng":79.0882}' "$requester_token")"
 expect 201 "$code" "create request"
 jq_ok '.request.id | test("^r[0-9a-f]+$")' "request id"
 jq_ok '.request.status == "open"' "request status"
+jq_ok '.request.urgency == "critical"' "canonical urgency"
+jq_ok '.request.created_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")' "request created_at"
 jq_ok '.matches.banks >= 1 and .matches.donors >= 1' "match counts"
 request_id="$(jq -r '.request.id' "$resp")"
 channel_id="$(jq -r '.request.channel_id' "$resp")"
 [[ "$channel_id" == "req${request_id}" ]] || fail "channel_id $channel_id != req${request_id}"
 
-step "6/10 donor feed is role-aware and shows the open request"
+step "6/11 urgency aliases normalise and sort"
+# Insert lowest priority first; the feed must still return critical first.
+for alias in "planned:low:Low Ward" "med:medium:Medium Ward" "urgent:high:High Ward"; do
+  raw="${alias%%:*}"
+  rest="${alias#*:}"
+  want="${rest%%:*}"
+  hospital="${rest#*:}"
+  code="$(req POST /requests "{\"blood_group\":\"O-\",\"units\":1,\"hospital\":\"${hospital}\",\"urgency\":\"${raw}\",\"lat\":21.1458,\"lng\":79.0882}" "$requester_token")"
+  expect 201 "$code" "create ${raw} request"
+  jq_ok --arg want "$want" '
+    .request.urgency == $want and
+    (.request.created_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))
+  ' "${raw} normalised to ${want}"
+done
+code="$(req GET '/requests?status=all' "" "$requester_token")"
+expect 200 "$code" "requester all-status feed"
+jq_ok '
+  [.requests[].urgency] == ["critical","high","medium","low"] and
+  all(.requests[]; .created_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))
+' "feed urgency order and created_at"
+
+step "7/11 donor feed is role-aware and shows the open request"
 code="$(req GET /requests "" "$donor_token")"
 expect 200 "$code" "donor feed"
 jq_ok --arg id "$request_id" '[.requests[] | select(.id == $id)] | length == 1' "feed contains request"
-jq_ok --arg id "$request_id" '.requests[] | select(.id == $id) | .joined == false and .distance_km <= 10 and .requester_name == "Smoke Requester"' "feed fields"
+jq_ok --arg id "$request_id" '
+  .requests[] | select(.id == $id) |
+  .joined == false and .distance_km <= 10 and .requester_name == "Smoke Requester" and
+  (.created_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))
+' "feed fields"
 
-step "7/10 donor accepts (idempotent) and joins the room"
+step "8/11 donor accepts (idempotent) and joins the room"
 code="$(req POST "/requests/${request_id}/accept" '{}' "$donor_token")"
 expect 200 "$code" "donor accept"
 jq_ok --arg ch "$channel_id" '.channel_id == $ch' "accept channel"
@@ -176,9 +214,10 @@ code="$(req GET /requests "" "$donor_token")"
 expect 200 "$code" "feed after accept"
 jq_ok --arg id "$request_id" '.requests[] | select(.id == $id) | .joined == true' "joined flag"
 
-step "8/10 /me + donor pledge + /donated + notification read"
+step "9/11 /me + donor pledge + /donated + notification read"
 code="$(req GET /me "" "$donor_token")"
 expect 200 "$code" "donor /me"
+jq_ok '.user.created_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")' "donor /me created_at"
 if echo ",${FEATURES:-}," | grep -q ',ranks,'; then
   jq_ok --arg id "$donor_id" '
     .user.id == $id and (.derived.eligible | type == "boolean") and
@@ -218,7 +257,8 @@ code="$(req POST "/requests/${request_id}/donated" '{}' "$donor_token")"
 expect 201 "$code" "donated"
 jq_ok --arg rid "$request_id" '
   .donation.request_id == $rid and (.donation.id | length) > 0 and
-  (.donation.donated_at | length) > 0 and .donation_count == 1
+  (.donation.donated_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")) and
+  .donation_count == 1
 ' "donated body"
 donation_id="$(jq -r '.donation.id' "$resp")"
 code="$(req POST "/requests/${request_id}/donated" '{}' "$donor_token")"
@@ -234,7 +274,11 @@ fi
 
 code="$(req GET /notifications "" "$requester_token")"
 expect 200 "$code" "requester notifications"
-jq_ok '(.notifications | length) > 0 and (all(.notifications[]; .read == false))' "notification shape"
+jq_ok '
+  (.notifications | length) > 0 and
+  (all(.notifications[]; .read == false and
+    (.created_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))))
+' "notification shape"
 notify_id="$(jq -r '[.notifications[] | select(.type == "request.accepted")][0].id // empty' "$resp")"
 [[ -n "$notify_id" ]] || fail "no request.accepted notification for requester"
 code="$(req POST "/notifications/${notify_id}/read" '{}' "$requester_token")"
@@ -245,7 +289,7 @@ code="$(req GET /notifications "" "$requester_token")"
 expect 200 "$code" "notifications after read"
 jq_ok --arg id "$notify_id" '.notifications[] | select(.id == $id) | .read == true' "read flag"
 
-step "9/10 requester fulfills"
+step "10/11 requester fulfills"
 code="$(req POST "/requests/${request_id}/fulfill" '{}' "$requester_token")"
 expect 200 "$code" "fulfill"
 jq_ok '.request.status == "fulfilled"' "fulfilled status"
@@ -256,7 +300,7 @@ code="$(req GET /requests "" "$donor_token")"
 expect 200 "$code" "open feed after fulfill"
 jq_ok --arg id "$request_id" '([.requests[] | select(.id == $id)] | length) == 0' "request left the open feed"
 
-step "10/10 config still reflects FEATURES after the flow"
+step "11/11 config still reflects FEATURES after the flow"
 code="$(req GET /config)"
 expect 200 "$code" "config repeat"
 jq_ok --arg features "${FEATURES:-}" '

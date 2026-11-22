@@ -62,9 +62,9 @@ func (s *Service) CreateRequest(ctx context.Context, in RequestInput) (RequestRe
 	if hospital == "" {
 		return RequestResult{}, invalid("hospital is required")
 	}
-	urgency := strings.ToLower(strings.TrimSpace(in.Urgency))
-	if urgency != "critical" && urgency != "urgent" && urgency != "planned" {
-		return RequestResult{}, invalid("urgency must be critical, urgent or planned")
+	urgency, err := normaliseUrgency(in.Urgency)
+	if err != nil {
+		return RequestResult{}, err
 	}
 
 	requestID, err := id.New("r")
@@ -83,6 +83,7 @@ func (s *Service) CreateRequest(ctx context.Context, in RequestInput) (RequestRe
 		Lng:         in.Lng,
 		Status:      "open",
 		ChannelID:   channelID,
+		CreatedAt:   store.Timestamp(),
 	}
 	if err := s.store.CreateRequest(ctx, request); err != nil {
 		return RequestResult{}, err

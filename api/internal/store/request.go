@@ -24,12 +24,18 @@ type Request struct {
 
 // CreateRequest inserts a new open request.
 func (s *Store) CreateRequest(ctx context.Context, r Request) error {
+	createdAt := r.CreatedAt
+	if createdAt == "" {
+		createdAt = Timestamp()
+	} else {
+		createdAt = NormaliseTimestamp(createdAt)
+	}
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO requests (id, requester_id, blood_group, units, hospital,
-			urgency, lat, lng, status, channel_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			urgency, lat, lng, status, channel_id, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		r.ID, r.RequesterID, r.BloodGroup, r.Units, r.Hospital,
-		r.Urgency, r.Lat, r.Lng, "open", r.ChannelID,
+		r.Urgency, r.Lat, r.Lng, "open", r.ChannelID, createdAt,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -59,7 +65,11 @@ func (s *Store) Requests(ctx context.Context, status string) ([]Request, error) 
 		query += " WHERE status = ?"
 		args = append(args, status)
 	}
-	query += " ORDER BY created_at DESC, rowid DESC"
+	// Urgency is a request priority: critical work surfaces before routine work.
+	// created_at/rowid keep the documented newest-first tiebreak within a level.
+	query += ` ORDER BY CASE urgency
+		WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2
+		WHEN 'low' THEN 3 ELSE 4 END, created_at DESC, rowid DESC`
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -85,8 +95,8 @@ func (s *Store) Requests(ctx context.Context, status string) ([]Request, error) 
 func (s *Store) SetRequestStatus(ctx context.Context, id, status string) error {
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE requests SET status = ?,
-			fulfilled_at = CASE WHEN ? = 'fulfilled' THEN datetime('now') ELSE fulfilled_at END
-		WHERE id = ?`, status, status, id)
+			fulfilled_at = CASE WHEN ? = 'fulfilled' THEN ? ELSE fulfilled_at END
+		WHERE id = ?`, status, status, Timestamp(), id)
 	if err != nil {
 		return err
 	}
@@ -173,9 +183,15 @@ func (s *Store) BanksWithStock(ctx context.Context, group string, minUnits int) 
 // CreateDonation records a donor's pledge for a request. It is idempotent per
 // (request, donor), so a repeated accept never creates a duplicate row.
 func (s *Store) CreateDonation(ctx context.Context, d Donation) error {
+	createdAt := d.CreatedAt
+	if createdAt == "" {
+		createdAt = Timestamp()
+	} else {
+		createdAt = NormaliseTimestamp(createdAt)
+	}
 	_, err := s.db.ExecContext(ctx, `
-		INSERT OR IGNORE INTO donations (id, request_id, donor_id, units)
-		VALUES (?, ?, ?, ?)`, d.ID, d.RequestID, d.DonorID, d.Units)
+		INSERT OR IGNORE INTO donations (id, request_id, donor_id, units, created_at)
+		VALUES (?, ?, ?, ?, ?)`, d.ID, d.RequestID, d.DonorID, d.Units, createdAt)
 	return err
 }
 
@@ -200,8 +216,10 @@ func scanRequestRow(row rowScanner) (Request, error) {
 	if err != nil {
 		return Request{}, err
 	}
+	r.CreatedAt = NormaliseTimestamp(r.CreatedAt)
 	if fulfilledAt.Valid {
-		r.FulfilledAt = &fulfilledAt.String
+		stamp := NormaliseTimestamp(fulfilledAt.String)
+		r.FulfilledAt = &stamp
 	}
 	return r, nil
 }
@@ -263,6 +281,7 @@ func scanUsers(rows *sql.Rows, err error) ([]User, error) {
 		}
 		u.DonatedBefore = donatedBefore != 0
 		u.Available = available != 0
+		u.CreatedAt = NormaliseTimestamp(u.CreatedAt)
 		users = append(users, u)
 	}
 	if err := rows.Err(); err != nil {

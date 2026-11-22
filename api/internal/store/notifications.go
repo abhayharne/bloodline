@@ -23,10 +23,16 @@ type Notification struct {
 // InsertNotification appends a notification. Duplicates are not expected
 // (ids are generated), but a conflict is reported as ErrConflict.
 func (s *Store) InsertNotification(ctx context.Context, n Notification) error {
+	createdAt := n.CreatedAt
+	if createdAt == "" {
+		createdAt = Timestamp()
+	} else {
+		createdAt = NormaliseTimestamp(createdAt)
+	}
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO notifications (id, user_id, type, title, body, request_id)
-		VALUES (?, ?, ?, ?, ?, ?)`,
-		n.ID, n.UserID, n.Type, n.Title, n.Body, n.RequestID,
+		INSERT INTO notifications (id, user_id, type, title, body, request_id, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		n.ID, n.UserID, n.Type, n.Title, n.Body, n.RequestID, createdAt,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -60,9 +66,11 @@ func (s *Store) Notifications(ctx context.Context, userID string) ([]Notificatio
 			n.RequestID = &requestID.String
 		}
 		if readAt.Valid {
-			n.ReadAt = &readAt.String
+			stamp := NormaliseTimestamp(readAt.String)
+			n.ReadAt = &stamp
 			n.Read = true
 		}
+		n.CreatedAt = NormaliseTimestamp(n.CreatedAt)
 		items = append(items, n)
 	}
 	if err := rows.Err(); err != nil {
@@ -81,8 +89,8 @@ func (s *Store) Notifications(ctx context.Context, userID string) ([]Notificatio
 // method to probe another user's inbox.
 func (s *Store) MarkNotificationRead(ctx context.Context, id, userID string) error {
 	result, err := s.db.ExecContext(ctx, `
-		UPDATE notifications SET read_at = datetime('now')
-		WHERE id = ? AND user_id = ? AND read_at IS NULL`, id, userID)
+		UPDATE notifications SET read_at = ?
+		WHERE id = ? AND user_id = ? AND read_at IS NULL`, Timestamp(), id, userID)
 	if err != nil {
 		return err
 	}
@@ -141,10 +149,11 @@ func (s *Store) HasNotificationForRequest(ctx context.Context, userID, typ, requ
 }
 
 // HasNotificationSince reports whether the user already has a notification of
-// the given type created at or after `since`. `since` must use the same UTC
-// "YYYY-MM-DD HH:MM:SS" layout as notifications.created_at. The reminders
-// feature uses the donor's last donation date as `since` so it writes at most
-// one eligible_again notification per waiting period.
+// the given type created at or after `since`. created_at is RFC3339 UTC with a
+// trailing Z; the legacy "YYYY-MM-DD HH:MM:SS" layout remains lexicographically
+// comparable with the date/date-time strings the reminders feature passes as
+// `since`, so at most one eligible_again notification is written per waiting
+// period.
 func (s *Store) HasNotificationSince(ctx context.Context, userID, typ, since string) (bool, error) {
 	var one int
 	err := s.db.QueryRowContext(ctx, `

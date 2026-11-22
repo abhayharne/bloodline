@@ -27,7 +27,7 @@ type User struct {
 	Available     bool     `json:"available"`
 	ConsentAt     *string  `json:"consent_at"`
 	PushToken     *string  `json:"-"`
-	CreatedAt     string   `json:"-"`
+	CreatedAt     string   `json:"created_at"`
 }
 
 const userColumns = `id, name, role, blood_group, lat, lng, push_token, created_at,
@@ -41,14 +41,20 @@ const qualifiedUserColumns = `u.id, u.name, u.role, u.blood_group, u.lat, u.lng,
 
 // CreateUser inserts a user. It returns ErrConflict if name+role or phone already exists.
 func (s *Store) CreateUser(ctx context.Context, u User) error {
+	createdAt := u.CreatedAt
+	if createdAt == "" {
+		createdAt = Timestamp()
+	} else {
+		createdAt = NormaliseTimestamp(createdAt)
+	}
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO users (id, name, role, blood_group, lat, lng,
 			phone, sex, age, weight_kg, height_cm, donated_before,
-			last_donated_at, available, consent_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			last_donated_at, available, consent_at, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		u.ID, u.Name, u.Role, u.BloodGroup, u.Lat, u.Lng,
 		u.Phone, u.Sex, u.Age, u.WeightKG, u.HeightCM, u.DonatedBefore,
-		u.LastDonatedAt, u.Available, u.ConsentAt,
+		u.LastDonatedAt, u.Available, u.ConsentAt, createdAt,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -207,6 +213,7 @@ func scanUser(row *sql.Row) (User, error) {
 	}
 	u.DonatedBefore = donatedBefore != 0
 	u.Available = available != 0
+	u.CreatedAt = NormaliseTimestamp(u.CreatedAt)
 	return u, nil
 }
 

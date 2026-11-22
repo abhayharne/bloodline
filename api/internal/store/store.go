@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	_ "modernc.org/sqlite"
 
@@ -55,6 +56,10 @@ func Open(path string) (*Store, error) {
 	if err := migrateUsers(d); err != nil {
 		d.Close()
 		return nil, fmt.Errorf("migrate users: %w", err)
+	}
+	if err := migrateRequests(d); err != nil {
+		d.Close()
+		return nil, fmt.Errorf("migrate requests: %w", err)
 	}
 
 	return &Store{db: d}, nil
@@ -110,6 +115,76 @@ func migrateUsers(d *sql.DB) error {
 	}
 	_, err = d.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone)")
 	return err
+}
+
+// migrateRequests replaces a pre-D28 requests table whose CHECK still allowed
+// the legacy urgent/planned urgencies. SQLite cannot ALTER a CHECK constraint,
+// so the table is rebuilt in one transaction with the canonical constraint and
+// existing rows mapped through the same aliases the API accepts. Foreign keys
+// are disabled only for the rebuild; child tables keep pointing at "requests".
+func migrateRequests(d *sql.DB) error {
+	var definition string
+	if err := d.QueryRow(
+		`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'requests'`,
+	).Scan(&definition); err != nil {
+		return err
+	}
+	if strings.Contains(definition, "'low'") &&
+		strings.Contains(definition, "'medium'") &&
+		strings.Contains(definition, "'high'") {
+		return nil // already the canonical constraint
+	}
+
+	if _, err := d.Exec("PRAGMA foreign_keys = OFF"); err != nil {
+		return err
+	}
+	defer func() { _, _ = d.Exec("PRAGMA foreign_keys = ON") }()
+
+	tx, err := d.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	stmts := []string{
+		`CREATE TABLE requests_v2 (
+			id           TEXT PRIMARY KEY,
+			requester_id TEXT NOT NULL REFERENCES users(id),
+			blood_group  TEXT NOT NULL CHECK (blood_group IN ('A+','A-','B+','B-','AB+','AB-','O+','O-')),
+			units        INTEGER NOT NULL CHECK (units > 0),
+			hospital     TEXT NOT NULL,
+			urgency      TEXT NOT NULL CHECK (urgency IN ('low','medium','high','critical')),
+			lat          REAL NOT NULL,
+			lng          REAL NOT NULL,
+			status       TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','fulfilled','cancelled')),
+			channel_id   TEXT,
+			created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+			fulfilled_at TEXT
+		)`,
+		`INSERT INTO requests_v2 (id, requester_id, blood_group, units, hospital,
+			urgency, lat, lng, status, channel_id, created_at, fulfilled_at)
+		SELECT id, requester_id, blood_group, units, hospital,
+			CASE lower(trim(urgency))
+				WHEN 'urgent' THEN 'high' WHEN 'planned' THEN 'low'
+				WHEN 'med' THEN 'medium' WHEN 'critical' THEN 'critical'
+				WHEN 'high' THEN 'high' WHEN 'medium' THEN 'medium'
+				WHEN 'low' THEN 'low' ELSE 'low' END,
+			lat, lng, status, channel_id,
+			CASE WHEN trim(created_at) = '' THEN strftime('%Y-%m-%dT%H:%M:%SZ','now')
+				ELSE COALESCE(strftime('%Y-%m-%dT%H:%M:%SZ', created_at), trim(created_at)) END,
+			CASE WHEN fulfilled_at IS NULL OR trim(fulfilled_at) = '' THEN NULL
+				ELSE COALESCE(strftime('%Y-%m-%dT%H:%M:%SZ', fulfilled_at), trim(fulfilled_at)) END
+		FROM requests`,
+		`DROP TABLE requests`,
+		`ALTER TABLE requests_v2 RENAME TO requests`,
+		`CREATE INDEX IF NOT EXISTS idx_requests_status ON requests(status)`,
+	}
+	for _, stmt := range stmts {
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("rebuild requests: %w", err)
+		}
+	}
+	return tx.Commit()
 }
 
 // Close closes the underlying database.

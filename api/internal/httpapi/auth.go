@@ -3,6 +3,7 @@ package httpapi
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"bloodline/internal/service"
 	"bloodline/internal/store"
@@ -10,6 +11,8 @@ import (
 
 type signupRequest struct {
 	Phone         string  `json:"phone"`
+	OTP           string  `json:"otp"`
+	Code          string  `json:"code"`
 	Name          string  `json:"name"`
 	Role          string  `json:"role"`
 	BloodGroup    string  `json:"blood_group"`
@@ -33,6 +36,16 @@ type loginRequest struct {
 type otpRequest struct {
 	Phone string `json:"phone"`
 	Code  string `json:"code"`
+	OTP   string `json:"otp"`
+}
+
+// resolveOTP lets clients send either the legacy "code" field or the addendum's
+// "otp" field. A non-empty code wins when both are supplied.
+func resolveOTP(code, otp string) string {
+	if strings.TrimSpace(code) != "" {
+		return code
+	}
+	return otp
 }
 
 type authResponse struct {
@@ -72,7 +85,10 @@ func (s *Server) verifyOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := s.svc.Verify(r.Context(), service.OTPInput{Phone: req.Phone, Code: req.Code})
+	result, err := s.svc.Verify(r.Context(), service.OTPInput{
+		Phone: req.Phone,
+		Code:  resolveOTP(req.Code, req.OTP),
+	})
 	switch {
 	case errors.Is(err, service.ErrInvalidOTP):
 		writeError(w, http.StatusUnauthorized, "invalid otp")
@@ -103,6 +119,7 @@ func (s *Server) signup(w http.ResponseWriter, r *http.Request) {
 
 	result, err := s.svc.Signup(r.Context(), service.SignupInput{
 		Phone:         req.Phone,
+		Code:          resolveOTP(req.Code, req.OTP),
 		Name:          req.Name,
 		Role:          req.Role,
 		BloodGroup:    req.BloodGroup,
@@ -117,6 +134,10 @@ func (s *Server) signup(w http.ResponseWriter, r *http.Request) {
 		Available:     req.Available,
 		Consent:       req.Consent,
 	})
+	if errors.Is(err, service.ErrInvalidOTP) {
+		writeError(w, http.StatusUnauthorized, "invalid otp")
+		return
+	}
 	if errors.Is(err, store.ErrConflict) {
 		writeError(w, http.StatusConflict, "user already exists")
 		return

@@ -255,9 +255,9 @@ func TestRequestRoleAndValidationRules(t *testing.T) {
 	}
 
 	for _, body := range []string{
-		`{"blood_group":"Z+","units":1,"hospital":"H","urgency":"urgent"}`,
-		`{"blood_group":"O-","units":0,"hospital":"H","urgency":"urgent"}`,
-		`{"blood_group":"O-","units":1,"hospital":"","urgency":"urgent"}`,
+		`{"blood_group":"Z+","units":1,"hospital":"H","urgency":"high"}`,
+		`{"blood_group":"O-","units":0,"hospital":"H","urgency":"high"}`,
+		`{"blood_group":"O-","units":1,"hospital":"","urgency":"high"}`,
 		`{"blood_group":"O-","units":1,"hospital":"H","urgency":"whenever"}`,
 		`{`,
 	} {

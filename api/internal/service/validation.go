@@ -41,6 +41,24 @@ func normaliseSex(sex string) string {
 	return strings.ToLower(strings.TrimSpace(sex))
 }
 
+// normaliseUrgency maps the legacy wire values onto the canonical set stored in
+// the database. Unknown values are rejected before a request reaches the store.
+func normaliseUrgency(raw string) (string, error) {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	switch value {
+	case "critical":
+		return "critical", nil
+	case "high", "urgent":
+		return "high", nil
+	case "medium", "med":
+		return "medium", nil
+	case "low", "planned":
+		return "low", nil
+	default:
+		return "", invalid("urgency must be low, medium, high or critical")
+	}
+}
+
 // normalisePhone strips display separators and validates the remaining digits.
 // An empty input means "no phone" (legacy signup); callers decide whether that
 // is allowed.

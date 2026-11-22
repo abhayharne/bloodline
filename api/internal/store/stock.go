@@ -28,6 +28,7 @@ func (s *Store) BankStock(ctx context.Context, bankID string) ([]Stock, error) {
 		if err := rows.Scan(&item.BloodGroup, &item.Units, &item.UpdatedAt); err != nil {
 			return nil, err
 		}
+		item.UpdatedAt = NormaliseTimestamp(item.UpdatedAt)
 		stock = append(stock, item)
 	}
 	if err := rows.Err(); err != nil {
@@ -47,11 +48,11 @@ func (s *Store) UpsertBankStock(ctx context.Context, bankID string, stock []Stoc
 	for _, item := range stock {
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO bank_stock (bank_id, blood_group, units, updated_at)
-			VALUES (?, ?, ?, datetime('now'))
+			VALUES (?, ?, ?, ?)
 			ON CONFLICT (bank_id, blood_group) DO UPDATE SET
 				units = excluded.units,
 				updated_at = excluded.updated_at`,
-			bankID, item.BloodGroup, item.Units,
+			bankID, item.BloodGroup, item.Units, Timestamp(),
 		); err != nil {
 			return err
 		}
