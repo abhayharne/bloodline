@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 )
 
 // Request is one live coordination room.
@@ -20,6 +21,8 @@ type Request struct {
 	ChannelID   string  `json:"channel_id"`
 	CreatedAt   string  `json:"created_at"`
 	FulfilledAt *string `json:"fulfilled_at"`
+	Component   string  `json:"component"`
+	Notes       string  `json:"notes"`
 }
 
 // CreateRequest inserts a new open request.
@@ -30,12 +33,16 @@ func (s *Store) CreateRequest(ctx context.Context, r Request) error {
 	} else {
 		createdAt = NormaliseTimestamp(createdAt)
 	}
+	component := r.Component
+	if component == "" {
+		component = "whole_blood"
+	}
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO requests (id, requester_id, blood_group, units, hospital,
-			urgency, lat, lng, status, channel_id, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			urgency, lat, lng, status, channel_id, created_at, component, notes)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		r.ID, r.RequesterID, r.BloodGroup, r.Units, r.Hospital,
-		r.Urgency, r.Lat, r.Lng, "open", r.ChannelID, createdAt,
+		r.Urgency, r.Lat, r.Lng, "open", r.ChannelID, createdAt, component, r.Notes,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -50,7 +57,7 @@ func (s *Store) CreateRequest(ctx context.Context, r Request) error {
 func (s *Store) RequestByID(ctx context.Context, id string) (Request, error) {
 	return scanRequest(s.db.QueryRowContext(ctx, `
 		SELECT id, requester_id, blood_group, units, hospital, urgency,
-			lat, lng, status, channel_id, created_at, fulfilled_at
+			lat, lng, status, channel_id, created_at, fulfilled_at, component, notes
 		FROM requests WHERE id = ?`, id))
 }
 
@@ -58,7 +65,7 @@ func (s *Store) RequestByID(ctx context.Context, id string) (Request, error) {
 func (s *Store) Requests(ctx context.Context, status string) ([]Request, error) {
 	query := `
 		SELECT id, requester_id, blood_group, units, hospital, urgency,
-			lat, lng, status, channel_id, created_at, fulfilled_at
+			lat, lng, status, channel_id, created_at, fulfilled_at, component, notes
 		FROM requests`
 	args := []any{}
 	if status != "" && status != "all" {
@@ -171,13 +178,44 @@ func (s *Store) DonorsByGroupAll(ctx context.Context, group string) ([]User, err
 		FROM users WHERE role = 'donor' AND blood_group = ?`, group))
 }
 
-// BanksWithStock returns bank accounts holding at least minUnits of group.
-func (s *Store) BanksWithStock(ctx context.Context, group string, minUnits int) ([]User, error) {
+// BanksWithStockFor returns bank accounts holding minUnits of one of groups in
+// the requested component; it is used by CreateRequest:
+// banks holding minUnits of one of groups in the requested component.
+func (s *Store) BanksWithStockFor(ctx context.Context, groups []string, component string, minUnits int) ([]User, error) {
+	if len(groups) == 0 {
+		return []User{}, nil
+	}
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(groups)), ",")
+	args := make([]any, 0, len(groups)+2)
+	for _, group := range groups {
+		args = append(args, group)
+	}
+	args = append(args, component, minUnits)
 	return scanUsers(s.db.QueryContext(ctx, `
 		SELECT `+qualifiedUserColumns+`
 		FROM users u
 		JOIN bank_stock s ON s.bank_id = u.id
-		WHERE u.role = 'bank' AND s.blood_group = ? AND s.units >= ?`, group, minUnits))
+		WHERE u.role = 'bank' AND s.blood_group IN (`+placeholders+`)
+			AND s.component = ? AND s.units >= ?`, args...))
+}
+
+// DonorsByGroups returns available donors whose group is in groups. Apheresis
+// components additionally require the donor to have opted in via PUT /me.
+func (s *Store) DonorsByGroups(ctx context.Context, groups []string, apheresisOnly bool) ([]User, error) {
+	if len(groups) == 0 {
+		return []User{}, nil
+	}
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(groups)), ",")
+	query := `SELECT ` + userColumns + ` FROM users
+		WHERE role = 'donor' AND available = 1 AND blood_group IN (` + placeholders + `)`
+	if apheresisOnly {
+		query += " AND apheresis_ok = 1"
+	}
+	args := make([]any, 0, len(groups))
+	for _, group := range groups {
+		args = append(args, group)
+	}
+	return scanUsers(s.db.QueryContext(ctx, query, args...))
 }
 
 // CreateDonation records a donor's pledge for a request. It is idempotent per
@@ -207,15 +245,18 @@ func scanRequestRow(row rowScanner) (Request, error) {
 	var (
 		r           Request
 		fulfilledAt sql.NullString
+		notes       sql.NullString
 	)
 	err := row.Scan(&r.ID, &r.RequesterID, &r.BloodGroup, &r.Units, &r.Hospital,
-		&r.Urgency, &r.Lat, &r.Lng, &r.Status, &r.ChannelID, &r.CreatedAt, &fulfilledAt)
+		&r.Urgency, &r.Lat, &r.Lng, &r.Status, &r.ChannelID, &r.CreatedAt, &fulfilledAt,
+		&r.Component, &notes)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Request{}, ErrNotFound
 	}
 	if err != nil {
 		return Request{}, err
 	}
+	r.Notes = notes.String
 	r.CreatedAt = NormaliseTimestamp(r.CreatedAt)
 	if fulfilledAt.Valid {
 		stamp := NormaliseTimestamp(fulfilledAt.String)
@@ -245,10 +286,11 @@ func scanUsers(rows *sql.Rows, err error) ([]User, error) {
 			consentAt     sql.NullString
 			donatedBefore int
 			available     int
+			apheresisOK   int
 		)
 		if err := rows.Scan(&u.ID, &u.Name, &u.Role, &bloodGroup, &u.Lat, &u.Lng,
 			&pushToken, &u.CreatedAt, &phone, &sex, &age, &weightKG, &heightCM,
-			&donatedBefore, &lastDonatedAt, &available, &consentAt); err != nil {
+			&donatedBefore, &lastDonatedAt, &available, &consentAt, &apheresisOK); err != nil {
 			return nil, err
 		}
 		if bloodGroup.Valid {
@@ -281,6 +323,7 @@ func scanUsers(rows *sql.Rows, err error) ([]User, error) {
 		}
 		u.DonatedBefore = donatedBefore != 0
 		u.Available = available != 0
+		u.ApheresisOK = apheresisOK != 0
 		u.CreatedAt = NormaliseTimestamp(u.CreatedAt)
 		users = append(users, u)
 	}

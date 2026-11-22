@@ -6,9 +6,10 @@ import (
 	"bloodline/internal/store"
 )
 
-// StockInput is one blood group row from PUT /banks/me/stock.
+// StockInput is one blood group/component row from PUT /banks/me/stock.
 type StockInput struct {
 	BloodGroup string
+	Component  string
 	Units      int
 }
 
@@ -30,14 +31,19 @@ func (s *Service) UpdateBankStock(ctx context.Context, bankID string, in []Stock
 		if !validBloodGroups[group] {
 			return nil, invalid("blood_group must be one of A+, A-, B+, B-, AB+, AB-, O+, O-")
 		}
-		if seen[group] {
-			return nil, invalid("duplicate blood_group " + group)
+		component, err := normaliseComponent(row.Component)
+		if err != nil {
+			return nil, err
+		}
+		key := group + "|" + component
+		if seen[key] {
+			return nil, invalid("duplicate blood_group and component " + key)
 		}
 		if row.Units < 0 {
 			return nil, invalid("units must be zero or more")
 		}
-		seen[group] = true
-		stock = append(stock, store.Stock{BloodGroup: group, Units: row.Units})
+		seen[key] = true
+		stock = append(stock, store.Stock{BloodGroup: group, Component: component, Units: row.Units})
 	}
 
 	if err := s.store.UpsertBankStock(ctx, bankID, stock); err != nil {

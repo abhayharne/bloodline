@@ -40,6 +40,7 @@ Stretch only if all else is done: AI summary pinned in room; push notifications 
 - [x] T1.12 scripts/smoke.sh: signup -> request -> accept -> fulfill (NEXCONN_MOCK=1 for offline runs)
 - [x] T1.10 (D11 extension base) events bus with panic-safe subscribers, Notifier -> notifications, GET /notifications
 - [x] T1.11 (D11 extension base) DonorFilter pipeline + pure Compatible/Eligible with tests (not wired into live matching)
+- [x] T1.13 (D29 human task) Embedded hospital lookup, request components/notes, component-aware matching, apheresis_ok, specific 400 errors, requester-feed regression test
 
 ## P2 — App (AG)
 - [x] T2.1 `flutter create`, add deps, theme, routing, API client with base URL setting

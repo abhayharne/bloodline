@@ -41,6 +41,55 @@ func normaliseSex(sex string) string {
 	return strings.ToLower(strings.TrimSpace(sex))
 }
 
+// Components accepted on requests and bank stock. Whole blood is the default
+// so older clients and seeded rows keep their previous behaviour.
+const (
+	ComponentWholeBlood = "whole_blood"
+	ComponentRedCells   = "red_cells"
+	ComponentPlatelets  = "platelets"
+	ComponentPlasma     = "plasma"
+	ComponentCryo       = "cryo"
+	ComponentOther      = "other"
+)
+
+var validComponents = map[string]bool{
+	ComponentWholeBlood: true, ComponentRedCells: true, ComponentPlatelets: true,
+	ComponentPlasma: true, ComponentCryo: true, ComponentOther: true,
+}
+
+// Apheresis components need a donor who opted in via PUT /me.
+func isApheresisComponent(component string) bool {
+	switch component {
+	case ComponentPlatelets, ComponentPlasma, ComponentCryo:
+		return true
+	default:
+		return false
+	}
+}
+
+func normaliseComponent(raw string) (string, error) {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	if value == "" {
+		return ComponentWholeBlood, nil
+	}
+	if !validComponents[value] {
+		return "", invalid("component must be one of whole_blood, red_cells, platelets, plasma, cryo, other")
+	}
+	return value, nil
+}
+
+// validateCoordinates checks the geographic range shared by requests and the
+// hospital lookup. Presence is checked by the caller (0,0 is a valid point).
+func validateCoordinates(lat, lng float64) error {
+	if lat < -90 || lat > 90 {
+		return invalid("lat must be between -90 and 90")
+	}
+	if lng < -180 || lng > 180 {
+		return invalid("lng must be between -180 and 180")
+	}
+	return nil
+}
+
 // normaliseUrgency maps the legacy wire values onto the canonical set stored in
 // the database. Unknown values are rejected before a request reaches the store.
 func normaliseUrgency(raw string) (string, error) {

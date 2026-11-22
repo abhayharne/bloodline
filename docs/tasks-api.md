@@ -18,3 +18,4 @@ Use docs/API-addendum-v2.md as the contract. Nexconn calls go behind the existin
 - [x] A13 Feature reminders (flag reminders): enable isAvailable and isEligible filters; hourly ticker plus POST /dev/run-reminders (DEV=1) that writes eligible_again notifications using docs/COPY.md, once per eligibility period; match_nearby notifications on request.created.
 - [x] A14 Final pass: README section for running the API, update docs/API.md to match the code exactly, tidy handoff.
 - [x] A15 Human-assigned contract fixes: canonical urgency (aliases planned/med/urgent), RFC3339 UTC `created_at` everywhere, dual `code`/`otp` on verify and signup; docs first, tests and smoke updated, gate green. See D28.
+- [x] A16 Human-assigned: embedded `GET /hospitals`, request `hospital_id`/`component`/`notes`, component-aware compatibility, `bank_stock.component`, `users.apheresis_ok`, specific 400 errors, requester-feed test. See D29.

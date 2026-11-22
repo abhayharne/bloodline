@@ -19,15 +19,18 @@ CREATE TABLE IF NOT EXISTS users (
   last_donated_at TEXT,
   available     INTEGER NOT NULL DEFAULT 1 CHECK (available IN (0,1)),
   consent_at    TEXT,
+  apheresis_ok  INTEGER NOT NULL DEFAULT 0 CHECK (apheresis_ok IN (0,1)),
   UNIQUE (name, role)
 );
 
 CREATE TABLE IF NOT EXISTS bank_stock (
   bank_id     TEXT NOT NULL REFERENCES users(id),
   blood_group TEXT NOT NULL CHECK (blood_group IN ('A+','A-','B+','B-','AB+','AB-','O+','O-')),
+  component   TEXT NOT NULL DEFAULT 'whole_blood' CHECK (component IN
+    ('whole_blood','red_cells','platelets','plasma','cryo','other')),
   units       INTEGER NOT NULL DEFAULT 0 CHECK (units >= 0),
   updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
-  PRIMARY KEY (bank_id, blood_group)
+  PRIMARY KEY (bank_id, blood_group, component)
 );
 
 CREATE TABLE IF NOT EXISTS requests (
@@ -42,7 +45,10 @@ CREATE TABLE IF NOT EXISTS requests (
   status       TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','fulfilled','cancelled')),
   channel_id   TEXT,
   created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
-  fulfilled_at TEXT
+  fulfilled_at TEXT,
+  component    TEXT NOT NULL DEFAULT 'whole_blood' CHECK (component IN
+    ('whole_blood','red_cells','platelets','plasma','cryo','other')),
+  notes        TEXT
 );
 
 CREATE TABLE IF NOT EXISTS request_members (

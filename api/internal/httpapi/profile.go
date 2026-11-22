@@ -15,6 +15,7 @@ type profileInput struct {
 	WeightKG      *float64 `json:"weight_kg"`
 	HeightCM      *float64 `json:"height_cm"`
 	LastDonatedAt *string  `json:"last_donated_at"`
+	ApheresisOK   *bool    `json:"apheresis_ok"`
 }
 
 func (s *Server) getMe(w http.ResponseWriter, r *http.Request) {
@@ -48,6 +49,7 @@ func (s *Server) putMe(w http.ResponseWriter, r *http.Request) {
 		WeightKG:      in.WeightKG,
 		HeightCM:      in.HeightCM,
 		LastDonatedAt: in.LastDonatedAt,
+		ApheresisOK:   in.ApheresisOK,
 	})
 	if err != nil {
 		writeServiceError(w, err)

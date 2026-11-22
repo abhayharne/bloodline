@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"bloodline/data"
 	"bloodline/internal/events"
 	"bloodline/internal/id"
 	"bloodline/internal/matching"
@@ -28,9 +29,12 @@ type RequestInput struct {
 	BloodGroup    string
 	Units         int
 	Hospital      string
+	HospitalID    string
 	Urgency       string
-	Lat           float64
-	Lng           float64
+	Lat           *float64
+	Lng           *float64
+	Component     string
+	Notes         string
 }
 
 // RequestResult is returned by POST /requests.
@@ -58,13 +62,45 @@ func (s *Service) CreateRequest(ctx context.Context, in RequestInput) (RequestRe
 	if in.Units <= 0 {
 		return RequestResult{}, invalid("units must be positive")
 	}
-	hospital := strings.TrimSpace(in.Hospital)
-	if hospital == "" {
-		return RequestResult{}, invalid("hospital is required")
+	component, err := normaliseComponent(in.Component)
+	if err != nil {
+		return RequestResult{}, err
+	}
+	notes := strings.TrimSpace(in.Notes)
+	if len(notes) > 500 {
+		return RequestResult{}, invalid("notes must be at most 500 characters")
 	}
 	urgency, err := normaliseUrgency(in.Urgency)
 	if err != nil {
 		return RequestResult{}, err
+	}
+
+	// hospital_id resolves from the embedded directory and wins over both the
+	// free-text hospital name and supplied coordinates.
+	hospital := strings.TrimSpace(in.Hospital)
+	lat, lng := 0.0, 0.0
+	if in.Lat != nil {
+		lat = *in.Lat
+	}
+	if in.Lng != nil {
+		lng = *in.Lng
+	}
+	if hospitalID := strings.TrimSpace(in.HospitalID); hospitalID != "" {
+		h, ok := data.ByID(hospitalID)
+		if !ok {
+			return RequestResult{}, invalid("hospital_id not found")
+		}
+		hospital, lat, lng = h.Name, h.Lat, h.Lng
+	} else {
+		if hospital == "" {
+			return RequestResult{}, invalid("hospital is required when hospital_id is omitted")
+		}
+		if in.Lat == nil || in.Lng == nil {
+			return RequestResult{}, invalid("lat and lng are required when hospital_id is omitted")
+		}
+		if err := validateCoordinates(lat, lng); err != nil {
+			return RequestResult{}, err
+		}
 	}
 
 	requestID, err := id.New("r")
@@ -79,36 +115,63 @@ func (s *Service) CreateRequest(ctx context.Context, in RequestInput) (RequestRe
 		Units:       in.Units,
 		Hospital:    hospital,
 		Urgency:     urgency,
-		Lat:         in.Lat,
-		Lng:         in.Lng,
+		Lat:         lat,
+		Lng:         lng,
 		Status:      "open",
 		ChannelID:   channelID,
 		CreatedAt:   store.Timestamp(),
+		Component:   component,
+		Notes:       notes,
 	}
 	if err := s.store.CreateRequest(ctx, request); err != nil {
 		return RequestResult{}, err
 	}
 
-	banks, err := s.store.BanksWithStock(ctx, group, in.Units)
+	// Whole blood/red cells/other keep the exact-group live rule (D4). Apheresis
+	// components use compatible groups, component stock and apheresis-opted-in
+	// donors; platelets additionally rank same-ABO and Rh-negative donors first.
+	apheresis := isApheresisComponent(component)
+	groups := []string{group}
+	if apheresis {
+		groups = matching.CompatibleGroups(group, component)
+	}
+	banks, err := s.store.BanksWithStockFor(ctx, groups, component, in.Units)
 	if err != nil {
 		return RequestResult{}, err
 	}
-	donors, err := s.store.DonorsByGroup(ctx, group)
+	var donors []store.User
+	if apheresis {
+		donors, err = s.store.DonorsByGroups(ctx, groups, true)
+	} else {
+		donors, err = s.store.DonorsByGroup(ctx, group)
+	}
 	if err != nil {
 		return RequestResult{}, err
 	}
 	if s.HasFeature("reminders") {
-		// The reminders flag enables the isAvailable and isEligible pipeline
-		// filters. Fetch the whole group first so the pipeline, not the store
-		// query, decides who is matched. The core path above stays simple.
-		donors, err = s.store.DonorsByGroupAll(ctx, group)
-		if err != nil {
-			return RequestResult{}, err
+		if !apheresis {
+			donors, err = s.store.DonorsByGroupAll(ctx, group)
+			if err != nil {
+				return RequestResult{}, err
+			}
 		}
-		donors = applyReminderFilters(group, in.Lat, in.Lng, donors)
+		donors = applyReminderFilters(group, lat, lng, donors)
 	}
-	rankByDistance(in.Lat, in.Lng, banks)
-	rankByDistance(in.Lat, in.Lng, donors)
+	rankByDistance(lat, lng, banks)
+	if apheresis {
+		sort.SliceStable(donors, func(i, j int) bool {
+			ri := matching.DonorRankForComponent(group, donorGroup(donors[i]), component)
+			rj := matching.DonorRankForComponent(group, donorGroup(donors[j]), component)
+			if ri != rj {
+				return ri < rj
+			}
+			di := matching.DistanceKM(lat, lng, donors[i].Lat, donors[i].Lng)
+			dj := matching.DistanceKM(lat, lng, donors[j].Lat, donors[j].Lng)
+			return di < dj
+		})
+	} else {
+		rankByDistance(lat, lng, donors)
+	}
 	banks = limitUsers(banks, 2)
 	donors = limitUsers(donors, 10)
 
@@ -165,8 +228,15 @@ func (s *Service) Requests(ctx context.Context, userID, role, status string) ([]
 				continue
 			}
 		case "donor":
-			if request.BloodGroup == "" || caller.BloodGroup == nil ||
-				*caller.BloodGroup != request.BloodGroup {
+			if caller.BloodGroup == nil {
+				continue
+			}
+			if isApheresisComponent(request.Component) {
+				if !caller.ApheresisOK ||
+					!matching.CompatibleForComponent(request.BloodGroup, *caller.BloodGroup, request.Component) {
+					continue
+				}
+			} else if *caller.BloodGroup != request.BloodGroup {
 				continue
 			}
 			distance = matching.DistanceKM(caller.Lat, caller.Lng, request.Lat, request.Lng)
@@ -424,6 +494,13 @@ func userIDs(users []store.User) []string {
 		ids = append(ids, user.ID)
 	}
 	return ids
+}
+
+func donorGroup(user store.User) string {
+	if user.BloodGroup == nil {
+		return ""
+	}
+	return *user.BloodGroup
 }
 
 func truncate(value string, max int) string {

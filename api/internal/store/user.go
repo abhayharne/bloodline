@@ -26,18 +26,19 @@ type User struct {
 	LastDonatedAt *string  `json:"last_donated_at"`
 	Available     bool     `json:"available"`
 	ConsentAt     *string  `json:"consent_at"`
+	ApheresisOK   bool     `json:"apheresis_ok"`
 	PushToken     *string  `json:"-"`
 	CreatedAt     string   `json:"created_at"`
 }
 
 const userColumns = `id, name, role, blood_group, lat, lng, push_token, created_at,
 	phone, sex, age, weight_kg, height_cm, donated_before, last_donated_at,
-	available, consent_at`
+	available, consent_at, apheresis_ok`
 
 // Qualified variant for queries that join tables sharing column names.
 const qualifiedUserColumns = `u.id, u.name, u.role, u.blood_group, u.lat, u.lng,
 	u.push_token, u.created_at, u.phone, u.sex, u.age, u.weight_kg, u.height_cm,
-	u.donated_before, u.last_donated_at, u.available, u.consent_at`
+	u.donated_before, u.last_donated_at, u.available, u.consent_at, u.apheresis_ok`
 
 // CreateUser inserts a user. It returns ErrConflict if name+role or phone already exists.
 func (s *Store) CreateUser(ctx context.Context, u User) error {
@@ -50,11 +51,11 @@ func (s *Store) CreateUser(ctx context.Context, u User) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO users (id, name, role, blood_group, lat, lng,
 			phone, sex, age, weight_kg, height_cm, donated_before,
-			last_donated_at, available, consent_at, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			last_donated_at, available, consent_at, apheresis_ok, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		u.ID, u.Name, u.Role, u.BloodGroup, u.Lat, u.Lng,
 		u.Phone, u.Sex, u.Age, u.WeightKG, u.HeightCM, u.DonatedBefore,
-		u.LastDonatedAt, u.Available, u.ConsentAt, createdAt,
+		u.LastDonatedAt, u.Available, u.ConsentAt, u.ApheresisOK, createdAt,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -103,16 +104,21 @@ type ProfileUpdate struct {
 	WeightKG      *float64
 	HeightCM      *float64
 	LastDonatedAt *string
+	ApheresisOK   *bool
 }
 
 // UpdateProfile applies a partial profile update. An empty update is a no-op;
 // a missing user is reported as ErrNotFound.
 func (s *Store) UpdateProfile(ctx context.Context, id string, update ProfileUpdate) error {
-	clauses := make([]string, 0, 6)
-	args := make([]any, 0, 7)
+	clauses := make([]string, 0, 7)
+	args := make([]any, 0, 8)
 	if update.Available != nil {
 		clauses = append(clauses, "available = ?")
 		args = append(args, *update.Available)
+	}
+	if update.ApheresisOK != nil {
+		clauses = append(clauses, "apheresis_ok = ?")
+		args = append(args, *update.ApheresisOK)
 	}
 	if update.Lat != nil {
 		clauses = append(clauses, "lat = ?")
@@ -171,11 +177,12 @@ func scanUser(row *sql.Row) (User, error) {
 		consentAt     sql.NullString
 		donatedBefore int
 		available     int
+		apheresisOK   int
 	)
 	err := row.Scan(
 		&u.ID, &u.Name, &u.Role, &bloodGroup, &u.Lat, &u.Lng, &pushToken, &u.CreatedAt,
 		&phone, &sex, &age, &weightKG, &heightCM, &donatedBefore, &lastDonatedAt,
-		&available, &consentAt,
+		&available, &consentAt, &apheresisOK,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return User{}, ErrNotFound
@@ -213,6 +220,7 @@ func scanUser(row *sql.Row) (User, error) {
 	}
 	u.DonatedBefore = donatedBefore != 0
 	u.Available = available != 0
+	u.ApheresisOK = apheresisOK != 0
 	u.CreatedAt = NormaliseTimestamp(u.CreatedAt)
 	return u, nil
 }

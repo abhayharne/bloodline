@@ -4,19 +4,20 @@ import (
 	"context"
 )
 
-// Stock is one blood group's unit count for a bank.
+// Stock is one blood group/component's unit count for a bank.
 type Stock struct {
 	BloodGroup string `json:"blood_group"`
+	Component  string `json:"component"`
 	Units      int    `json:"units"`
 	UpdatedAt  string `json:"updated_at"`
 }
 
-// BankStock returns all stock rows for a bank, ordered by blood group.
+// BankStock returns all stock rows for a bank, ordered by group then component.
 func (s *Store) BankStock(ctx context.Context, bankID string) ([]Stock, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT blood_group, units, updated_at
+		SELECT blood_group, component, units, updated_at
 		FROM bank_stock WHERE bank_id = ?
-		ORDER BY blood_group`, bankID)
+		ORDER BY blood_group, component`, bankID)
 	if err != nil {
 		return nil, err
 	}
@@ -25,7 +26,7 @@ func (s *Store) BankStock(ctx context.Context, bankID string) ([]Stock, error) {
 	stock := make([]Stock, 0)
 	for rows.Next() {
 		var item Stock
-		if err := rows.Scan(&item.BloodGroup, &item.Units, &item.UpdatedAt); err != nil {
+		if err := rows.Scan(&item.BloodGroup, &item.Component, &item.Units, &item.UpdatedAt); err != nil {
 			return nil, err
 		}
 		item.UpdatedAt = NormaliseTimestamp(item.UpdatedAt)
@@ -46,13 +47,17 @@ func (s *Store) UpsertBankStock(ctx context.Context, bankID string, stock []Stoc
 	defer tx.Rollback()
 
 	for _, item := range stock {
+		component := item.Component
+		if component == "" {
+			component = "whole_blood"
+		}
 		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO bank_stock (bank_id, blood_group, units, updated_at)
-			VALUES (?, ?, ?, ?)
-			ON CONFLICT (bank_id, blood_group) DO UPDATE SET
+			INSERT INTO bank_stock (bank_id, blood_group, component, units, updated_at)
+			VALUES (?, ?, ?, ?, ?)
+			ON CONFLICT (bank_id, blood_group, component) DO UPDATE SET
 				units = excluded.units,
 				updated_at = excluded.updated_at`,
-			bankID, item.BloodGroup, item.Units, Timestamp(),
+			bankID, item.BloodGroup, component, item.Units, Timestamp(),
 		); err != nil {
 			return err
 		}

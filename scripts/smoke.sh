@@ -99,7 +99,7 @@ jq_ok() {
   jq -e "${jq_args[@]}" "$resp" >/dev/null 2>&1 || fail "$label"
 }
 
-step "1/11 health + config"
+step "1/13 health + config"
 code="$(req GET /health)"
 expect 200 "$code" "health"
 jq_ok '.status == "ok"' "health body"
@@ -115,7 +115,18 @@ requester_phone="+919900000001"
 donor_phone="+919900000002"
 bank_phone="+919900000003"
 
-step "2/11 signup requester, donor and bank"
+step "2/13 hospitals lookup (public, embedded directory)"
+code="$(req GET /hospitals)"
+expect 200 "$code" "hospitals list"
+jq_ok '(.hospitals | length) >= 1 and all(.hospitals[]; (.id | length) > 0 and (.name | length) > 0 and (.lat | type == "number") and (.lng | type == "number"))' "hospitals shape"
+code="$(req GET '/hospitals?q=City&limit=5')"
+expect 200 "$code" "hospitals search"
+jq_ok '(.hospitals | map(select(.id == "hcity")) | length) == 1' "hospitals search matches hcity"
+code="$(req GET '/hospitals?lat=21.1458')"
+expect 400 "$code" "hospitals half coordinates rejected"
+jq_ok '(.error | type == "string") and (.error | length) > 0' "hospitals validation error"
+
+step "3/13 signup requester, donor and bank"
 code="$(req POST /auth/signup "{\"phone\":\"${requester_phone}\",\"otp\":\"123456\",\"name\":\"Smoke Requester\",\"role\":\"requester\",\"blood_group\":\"O-\",\"lat\":21.1458,\"lng\":79.0882,\"consent\":true}")"
 expect 201 "$code" "requester signup"
 jq_ok '.user.id | test("^u[0-9a-f]+$")' "requester id"
@@ -135,7 +146,7 @@ expect 201 "$code" "bank signup via code"
 jq_ok '(.user.id | test("^u[0-9a-f]+$")) and .user.blood_group == null' "bank profile"
 bank_token="$(jq -r '.token' "$resp")"
 
-step "3/11 mock OTP send + verify (login path, both aliases)"
+step "4/13 mock OTP send + verify (login path, both aliases)"
 code="$(req POST /auth/otp/send "{\"phone\":\"${donor_phone}\"}" "$donor_token")"
 expect 200 "$code" "otp send"
 jq_ok '.sent == true' "otp send body"
@@ -154,27 +165,29 @@ expect 401 "$code" "wrong otp rejected"
 code="$(req POST /auth/verify "{\"phone\":\"${donor_phone}\",\"code\":\"000000\"}")"
 expect 401 "$code" "wrong code rejected"
 
-step "4/11 bank stock PUT + GET"
-code="$(req PUT /banks/me/stock '{"stock":[{"blood_group":"O-","units":3},{"blood_group":"O+","units":5}]}' "$bank_token")"
+step "5/13 bank stock PUT + GET (with components)"
+code="$(req PUT /banks/me/stock '{"stock":[{"blood_group":"O-","units":3},{"blood_group":"O+","units":5},{"blood_group":"O+","component":"plasma","units":4}]}' "$bank_token")"
 expect 200 "$code" "put bank stock"
-jq_ok '(.stock | map(select(.blood_group == "O-" and .units == 3)) | length) == 1' "stock body"
+jq_ok '(.stock | map(select(.blood_group == "O-" and .component == "whole_blood" and .units == 3)) | length) == 1' "stock body"
+jq_ok '(.stock | map(select(.blood_group == "O+" and .component == "plasma" and .units == 4)) | length) == 1' "stock component body"
 code="$(req GET /banks/me/stock "" "$bank_token")"
 expect 200 "$code" "get bank stock"
-jq_ok '(.stock | map(select(.blood_group == "O-" and .units == 3)) | length) == 1' "stock round-trip"
+jq_ok '(.stock | map(select(.blood_group == "O-" and .component == "whole_blood" and .units == 3)) | length) == 1 and (.stock | map(select(.blood_group == "O+" and .component == "plasma" and .units == 4)) | length) == 1' "stock round-trip"
 
-step "5/11 create request (matches bank stock + donor)"
-code="$(req POST /requests '{"blood_group":"O-","units":2,"hospital":"City Hospital","urgency":"critical","lat":21.1458,"lng":79.0882}' "$requester_token")"
+step "6/13 create request (matches bank stock + donor)"
+code="$(req POST /requests '{"blood_group":"O-","units":2,"hospital":"City Hospital","urgency":"critical","lat":21.1458,"lng":79.0882,"component":"whole_blood","notes":"Ward 4"}' "$requester_token")"
 expect 201 "$code" "create request"
 jq_ok '.request.id | test("^r[0-9a-f]+$")' "request id"
 jq_ok '.request.status == "open"' "request status"
 jq_ok '.request.urgency == "critical"' "canonical urgency"
+jq_ok '.request.component == "whole_blood" and .request.notes == "Ward 4"' "request component and notes"
 jq_ok '.request.created_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")' "request created_at"
 jq_ok '.matches.banks >= 1 and .matches.donors >= 1' "match counts"
 request_id="$(jq -r '.request.id' "$resp")"
 channel_id="$(jq -r '.request.channel_id' "$resp")"
 [[ "$channel_id" == "req${request_id}" ]] || fail "channel_id $channel_id != req${request_id}"
 
-step "6/11 urgency aliases normalise and sort"
+step "7/13 urgency aliases normalise and sort"
 # Insert lowest priority first; the feed must still return critical first.
 for alias in "planned:low:Low Ward" "med:medium:Medium Ward" "urgent:high:High Ward"; do
   raw="${alias%%:*}"
@@ -195,17 +208,18 @@ jq_ok '
   all(.requests[]; .created_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))
 ' "feed urgency order and created_at"
 
-step "7/11 donor feed is role-aware and shows the open request"
+step "8/13 donor feed is role-aware and shows the open request"
 code="$(req GET /requests "" "$donor_token")"
 expect 200 "$code" "donor feed"
 jq_ok --arg id "$request_id" '[.requests[] | select(.id == $id)] | length == 1' "feed contains request"
 jq_ok --arg id "$request_id" '
   .requests[] | select(.id == $id) |
   .joined == false and .distance_km <= 10 and .requester_name == "Smoke Requester" and
+  .component == "whole_blood" and .notes == "Ward 4" and
   (.created_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))
 ' "feed fields"
 
-step "8/11 donor accepts (idempotent) and joins the room"
+step "9/13 donor accepts (idempotent) and joins the room"
 code="$(req POST "/requests/${request_id}/accept" '{}' "$donor_token")"
 expect 200 "$code" "donor accept"
 jq_ok --arg ch "$channel_id" '.channel_id == $ch' "accept channel"
@@ -215,10 +229,10 @@ code="$(req GET /requests "" "$donor_token")"
 expect 200 "$code" "feed after accept"
 jq_ok --arg id "$request_id" '.requests[] | select(.id == $id) | .joined == true' "joined flag"
 
-step "9/11 /me + donor pledge + /donated + notification read"
+step "10/13 /me + donor pledge + /donated + notification read"
 code="$(req GET /me "" "$donor_token")"
 expect 200 "$code" "donor /me"
-jq_ok '.user.created_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")' "donor /me created_at"
+jq_ok '(.user.created_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")) and .user.apheresis_ok == false' "donor /me created_at and apheresis default"
 if echo ",${FEATURES:-}," | grep -q ',ranks,'; then
   jq_ok --arg id "$donor_id" '
     .user.id == $id and (.derived.eligible | type == "boolean") and
@@ -233,9 +247,9 @@ fi
 
 # A recent date keeps the waiting period open whenever the smoke runs.
 recent_date="$(python3 -c 'import datetime; print((datetime.date.today() - datetime.timedelta(days=10)).isoformat())')"
-code="$(req PUT /me "{\"weight_kg\":59,\"last_donated_at\":\"${recent_date}\"}" "$donor_token")"
+code="$(req PUT /me "{\"weight_kg\":59,\"last_donated_at\":\"${recent_date}\",\"apheresis_ok\":true}" "$donor_token")"
 expect 200 "$code" "PUT /me"
-jq_ok '.user.weight_kg == 59 and (.derived.next_eligible_at | type == "string")' "PUT /me round trip"
+jq_ok '.user.weight_kg == 59 and (.derived.next_eligible_at | type == "string") and .user.apheresis_ok == true' "PUT /me round trip"
 
 # Accept writes one donations row per (donor, request). Keep the A9 direct
 # SQLite assertion as a guard on the underlying row, then exercise the HTTP
@@ -267,6 +281,7 @@ expect 201 "$code" "donated (repeat)"
 jq_ok --arg did "$donation_id" '.donation.id == $did and .donation_count == 1' "donated idempotent"
 code="$(req GET /me "" "$donor_token")"
 expect 200 "$code" "donor /me after donated"
+jq_ok '.user.apheresis_ok == true' "apheresis_ok persisted"
 if echo ",${FEATURES:-}," | grep -q ',ranks,'; then
   jq_ok '.derived.donation_count == 1 and .derived.rank.key == "first_drop" and .derived.rank.label == "First Drop"' "donation_count and rank in /me"
 else
@@ -290,7 +305,7 @@ code="$(req GET /notifications "" "$requester_token")"
 expect 200 "$code" "notifications after read"
 jq_ok --arg id "$notify_id" '.notifications[] | select(.id == $id) | .read == true' "read flag"
 
-step "10/11 requester fulfills"
+step "11/13 requester fulfills"
 code="$(req POST "/requests/${request_id}/fulfill" '{}' "$requester_token")"
 expect 200 "$code" "fulfill"
 jq_ok '.request.status == "fulfilled"' "fulfilled status"
@@ -301,7 +316,7 @@ code="$(req GET /requests "" "$donor_token")"
 expect 200 "$code" "open feed after fulfill"
 jq_ok --arg id "$request_id" '([.requests[] | select(.id == $id)] | length) == 0' "request left the open feed"
 
-step "11/11 config still reflects FEATURES after the flow"
+step "12/13 config still reflects FEATURES after the flow"
 code="$(req GET /config)"
 expect 200 "$code" "config repeat"
 jq_ok --arg features "${FEATURES:-}" '
@@ -309,5 +324,52 @@ jq_ok --arg features "${FEATURES:-}" '
     | reduce .[] as $f ([]; if index($f) then . else . + [$f] end)) as $want
   | .features == $want and .demo_mode == true
 ' "features match FEATURES env"
+
+step "13/13 component-aware plasma request + validation errors"
+# Bank stock with a plasma component for the requested group.
+code="$(req PUT /banks/me/stock '{"stock":[{"blood_group":"O-","units":3},{"blood_group":"O+","units":5},{"blood_group":"O+","component":"plasma","units":4},{"blood_group":"O-","component":"plasma","units":6}]}' "$bank_token")"
+expect 200 "$code" "put O- plasma stock"
+
+# A donor opted into apheresis with no recent donation (eligible under the
+# reminders feature too) and a regular donor who must not see the request.
+code="$(req POST /auth/signup '{"phone":"+919900000010","name":"Apheresis Donor","role":"donor","blood_group":"O-","lat":21.15,"lng":79.09,"consent":true}')"
+expect 201 "$code" "apheresis donor signup"
+apheresis_token="$(jq -r '.token' "$resp")"
+code="$(req PUT /me '{"apheresis_ok":true}' "$apheresis_token")"
+expect 200 "$code" "opt donor into apheresis"
+jq_ok '.user.apheresis_ok == true' "apheresis flag set"
+code="$(req POST /auth/signup '{"phone":"+919900000011","name":"Regular Donor","role":"donor","blood_group":"O-","lat":21.15,"lng":79.09,"consent":true}')"
+expect 201 "$code" "regular donor signup"
+regular_token="$(jq -r '.token' "$resp")"
+
+# hospital_id wins over the supplied name/coordinates; component and notes are
+# stored and returned, and plasma matches component stock and apheresis donors.
+code="$(req POST /requests '{"blood_group":"O-","units":2,"hospital_id":"hcity","component":"plasma","notes":"Plasma for ward 2","urgency":"high","hospital":"Ignored","lat":0,"lng":0}' "$requester_token")"
+expect 201 "$code" "create plasma request"
+jq_ok '
+  .request.hospital == "City Hospital" and .request.lat == 21.1458 and .request.lng == 79.0882 and
+  .request.component == "plasma" and .request.notes == "Plasma for ward 2" and
+  .request.status == "open"
+' "plasma request resolved fields"
+jq_ok '.matches.banks >= 1 and .matches.donors >= 1' "plasma component matches"
+plasma_id="$(jq -r '.request.id' "$resp")"
+
+code="$(req GET /requests "" "$requester_token")"
+expect 200 "$code" "requester open feed with plasma request"
+jq_ok --arg id "$plasma_id" '
+  .requests[] | select(.id == $id) |
+  .status == "open" and .component == "plasma" and .notes == "Plasma for ward 2"
+' "own open plasma request in feed"
+code="$(req GET /requests "" "$regular_token")"
+expect 200 "$code" "regular donor feed"
+jq_ok --arg id "$plasma_id" '([.requests[] | select(.id == $id)] | length) == 0' "plasma hidden from non-apheresis donor"
+
+# Validation failures are 400 with a specific error message.
+code="$(req POST /requests '{"blood_group":"O-","units":1,"hospital_id":"nope","urgency":"high"}' "$requester_token")"
+expect 400 "$code" "unknown hospital rejected"
+jq_ok '(.error | type == "string") and (.error | length) > 0' "specific validation error"
+code="$(req POST /requests '{"blood_group":"O-","units":1,"hospital_id":"hcity","urgency":"high","component":"bones"}' "$requester_token")"
+expect 400 "$code" "bad component rejected"
+jq_ok '(.error | type == "string") and (.error | length) > 0' "specific component error"
 
 step "SMOKE OK"

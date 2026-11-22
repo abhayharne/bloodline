@@ -1,0 +1,14 @@
+[
+  { "id": "hcity", "name": "City Hospital", "area": "Sadar", "lat": 21.1458, "lng": 79.0882 },
+  { "id": "haiims", "name": "AIIMS Nagpur", "area": "Mihan", "lat": 21.0900, "lng": 79.0600 },
+  { "id": "horange", "name": "Orange City Hospital", "area": "Civil Lines", "lat": 21.1200, "lng": 79.0800 },
+  { "id": "hkrishna", "name": "Krishna Hospital", "area": "Ramdaspeth", "lat": 21.1400, "lng": 79.0900 },
+  { "id": "hmeditrina", "name": "Meditrina Hospital", "area": "Bajaj Nagar", "lat": 21.1100, "lng": 79.0700 },
+  { "id": "hovidhya", "name": "Ovidhya Hospital", "area": "Nandanvan", "lat": 21.1500, "lng": 79.1100 },
+  { "id": "hleelavati", "name": "Leelavati Hospital", "area": "Dharampeth", "lat": 21.1300, "lng": 79.0700 },
+  { "id": "hnexus", "name": "Nexus Heart Hospital", "area": "Sadar", "lat": 21.1480, "lng": 79.0850 },
+  { "id": "hshri", "name": "Shri Hospital", "area": "Gandhibagh", "lat": 21.1600, "lng": 79.1000 },
+  { "id": "hvivekanand", "name": "Vivekanand Hospital", "area": "Laxmi Nagar", "lat": 21.1350, "lng": 79.0950 },
+  { "id": "hgovernment", "name": "Government Medical College Hospital", "area": "Sadar", "lat": 21.1460, "lng": 79.0870 },
+  { "id": "hwockhardt", "name": "Wockhardt Hospital", "area": "Mihan", "lat": 21.0950, "lng": 79.0550 }
+]
