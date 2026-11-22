@@ -28,6 +28,9 @@ func (s *Store) DonationFor(ctx context.Context, requestID, donorID string) (Don
 	if errors.Is(err, sql.ErrNoRows) {
 		return Donation{}, ErrNotFound
 	}
+	if err == nil {
+		d.CreatedAt = NormaliseTimestamp(d.CreatedAt)
+	}
 	return d, err
 }
 

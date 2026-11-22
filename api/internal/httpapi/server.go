@@ -53,6 +53,7 @@ func New(svc *service.Service, jwt *auth.Issuer, opts ...ServerOption) http.Hand
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health)
 	mux.HandleFunc("GET /config", s.config)
+	mux.HandleFunc("GET /hospitals", s.hospitals)
 	mux.HandleFunc("POST /auth/otp/send", s.otpSend)
 	mux.HandleFunc("POST /auth/verify", s.verifyOTP)
 	mux.HandleFunc("POST /auth/signup", s.signup)

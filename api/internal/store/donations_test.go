@@ -19,7 +19,7 @@ func TestDonationForAndCount(t *testing.T) {
 	for _, id := range []string{"r1", "r2"} {
 		request := Request{
 			ID: id, RequesterID: "u2", BloodGroup: group, Units: 2,
-			Hospital: "City Hospital", Urgency: "urgent", Lat: 21, Lng: 79, Status: "open",
+			Hospital: "City Hospital", Urgency: "high", Lat: 21, Lng: 79, Status: "open",
 		}
 		if err := st.CreateRequest(ctx, request); err != nil {
 			t.Fatal(err)

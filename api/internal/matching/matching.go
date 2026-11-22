@@ -6,6 +6,7 @@ package matching
 
 import (
 	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -60,11 +61,131 @@ func set(values ...string) map[string]bool {
 
 func allGroups() map[string]bool { return set(groups...) }
 
+var groupSet = allGroups()
+
+// Component names shared by requests and bank stock.
+const (
+	ComponentWholeBlood = "whole_blood"
+	ComponentRedCells   = "red_cells"
+	ComponentPlatelets  = "platelets"
+	ComponentPlasma     = "plasma"
+	ComponentCryo       = "cryo"
+	ComponentOther      = "other"
+)
+
+func normaliseComponent(component string) string {
+	value := strings.ToLower(strings.TrimSpace(component))
+	if value == "" {
+		return ComponentWholeBlood
+	}
+	return value
+}
+
+// plasmaDonors maps a patient's ABO letter to the ABO letters whose plasma they
+// may receive. It is the reverse of the red-cell chart, with Rh ignored: an O
+// patient can receive any plasma (universal recipient) while an AB patient may
+// only receive AB plasma. This matches the contract's `O<-all, A<-A,AB,
+// B<-B,AB, AB<-AB` (patient <- acceptable donor groups).
+var plasmaDonors = map[string]map[string]bool{
+	"O":  set("O", "A", "B", "AB"),
+	"A":  set("A", "AB"),
+	"B":  set("B", "AB"),
+	"AB": set("AB"),
+}
+
+func cleanGroup(group string) string {
+	return strings.ToUpper(strings.TrimSpace(group))
+}
+
+func aboLetter(group string) string {
+	value := cleanGroup(group)
+	return strings.TrimSuffix(strings.TrimSuffix(value, "+"), "-")
+}
+
+func rhFactor(group string) string {
+	if strings.HasSuffix(cleanGroup(group), "+") {
+		return "+"
+	}
+	if strings.HasSuffix(cleanGroup(group), "-") {
+		return "-"
+	}
+	return ""
+}
+
 // Compatible reports whether a donor of donorGroup may donate to a patient of
 // patientGroup (ABO + Rh). It is pure and case-insensitive; unknown groups are
 // never compatible.
 func Compatible(patientGroup, donorGroup string) bool {
-	return compatibleWith[strings.ToUpper(strings.TrimSpace(patientGroup))][strings.ToUpper(strings.TrimSpace(donorGroup))]
+	return compatibleWith[cleanGroup(patientGroup)][cleanGroup(donorGroup)]
+}
+
+// CompatibleForComponent reports whether donorGroup can supply component to
+// patientGroup. Red cells (and whole blood/other) use the ABO/Rh chart;
+// plasma/cryo use reverse ABO with Rh ignored; platelets are ranked rather than
+// excluded, so any valid group is acceptable and DonorRankForComponent decides
+// the order.
+func CompatibleForComponent(patientGroup, donorGroup, component string) bool {
+	patient, donor := cleanGroup(patientGroup), cleanGroup(donorGroup)
+	if !groupSet[patient] || !groupSet[donor] {
+		return false
+	}
+	switch normaliseComponent(component) {
+	case ComponentPlatelets:
+		return true
+	case ComponentPlasma, ComponentCryo:
+		return plasmaDonors[aboLetter(patient)][aboLetter(donor)]
+	default:
+		return Compatible(patient, donor)
+	}
+}
+
+// DonorRankForComponent returns a lower-is-better priority for a donor group,
+// or -1 when the group cannot supply the component. Ties are broken by distance
+// in the caller. Platelets prefer same ABO and Rh-negative donors for
+// Rh-negative patients; other components rank exact matches first.
+func DonorRankForComponent(patientGroup, donorGroup, component string) int {
+	patient, donor := cleanGroup(patientGroup), cleanGroup(donorGroup)
+	if !CompatibleForComponent(patient, donor, component) {
+		return -1
+	}
+	if normaliseComponent(component) == ComponentPlatelets {
+		sameABO := aboLetter(patient) == aboLetter(donor)
+		rhOK := rhFactor(patient) != "-" || rhFactor(donor) == "-"
+		switch {
+		case sameABO && rhOK:
+			return 0
+		case sameABO:
+			return 1
+		case rhOK:
+			return 2
+		default:
+			return 3
+		}
+	}
+	switch {
+	case patient == donor:
+		return 0
+	case aboLetter(patient) == aboLetter(donor):
+		return 1
+	default:
+		return 2
+	}
+}
+
+// CompatibleGroups returns every group that can supply component to the
+// patient, best first. Used by the store queries for apheresis components.
+func CompatibleGroups(patientGroup, component string) []string {
+	result := make([]string, 0, len(groups))
+	for _, group := range groups {
+		if CompatibleForComponent(patientGroup, group, component) {
+			result = append(result, group)
+		}
+	}
+	sort.SliceStable(result, func(i, j int) bool {
+		return DonorRankForComponent(patientGroup, result[i], component) <
+			DonorRankForComponent(patientGroup, result[j], component)
+	})
+	return result
 }
 
 // requiredInterval is the waiting period after a donation: 90 days for male

@@ -76,7 +76,7 @@ func TestProfileDerivedEligibilityAndCount(t *testing.T) {
 	createUser(t, env.st, store.User{ID: "u9", Name: "Requester Nine", Role: "requester", BloodGroup: &group})
 	createRequest(t, env.st, store.Request{
 		ID: "r9", RequesterID: "u9", BloodGroup: group, Units: 1,
-		Hospital: "H", Urgency: "urgent", Status: "open",
+		Hospital: "H", Urgency: "high", Status: "open",
 	})
 	if err := env.st.CreateDonation(ctx, store.Donation{ID: "d1", RequestID: "r9", DonorID: "u1", Units: 1}); err != nil {
 		t.Fatal(err)
@@ -182,7 +182,7 @@ func TestRecordDonationIdempotentAndPublishes(t *testing.T) {
 	createUser(t, env.st, store.User{ID: "u2", Name: "Ravi", Role: "requester", BloodGroup: &group})
 	createRequest(t, env.st, store.Request{
 		ID: "r1", RequesterID: "u2", BloodGroup: group, Units: 2,
-		Hospital: "H", Urgency: "urgent", Status: "open", ChannelID: "reqr1",
+		Hospital: "H", Urgency: "high", Status: "open", ChannelID: "reqr1",
 	})
 
 	var eventsSeen []events.DonationRecordedPayload
@@ -233,7 +233,7 @@ func TestRecordDonationAuthorization(t *testing.T) {
 	createUser(t, env.st, store.User{ID: "u2", Name: "Ravi", Role: "requester", BloodGroup: &group})
 	createRequest(t, env.st, store.Request{
 		ID: "r1", RequesterID: "u2", BloodGroup: group, Units: 2,
-		Hospital: "H", Urgency: "urgent", Status: "open", ChannelID: "reqr1",
+		Hospital: "H", Urgency: "high", Status: "open", ChannelID: "reqr1",
 	})
 
 	if _, err := env.svc.RecordDonation(ctx, "missing", "u1"); !errors.Is(err, store.ErrNotFound) {
@@ -256,7 +256,7 @@ func TestProfileRankFeatureFlag(t *testing.T) {
 	group := "O+"
 	createUser(t, env.st, store.User{ID: "u1", Name: "Asha", Role: "donor", BloodGroup: &group, Available: true})
 	createUser(t, env.st, store.User{ID: "u2", Name: "Ravi", Role: "requester", BloodGroup: &group})
-	createRequest(t, env.st, store.Request{ID: "r1", RequesterID: "u2", BloodGroup: group, Units: 1, Hospital: "H", Urgency: "urgent", Status: "open"})
+	createRequest(t, env.st, store.Request{ID: "r1", RequesterID: "u2", BloodGroup: group, Units: 1, Hospital: "H", Urgency: "high", Status: "open"})
 
 	view, err := env.svc.Profile(ctx, "u1")
 	if err != nil {

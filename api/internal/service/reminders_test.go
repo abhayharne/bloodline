@@ -38,7 +38,7 @@ func TestRemindersFlagGatesDonorFilters(t *testing.T) {
 	input := RequestInput{
 		RequesterID: "uReq", RequesterName: "Ravi", BloodGroup: group,
 		Units: 1, Hospital: "City Hospital", Urgency: "critical",
-		Lat: 21.14, Lng: 79.08,
+		Lat: floatPtr(21.14), Lng: floatPtr(79.08),
 	}
 
 	t.Run("flag off keeps core path", func(t *testing.T) {

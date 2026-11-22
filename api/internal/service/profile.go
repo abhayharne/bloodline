@@ -39,6 +39,7 @@ type ProfileInput struct {
 	WeightKG      *float64
 	HeightCM      *float64
 	LastDonatedAt *string
+	ApheresisOK   *bool
 }
 
 // Profile loads a user and computes the derived eligibility summary.
@@ -102,11 +103,12 @@ func (s *Service) profileView(ctx context.Context, user store.User) (ProfileView
 
 func validateProfileInput(in ProfileInput) (store.ProfileUpdate, error) {
 	update := store.ProfileUpdate{
-		Available: in.Available,
-		Lat:       in.Lat,
-		Lng:       in.Lng,
-		WeightKG:  in.WeightKG,
-		HeightCM:  in.HeightCM,
+		Available:   in.Available,
+		Lat:         in.Lat,
+		Lng:         in.Lng,
+		WeightKG:    in.WeightKG,
+		HeightCM:    in.HeightCM,
+		ApheresisOK: in.ApheresisOK,
 	}
 	if in.Lat != nil && (*in.Lat < -90 || *in.Lat > 90) {
 		return store.ProfileUpdate{}, invalid("lat must be between -90 and 90")

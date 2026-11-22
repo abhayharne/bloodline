@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
   lat           REAL NOT NULL DEFAULT 0,
   lng           REAL NOT NULL DEFAULT 0,
   push_token    TEXT,
-  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   -- Phone auth + donor profile (D11). Old name+role signups may leave these NULL.
   phone         TEXT UNIQUE,
   sex           TEXT CHECK (sex IS NULL OR sex IN ('male','female','other')),
@@ -19,15 +19,18 @@ CREATE TABLE IF NOT EXISTS users (
   last_donated_at TEXT,
   available     INTEGER NOT NULL DEFAULT 1 CHECK (available IN (0,1)),
   consent_at    TEXT,
+  apheresis_ok  INTEGER NOT NULL DEFAULT 0 CHECK (apheresis_ok IN (0,1)),
   UNIQUE (name, role)
 );
 
 CREATE TABLE IF NOT EXISTS bank_stock (
   bank_id     TEXT NOT NULL REFERENCES users(id),
   blood_group TEXT NOT NULL CHECK (blood_group IN ('A+','A-','B+','B-','AB+','AB-','O+','O-')),
+  component   TEXT NOT NULL DEFAULT 'whole_blood' CHECK (component IN
+    ('whole_blood','red_cells','platelets','plasma','cryo','other')),
   units       INTEGER NOT NULL DEFAULT 0 CHECK (units >= 0),
-  updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
-  PRIMARY KEY (bank_id, blood_group)
+  updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  PRIMARY KEY (bank_id, blood_group, component)
 );
 
 CREATE TABLE IF NOT EXISTS requests (
@@ -36,20 +39,23 @@ CREATE TABLE IF NOT EXISTS requests (
   blood_group  TEXT NOT NULL CHECK (blood_group IN ('A+','A-','B+','B-','AB+','AB-','O+','O-')),
   units        INTEGER NOT NULL CHECK (units > 0),
   hospital     TEXT NOT NULL,
-  urgency      TEXT NOT NULL CHECK (urgency IN ('critical','urgent','planned')),
+  urgency      TEXT NOT NULL CHECK (urgency IN ('low','medium','high','critical')),
   lat          REAL NOT NULL,
   lng          REAL NOT NULL,
   status       TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','fulfilled','cancelled')),
   channel_id   TEXT,
-  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
-  fulfilled_at TEXT
+  created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  fulfilled_at TEXT,
+  component    TEXT NOT NULL DEFAULT 'whole_blood' CHECK (component IN
+    ('whole_blood','red_cells','platelets','plasma','cryo','other')),
+  notes        TEXT
 );
 
 CREATE TABLE IF NOT EXISTS request_members (
   request_id TEXT NOT NULL REFERENCES requests(id),
   user_id    TEXT NOT NULL REFERENCES users(id),
   role       TEXT NOT NULL,
-  joined_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  joined_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   PRIMARY KEY (request_id, user_id)
 );
 
@@ -59,7 +65,7 @@ CREATE TABLE IF NOT EXISTS donations (
   request_id TEXT NOT NULL REFERENCES requests(id),
   donor_id   TEXT NOT NULL REFERENCES users(id),
   units      INTEGER NOT NULL CHECK (units > 0),
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   UNIQUE (request_id, donor_id)
 );
 
@@ -74,7 +80,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   body       TEXT NOT NULL,
   request_id TEXT,
   read_at    TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_requests_status ON requests(status);

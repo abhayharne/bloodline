@@ -341,3 +341,66 @@ owns the current task and handoff, so this session owned A14. The tree was clean
 at every write, edits were committed with explicit pathspecs, and no peer work
 was reverted. A human still needs to stop one of the duplicate `loop.sh opencode
 api` processes.
+
+## D28 — Canonical urgency, RFC3339 created_at, OTP field aliases (human task)
+
+Human-assigned fixes (docs updated first in `docs/API.md` and
+`docs/DATA_MODEL.md`), then code, tests and smoke:
+
+* **Urgency.** Canonical values are `low|medium|high|critical`; the service maps
+  `planned`→`low`, `med`→`medium`, `urgent`→`high` (case/whitespace insensitive)
+  before the store sees a request. Fresh schema CHECK lists only canonical
+  values. Existing databases are rebuilt on boot with `PRAGMA foreign_keys=OFF`
+  around a transaction: rows are copied with the alias mapping and the new
+  CHECK/default, indexes are recreated, and child FKs stay intact. The request
+  feed SQL orders by `CASE urgency` priority then `created_at DESC, rowid DESC`,
+  so "matching by urgency" is observable in `GET /requests`. Seed data uses the
+  canonical `critical` value plus an explicit RFC3339 `created_at`.
+* **Timestamps.** All `created_at` writes (users, requests, notifications,
+  donations, plus stock `updated_at` and `fulfilled_at`/`read_at`) use
+  `time.Now().UTC().Format(time.RFC3339)` or `strftime('%Y-%m-%dT%H:%M:%SZ')`.
+  Reads normalise legacy SQLite `YYYY-MM-DD HH:MM:SS` (and RFC3339 offsets) to
+  UTC `Z`; empty/unparseable legacy values become `1970-01-01T00:00:00Z` rather
+  than `""`. `User.CreatedAt` is now a JSON field, so `/me` and auth responses
+  expose it; `donated_at` is normalised the same way.
+* **OTP aliases.** `/auth/verify` accepts `otp` as an alias of `code` and
+  `/auth/signup` accepts either field; `code` wins when both are present. Signup
+  keeps treating a missing code as legacy-compatible but validates a supplied
+  one against `DEMO_OTP` and returns 401 `invalid otp` on a mismatch. `is_new`
+  and `demo` from the addendum remain deliberately unimplemented (documented
+  deviations).
+* No app files, `.env`, `AGENTS.md` or `docs/PLAN.md` were touched. The
+  untracked empty `api/data/hospitals.json` predates this task and was left
+  alone; it is not part of the commit.
+
+## D29 — Hospital directory, request components, apheresis donors (human task)
+
+Docs were updated first in `docs/API.md` and `docs/DATA_MODEL.md`, then code,
+tests and smoke. Decisions:
+
+* **Hospitals.** The previously empty, untracked `api/data/hospitals.json` is
+  now a real embedded dataset (package `api/data`, `go:embed`). `GET /hospitals`
+  is public like `/config`: substring search over `name`/`area`, nearest-first
+  when both `lat` and `lng` are given, default `limit=20` capped at 50. All bad
+  query combinations are 400 with a specific `error`.
+* **Components.** `requests.component` and `bank_stock.component` default to
+  `whole_blood`, accepted values `whole_blood|red_cells|platelets|plasma|cryo|other`.
+  `bank_stock`'s PK becomes `(bank_id, blood_group, component)` so one bank can
+  hold both whole blood and plasma for the same group; the legacy PK table is
+  rebuilt on boot with `whole_blood` on every old row. `requests` gains nullable
+  `notes` (<= 500 chars). `hospital_id` is resolved from the embedded directory
+  and fills `hospital`/`lat`/`lng`; when present it wins over supplied coordinates.
+* **Compatibility.** Whole blood/red cells/other keep the existing red-cell ABO/Rh
+  chart and the live exact-group rule (D4). Plasma/cryo use reverse ABO with Rh
+  ignored, read literally from the human's `O<-all, A<-A,AB, B<-B,AB, AB<-AB`
+  as *patient ← acceptable donor groups*: an `O` patient can receive any plasma
+  (universal recipient) and an `AB` patient only `AB` plasma — the inverse of
+  the red-cell chart. Platelets treat same-ABO as preferred (ranked, not
+  excluded) and give Rh-negative patients Rh-negative donors first. Plasma,
+  cryo and platelets also require `users.apheresis_ok=1` (new column, default
+  false, set via `PUT /me`) for both matching and donor-feed visibility.
+* **Errors.** Every validation failure now returns 400 with a specific
+  `{"error":...}` message, including bad hospital ids, missing coordinates,
+  bad components and invalid query parameters. The app's urgency values
+  (`lib/features/requester/requester_screen.dart`) are already the canonical
+  `low|medium|high|critical` set, so no enum/doc change was needed there.

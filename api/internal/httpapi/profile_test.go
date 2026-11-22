@@ -49,7 +49,7 @@ func TestMeGetPutAndValidation(t *testing.T) {
 	}
 
 	updated := api.doWithToken(t, http.MethodPut, "/me",
-		`{"available":false,"lat":22.5,"weight_kg":61,"last_donated_at":"2026-10-01"}`, token)
+		`{"available":false,"lat":22.5,"weight_kg":61,"last_donated_at":"2026-10-01","apheresis_ok":true}`, token)
 	if updated.Code != http.StatusOK {
 		t.Fatalf("PUT /me status = %d (body %s)", updated.Code, updated.Body.String())
 	}
@@ -59,7 +59,8 @@ func TestMeGetPutAndValidation(t *testing.T) {
 	}
 	if view.User.Available || view.User.Lat != 22.5 || view.User.Lng != 79.1 ||
 		view.User.WeightKG == nil || *view.User.WeightKG != 61 ||
-		view.User.LastDonatedAt == nil || *view.User.LastDonatedAt != "2026-10-01" {
+		view.User.LastDonatedAt == nil || *view.User.LastDonatedAt != "2026-10-01" ||
+		!view.User.ApheresisOK {
 		t.Fatalf("PUT /me user = %+v", view.User)
 	}
 	if view.Derived.Eligible || view.Derived.NextEligibleAt == nil {
@@ -72,7 +73,8 @@ func TestMeGetPutAndValidation(t *testing.T) {
 	if err := json.Unmarshal(again.Body.Bytes(), &reread); err != nil {
 		t.Fatal(err)
 	}
-	if reread.User.Lat != 22.5 || reread.User.Available || reread.Derived.NextEligibleAt == nil {
+	if reread.User.Lat != 22.5 || reread.User.Available || reread.Derived.NextEligibleAt == nil ||
+		!reread.User.ApheresisOK {
 		t.Fatalf("GET /me after PUT = %+v", reread)
 	}
 }

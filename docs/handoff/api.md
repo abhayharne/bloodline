@@ -1,34 +1,24 @@
 # Handoff
-**From:** opencode (api, overnight loop, iteration 7, gate-PASS deferral) **To:** next api session **Time:** 2026-11-22 04:02
-**Branch:** feat/api **Last commit:** see `git log -1`
+**From:** opencode (api, hospital/components task) **To:** next api session **Time:** 2026-11-22 14:35
+**Branch:** feat/api **Last commit:** `fd0ccc2` `[opencode] Add hospital lookup, request components and apheresis matching`
 
 ## Done
-- Entry gate `scripts/gate-api.sh` PASS (build, vet, `-race -count=1 ./...`,
-  smoke with `FEATURES=` and `FEATURES=ranks,reminders`); re-run at the end of
-  the iteration on the post-A14 tree, also PASS.
-- Owned no task letter this iteration: iteration 8 (pts/4, loop.sh 127627) is
-  the higher-numbered live loop, so per D22 it owned A14. Deferred before any
-  edit; the sibling was subsequently seen editing and committed A14 as
-  `fdd0b59` (README run section, docs/API.md reconciliation, A14 ticked).
-- Recorded D26: the deferral, the A14 rule-5-vs-task-scope resolution, and a
-  verified doc/code mismatch checklist used by the owning loop.
-- This session's only edits are `docs/decisions-api.md` and this handoff,
-  committed as `f92f24d` with explicit pathspecs. No `api/`, docs/API.md,
-  README.md, `app/`, `.env` or docs/PLAN.md edits; no pushes, no fixed ports.
+- START checks done: AGENTS.md, this handoff, `docs/PLAN.md`, `docs/API.md`, `docs/API-addendum-v2.md`; `git status` and `git log` reviewed.
+- Docs first: `docs/API.md` and `docs/DATA_MODEL.md` cover all new routes/fields, plus `docs/decisions-api.md` (D29), `docs/tasks-api.md` (A16) and `docs/PLAN.md` (T1.13), all ticked.
+- `GET /hospitals` is public and reads `api/data/hospitals.json` via `go:embed` (new `api/data` package). `q` substring on name/area, nearest-first when both `lat`/`lng` are given, `limit` 1..50 default 20; bad params are 400.
+- `POST /requests`: `hospital_id` resolves name/lat/lng from the directory and wins over supplied values; without it both coordinates and a hospital name are required. `component` defaults `whole_blood`; `notes` optional (<=500). Both returned on every request response.
+- Component rules in `internal/matching`: whole blood/red cells/other keep the red-cell ABO/Rh chart; plasma/cryo use reverse ABO read literally as patient<-donor (`O`<-all, `AB`<-AB), Rh ignored; platelets rank same ABO first and Rh-negative donors first for Rh-negative patients.
+- `bank_stock.component` added to the PK via idempotent rebuild; `requests.component`/`notes` and `users.apheresis_ok` via idempotent ALTERs. Apheresis components match component stock and only `apheresis_ok=true` donors; settable via `PUT /me`.
+- Every validation failure returns 400 `{"error":"specific message"}`. App urgency values are already canonical `low|medium|high|critical`, so no enum change was needed.
+- Tests added: table-driven compatibility, hospital/service/handler round trips, requester+feed open-request regression, legacy migration coverage. Smoke grew to 13 steps covering all of the above.
+- Final `scripts/gate-api.sh` PASS: build, vet, `go test -race -count=1 ./...`, smoke with `FEATURES=` and `FEATURES=ranks,reminders`.
 
 ## State
-- All tasks A0-A14 are `[x]`; no unchecked API task remains. Tree clean.
-- HEAD: `fdd0b59` (A14) on top of `f92f24d` (this session's docs).
-- Gate PASS on the final committed tree.
+- Working tree clean; no pushes. Only `api/` and docs plus `scripts/smoke.sh` touched; no `app/`, `.env`, `AGENTS.md` or `docs/PLAN.md` scope changes beyond ticking T1.13.
+- A long-lived `go run ./cmd/server` (PID 279991) predates this session and was left running; no `loop.sh` / `opencode run` process is active.
 
 ## Next action
-- None from the task list: A0-A14 are complete and the gate is green. Wait for
-  the human to stop the duplicate api loop (below) or to assign new work.
-- If asked to verify A14, read `docs/API.md` alongside D26's checklist; the
-  sibling reconciled the documented shapes to the shipped handlers.
+- None. Wait for the human to assign new work. If asked to re-verify, run `scripts/gate-api.sh` and inspect `TestRequesterSeesOwnOpenRequest`, `TestCompatibleForComponentPlasma` and `TestComponentAwareMatching`.
 
 ## Blockers
-- Two `scripts/loop.sh opencode api ...` loops still share this tree
-  (D15/D17/D18/D22/D23/D24/D26). A human must stop one. Until then re-read
-  before every write, commit atomically with explicit pathspecs, and never
-  revert peer work.
+- None.

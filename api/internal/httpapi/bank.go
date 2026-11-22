@@ -9,6 +9,7 @@ import (
 
 type stockItem struct {
 	BloodGroup string `json:"blood_group"`
+	Component  string `json:"component"`
 	Units      int    `json:"units"`
 }
 
@@ -49,7 +50,7 @@ func (s *Server) putBankStock(w http.ResponseWriter, r *http.Request) {
 
 	input := make([]service.StockInput, 0, len(req.Stock))
 	for _, item := range req.Stock {
-		input = append(input, service.StockInput{BloodGroup: item.BloodGroup, Units: item.Units})
+		input = append(input, service.StockInput{BloodGroup: item.BloodGroup, Component: item.Component, Units: item.Units})
 	}
 
 	stock, err := s.svc.UpdateBankStock(r.Context(), claims.Subject, input)

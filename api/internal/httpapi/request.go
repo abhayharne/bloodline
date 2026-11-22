@@ -8,12 +8,15 @@ import (
 )
 
 type createRequestInput struct {
-	BloodGroup string  `json:"blood_group"`
-	Units      int     `json:"units"`
-	Hospital   string  `json:"hospital"`
-	Urgency    string  `json:"urgency"`
-	Lat        float64 `json:"lat"`
-	Lng        float64 `json:"lng"`
+	BloodGroup string   `json:"blood_group"`
+	Units      int      `json:"units"`
+	Hospital   string   `json:"hospital"`
+	HospitalID string   `json:"hospital_id"`
+	Urgency    string   `json:"urgency"`
+	Lat        *float64 `json:"lat"`
+	Lng        *float64 `json:"lng"`
+	Component  string   `json:"component"`
+	Notes      string   `json:"notes"`
 }
 
 type createRequestResponse struct {
@@ -53,9 +56,12 @@ func (s *Server) createRequest(w http.ResponseWriter, r *http.Request) {
 		BloodGroup:    req.BloodGroup,
 		Units:         req.Units,
 		Hospital:      req.Hospital,
+		HospitalID:    req.HospitalID,
 		Urgency:       req.Urgency,
 		Lat:           req.Lat,
 		Lng:           req.Lng,
+		Component:     req.Component,
+		Notes:         req.Notes,
 	})
 	if err != nil {
 		writeServiceError(w, err)
