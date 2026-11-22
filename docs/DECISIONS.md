@@ -132,3 +132,19 @@ Dev-only env switch: when set, the API uses `nexconn.NoopClient` (dummy chat tok
 network) and skips credential validation. It exists solely so `scripts/smoke.sh` can
 verify signup -> request -> accept -> fulfill without Nexconn credentials or internet.
 Never enable in production; it is not a feature flag and is not exposed by GET /config.
+## D11 — App Extensibility Architecture & SlotRegistry
+`SlotRegistry` singleton provides extension slots (`homeCards`, `profileSections`, `roomHeaderBadges`).
+Each feature folder (`lib/features/<name>/`) provides a `register.dart`. In the core build, the registry
+is empty by default so core screens render cleanly without clutter, while extension packages can register
+rich widgets, cards, and room badges dynamically.
+
+## D12 — Resilient ApiClient with In-Memory Mock Store
+`ApiClient` conforms to `docs/API.md` contract. When backend is offline or `mockMode` is enabled,
+it provides stateful mock data (users, requests, matches, bank stocks) to enable offline testing and
+parallel UI development. All JSON model `fromJson` factories safely ignore unknown fields to prevent breaking changes.
+
+## D13 — Phone + Mock OTP & Demographic Form Flow
+Authentication uses phone number with 6-digit mock OTP (default 123456) and quick demo profiles.
+Profile form captures name, age, weight, height, sex, previous donation history, and location via device GPS
+with typed-area fallback (preset popular areas).
+

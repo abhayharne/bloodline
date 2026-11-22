@@ -12,10 +12,9 @@ packages:
   ai_nexconn_chatui_plugin:
     dependency: "direct main"
     description:
-      name: ai_nexconn_chatui_plugin
-      sha256: f21d6088a120b88eebe5d3b84b86c72c8d8cb05428cfe3fddf3557c63096adbd
-      url: "https://pub.dev"
-    source: hosted
+      path: "packages/ai_nexconn_chatui_plugin"
+      relative: true
+    source: path
     version: "26.2.11"
   archive:
     dependency: transitive

@@ -1,0 +1,158 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:bloodline/core/api_client.dart';
+import 'package:bloodline/core/features.dart';
+import 'package:bloodline/core/slots.dart';
+import 'package:bloodline/core/providers/notifications_provider.dart';
+
+void main() {
+  group('ApiClient Factory & Architecture', () {
+    test('Factory creates MockApiClient when mockMode is true', () {
+      final client = ApiClient(mockMode: true);
+      expect(client, isA<MockApiClient>());
+      expect(client.mockMode, isTrue);
+    });
+
+    test('Factory creates HttpApiClient when mockMode is false', () {
+      final client = ApiClient(mockMode: false);
+      expect(client, isA<HttpApiClient>());
+      expect(client.mockMode, isFalse);
+    });
+
+    test('HttpApiClient respects configurable baseUrl and authToken', () {
+      final client = HttpApiClient(
+        baseUrl: 'http://api.bloodline.local:8080',
+        authToken: 'jwt_sample_123',
+      );
+      expect(client.baseUrl, 'http://api.bloodline.local:8080');
+      expect(client.authToken, 'jwt_sample_123');
+    });
+
+    test('Features.load correctly fetches and queries config features', () async {
+      final client = MockApiClient();
+      final features = await Features.load(client);
+      expect(features.hasRanks, isTrue);
+      expect(features.hasReminders, isTrue);
+      expect(features.isEnabled('ranks'), isTrue);
+      expect(features.isEnabled('unknown_feature'), isFalse);
+      expect(features.demoMode, isTrue);
+    });
+
+    test('SlotRegistry works from slots.dart export', () {
+      SlotRegistry.instance.clear();
+      expect(SlotRegistry.instance.homeCards, isEmpty);
+      expect(SlotRegistry.instance.profileSections, isEmpty);
+      expect(SlotRegistry.instance.roomHeaderBadges, isEmpty);
+    });
+  });
+
+  group('ApiClient Mock Mode', () {
+    late ApiClient client;
+
+    setUp(() {
+      client = ApiClient(mockMode: true);
+    });
+
+    test('Mock login returns valid AuthResponse', () async {
+      final resp = await client.login(name: 'Asha', role: 'donor');
+      expect(resp.user.name, 'Asha');
+      expect(resp.user.role, 'donor');
+      expect(resp.token, isNotEmpty);
+      expect(resp.nexconnToken, isNotEmpty);
+      expect(client.authToken, resp.token);
+    });
+
+    test('Mock signup creates user and generates tokens', () async {
+      final resp = await client.signup(
+        name: 'Ravi',
+        role: 'requester',
+        bloodGroup: 'O-',
+        lat: 21.1458,
+        lng: 79.0882,
+        phone: '+91 98765 00000',
+        age: 30,
+        weight: 72.0,
+        height: 178.0,
+        sex: 'male',
+        donatedBefore: false,
+      );
+
+      expect(resp.user.name, 'Ravi');
+      expect(resp.user.role, 'requester');
+      expect(resp.user.bloodGroup, 'O-');
+      expect(resp.user.age, 30);
+      expect(resp.user.donatedBefore, isFalse);
+    });
+
+    test('Mock bank stock retrieval and update for 8 blood groups', () async {
+      final stock = await client.getStock();
+      expect(stock.length, 8);
+
+      final updated = stock.map((s) {
+        if (s.bloodGroup == 'O+') return s.copyWith(units: 25);
+        return s;
+      }).toList();
+
+      final saved = await client.updateStock(updated);
+      final oPlus = saved.firstWhere((s) => s.bloodGroup == 'O+');
+      expect(oPlus.units, 25);
+    });
+
+    test('Mock blood request creation, listing, acceptance, and fulfillment', () async {
+      final created = await client.createRequest(
+        bloodGroup: 'B+',
+        units: 2,
+        hospital: 'Central Hospital',
+        urgency: 'critical',
+        lat: 21.1400,
+        lng: 79.0800,
+      );
+
+      expect(created.request.bloodGroup, 'B+');
+      expect(created.request.units, 2);
+      expect(created.request.hospital, 'Central Hospital');
+      expect(created.request.status, 'open');
+      expect(created.matches.banks, greaterThan(0));
+
+      final requests = await client.getRequests(status: 'open');
+      expect(requests.any((r) => r.id == created.request.id), isTrue);
+
+      // Accept request
+      final channelId = await client.acceptRequest(created.request.id);
+      expect(channelId, created.request.channelId);
+
+      // Fulfill request
+      final fulfilled = await client.fulfillRequest(created.request.id);
+      expect(fulfilled.status, 'fulfilled');
+      expect(fulfilled.isFulfilled, isTrue);
+    });
+
+    test('Notifications API and NotificationsProvider polling', () async {
+      MockApiClient.resetMockNotifications();
+      final notifications = await client.getNotifications();
+      expect(notifications.length, 3);
+      expect(notifications.first['id'], 'n1');
+      expect(notifications.first['title'], 'Ready to save lives again?');
+      expect(notifications.first['read'], isFalse);
+
+      final provider = NotificationsProvider(apiClient: client);
+      await provider.fetchNotifications();
+      expect(provider.notifications.length, 3);
+      expect(provider.unreadCount, 2);
+      expect(provider.hasUnread, isTrue);
+      expect(provider.activeBanner?.title, 'Ready to save lives again?');
+
+      // Dismiss banner
+      provider.dismissBanner();
+      expect(provider.activeBanner, isNull);
+
+      // Mark read
+      await provider.markAsRead('n1');
+      expect(provider.unreadCount, 1);
+      await provider.markAllAsRead();
+      expect(provider.unreadCount, 0);
+      expect(provider.hasUnread, isFalse);
+
+      provider.dispose();
+    });
+  });
+}
