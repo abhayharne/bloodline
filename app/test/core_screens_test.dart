@@ -23,6 +23,8 @@ import 'package:bloodline/core/scaffold_messenger.dart';
 import 'package:bloodline/core/providers/settings_provider.dart';
 import 'package:bloodline/features/chat/channel_inbox_screen.dart';
 import 'package:bloodline/features/debug/debug_screen.dart';
+import 'package:bloodline/features/settings/settings_screen.dart';
+import 'package:bloodline/core/location_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 Widget createTestApp(
@@ -507,6 +509,7 @@ void main() {
     expect(find.text('Enter 6-digit Mock OTP'), findsNothing);
 
     // Tap quick login chip with failing backend
+    await tester.ensureVisible(find.text('Asha (Donor O+)'));
     await tester.tap(find.text('Asha (Donor O+)'));
     await tester.pumpAndSettle();
 
@@ -553,6 +556,7 @@ void main() {
     await tester.enterText(hospitalField, 'City Care Clinic');
 
     // Broadcast request
+    await tester.ensureVisible(find.text('Broadcast Blood Request'));
     await tester.tap(find.text('Broadcast Blood Request'));
     await tester.pumpAndSettle();
 
@@ -567,7 +571,7 @@ void main() {
     expect(find.widgetWithText(ListTile, 'City Care Clinic'), findsOneWidget);
   });
 
-  testWidgets('RequesterScreen urgency options support and send low, medium, high, and critical', (tester) async {
+  testWidgets('RequesterScreen urgency options support and send critical, urgent, and planned per docs/API.md', (tester) async {
     final client = ApiClient(mockMode: true);
     final requests = RequestsProvider(apiClient: client);
 
@@ -577,23 +581,24 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    // Verify all 4 urgency segment options exist
-    expect(find.text('Low'), findsOneWidget);
-    expect(find.text('Medium'), findsOneWidget);
-    expect(find.text('High'), findsOneWidget);
+    // Verify all 3 urgency segment options exist per API contract
     expect(find.text('Critical'), findsOneWidget);
+    expect(find.text('Urgent'), findsOneWidget);
+    expect(find.text('Planned'), findsOneWidget);
 
-    // Select Low and broadcast
-    await tester.tap(find.text('Low'));
+    // Select Planned and broadcast
+    await tester.ensureVisible(find.text('Planned'));
+    await tester.tap(find.text('Planned'));
     await tester.pumpAndSettle();
     final hospitalField = find.widgetWithText(TextFormField, 'Hospital / Delivery Location');
-    await tester.enterText(hospitalField, 'Urgency Low Hospital');
+    await tester.enterText(hospitalField, 'Urgency Planned Hospital');
+    await tester.ensureVisible(find.text('Broadcast Blood Request'));
     await tester.tap(find.text('Broadcast Blood Request'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('View Requests'));
     await tester.pumpAndSettle();
 
-    expect(requests.requests.first.urgency, 'low');
+    expect(requests.requests.first.urgency, 'planned');
   });
 
   testWidgets('HomeScreen logout button displays confirm dialog, disconnects Nexconn, and clears session', (tester) async {
@@ -670,6 +675,203 @@ void main() {
     expect(auth.isAuthenticated, isFalse);
     expect(auth.currentUser, isNull);
   });
+
+  testWidgets('SettingsScreen logout button displays confirm dialog, resets providers, and returns to login', (tester) async {
+    final client = ApiClient(mockMode: true);
+    final auth = AuthProvider(apiClient: client);
+    final requests = RequestsProvider(apiClient: client);
+    auth.setCurrentUserForTesting(
+      const User(id: 'u3', name: 'Dr. Sunita', role: 'bank'),
+      token: 'jwt_sunita',
+    );
+    await NexconnService.instance.connect('mock_token_sunita');
+
+    expect(auth.isAuthenticated, isTrue);
+
+    await tester.pumpWidget(createTestApp(
+      const SettingsScreen(),
+      authProvider: auth,
+      requestsProvider: requests,
+    ));
+    await tester.pumpAndSettle();
+
+    final logoutBtn = find.byKey(const Key('settings_logout_button'));
+    await tester.scrollUntilVisible(logoutBtn, 200);
+    await tester.tap(logoutBtn);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Confirm Logout'), findsOneWidget);
+    await tester.tap(find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.text('Log Out'),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(auth.isAuthenticated, isFalse);
+    expect(auth.currentUser, isNull);
+    expect(requests.requests, isEmpty);
+  });
+
+  testWidgets('LoginScreen normalizes 10-digit phone to +91 before sending OTP', (tester) async {
+    String? capturedPhone;
+    final client = _RecordingApiClient(onSendOtp: (p) => capturedPhone = p);
+    final auth = AuthProvider(apiClient: client);
+
+    await tester.pumpWidget(createTestApp(
+      const LoginScreen(),
+      authProvider: auth,
+    ));
+    await tester.pumpAndSettle();
+
+    // Enter a 10-digit number without country code
+    final phoneField = find.widgetWithText(TextField, 'Phone Number');
+    await tester.enterText(phoneField, '9876543210');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Get Mock OTP'));
+    await tester.pumpAndSettle();
+
+    expect(capturedPhone, '+919876543210');
+    expect(find.text('demo mode, code 123456'), findsOneWidget);
+  });
+
+  test('LocationController defaults to "Location not set", last choice wins, and GPS clears preset', () {
+    final controller = LocationController();
+    expect(controller.displayText, 'Location not set');
+    expect(controller.hasLocation, isFalse);
+
+    // Set preset
+    controller.setPreset('Sitabuldi', 21.1458, 79.0882);
+    expect(controller.source, LocationSource.preset);
+    expect(controller.displayText, 'Sitabuldi (21.1458, 79.0882)');
+
+    // Last choice wins: typed overrides preset
+    controller.setTyped('Custom Clinic', 21.1500, 79.0900);
+    expect(controller.source, LocationSource.typed);
+    expect(controller.displayText, 'Custom Clinic (21.1500, 79.0900)');
+
+    // Choosing GPS clears preset selection
+    controller.clearPreset();
+    expect(controller.source, isNull);
+    expect(controller.label, isNull);
+
+    // Clear resets to Location not set
+    controller.clear();
+    expect(controller.displayText, 'Location not set');
+  });
+
+  testWidgets('RequesterScreen renders Component dropdown, Hospital picker with "Other" option, and notes field', (tester) async {
+    final client = ApiClient(mockMode: true);
+    final requests = RequestsProvider(apiClient: client);
+
+    await tester.pumpWidget(createTestApp(
+      const RequesterScreen(),
+      requestsProvider: requests,
+    ));
+    await tester.pumpAndSettle();
+
+    // Component dropdown
+    expect(find.text('Blood Component'), findsOneWidget);
+    expect(find.text('Whole blood'), findsOneWidget);
+
+    // Notes field
+    expect(find.byKey(const Key('notes_field')), findsOneWidget);
+
+    // Hospital picker
+    expect(find.text('Select Hospital (nearest first)'), findsOneWidget);
+
+    // Open hospital picker and select "Other (type a name)"
+    await tester.tap(find.byKey(const Key('hospital_picker_dropdown')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Other (type a name)').last, findsOneWidget);
+    await tester.tap(find.text('Other (type a name)').last);
+    await tester.pumpAndSettle();
+
+    // Now user types custom hospital
+    final hospitalField = find.widgetWithText(TextFormField, 'Hospital / Delivery Location');
+    await tester.enterText(hospitalField, 'St. John Trauma Care');
+    await tester.pumpAndSettle();
+
+    // Broadcast request
+    await tester.ensureVisible(find.text('Broadcast Blood Request'));
+    await tester.tap(find.text('Broadcast Blood Request'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Emergency Request Broadcasted!'), findsOneWidget);
+    expect(find.textContaining('Matched 2 blood bank(s) and 5 donor(s)'), findsOneWidget);
+    expect(find.text('Enter Room'), findsOneWidget);
+  });
+
+  testWidgets('RequestSummaryHeader shows component chip in room header', (tester) async {
+    final reqWithComponent = BloodRequest(
+      id: 'r_comp',
+      bloodGroup: 'B+',
+      units: 3,
+      hospital: 'Apollo Reach',
+      urgency: 'urgent',
+      status: 'open',
+      channelId: 'reqr_comp',
+      component: 'Platelets',
+    );
+
+    await tester.pumpWidget(createTestApp(
+      Scaffold(body: RequestSummaryHeader(request: reqWithComponent)),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('room_header_component_chip')), findsOneWidget);
+    expect(find.text('Platelets'), findsOneWidget);
+    expect(find.text('URGENT'), findsOneWidget);
+  });
+
+  testWidgets('ProfileScreen renders "I can donate platelets/plasma" switch for donor role', (tester) async {
+    await tester.pumpWidget(createTestApp(
+      const ProfileScreen(isNewUser: true, initialRole: 'donor'),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('I can donate platelets/plasma'), findsOneWidget);
+    expect(find.byKey(const Key('can_donate_platelets_tile')), findsOneWidget);
+  });
+
+  testWidgets('HomeScreen debug icon is hidden unless demo mode', (tester) async {
+    // When mockMode is false, debug icon must be hidden
+    final liveClient = _FailingApiClient();
+    final authLive = AuthProvider(apiClient: liveClient);
+
+    await tester.pumpWidget(createTestApp(
+      const HomeScreen(),
+      authProvider: authLive,
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('home_debug_button')), findsNothing);
+
+    // When mockMode is true, debug icon is visible
+    final mockClient = ApiClient(mockMode: true);
+    final authMock = AuthProvider(apiClient: mockClient);
+
+    await tester.pumpWidget(createTestApp(
+      const HomeScreen(),
+      authProvider: authMock,
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('home_debug_button')), findsOneWidget);
+  });
+}
+
+class _RecordingApiClient extends MockApiClient {
+  final Function(String phone) onSendOtp;
+
+  _RecordingApiClient({required this.onSendOtp}) : super(mockMode: true);
+
+  @override
+  Future<Map<String, dynamic>> sendOtp(String phone) async {
+    onSendOtp(phone);
+    return {'sent': true, 'demo': true};
+  }
 }
 
 class _FailingApiClient extends MockApiClient {

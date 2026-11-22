@@ -4,12 +4,12 @@ import '../../core/slot_registry.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/config_provider.dart';
 import '../../core/providers/notifications_provider.dart';
+import '../../core/auth_dialogs.dart';
 import '../requester/requester_screen.dart';
 import '../donor/donor_screen.dart';
 import '../bank/bank_screen.dart';
 import '../chat/channel_inbox_screen.dart';
 import '../auth/profile_screen.dart';
-import '../auth/login_screen.dart';
 import '../debug/debug_screen.dart';
 import '../notifications/notification_banner.dart';
 import '../notifications/notifications_screen.dart';
@@ -24,39 +24,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentTabIndex = 0;
-
-  Future<void> _confirmLogout(BuildContext context) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Confirm Logout'),
-        content: const Text(
-          'Are you sure you want to log out? This will disconnect chat and return to the login screen.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Log Out'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true && context.mounted) {
-      await context.read<AuthProvider>().logout();
-      if (context.mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-          (route) => false,
-        );
-      }
-    }
-  }
 
   Widget _buildRoleDashboard(String role) {
     switch (role) {
@@ -216,23 +183,25 @@ class _HomeScreenState extends State<HomeScreen> {
               const PopupMenuItem(value: 'bank', child: Text('Switch to Blood Bank')),
             ],
           ),
-          // Debug screen icon
-          IconButton(
-            icon: const Icon(Icons.bug_report_outlined),
-            tooltip: 'Debug & Token Settings',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const DebugScreen()),
-              );
-            },
-          ),
+          // Debug screen icon (only in demo mode)
+          if (auth.apiClient.mockMode)
+            IconButton(
+              key: const Key('home_debug_button'),
+              icon: const Icon(Icons.bug_report_outlined),
+              tooltip: 'Debug & Token Settings',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DebugScreen()),
+                );
+              },
+            ),
           // Logout button
           IconButton(
             key: const Key('home_logout_button'),
             icon: const Icon(Icons.logout),
             tooltip: 'Logout',
-            onPressed: () => _confirmLogout(context),
+            onPressed: () => confirmAndLogout(context),
           ),
         ],
       ),

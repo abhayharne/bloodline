@@ -34,6 +34,14 @@ class RequestsProvider extends ChangeNotifier {
     }
   }
 
+  void reset() {
+    _requests = [];
+    _donatedRequestIds.clear();
+    _isLoading = false;
+    _error = null;
+    notifyListeners();
+  }
+
   Future<BloodRequestResponse?> createRequest({
     required String bloodGroup,
     required int units,
@@ -41,10 +49,14 @@ class RequestsProvider extends ChangeNotifier {
     required String urgency,
     required double lat,
     required double lng,
+    String? component,
+    String? notes,
   }) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
+
+    debugPrint('[RequestsProvider] createRequest: group=$bloodGroup, units=$units, hospital=$hospital, urgency=$urgency, lat=$lat, lng=$lng, component=$component, notes=$notes');
 
     try {
       final resp = await apiClient.createRequest(
@@ -54,16 +66,22 @@ class RequestsProvider extends ChangeNotifier {
         urgency: urgency,
         lat: lat,
         lng: lng,
+        component: component,
+        notes: notes,
       );
+      debugPrint('[RequestsProvider] createRequest success: id=${resp.request.id}, channel=${resp.request.channelId}, banks=${resp.matches.banks}, donors=${resp.matches.donors}');
+
       // Refetch GET /requests and show the new request in My Active Requests immediately
       try {
         final fetched = await apiClient.getRequests(status: 'all');
+        debugPrint('[RequestsProvider] refetched ${fetched.length} requests');
         if (fetched.any((r) => r.id == resp.request.id)) {
           _requests = fetched;
         } else {
           _requests = [resp.request, ...fetched];
         }
-      } catch (_) {
+      } catch (e) {
+        debugPrint('[RequestsProvider] refetch failed ($e), prepending local instance');
         if (!_requests.any((r) => r.id == resp.request.id)) {
           _requests.insert(0, resp.request);
         }
@@ -72,6 +90,7 @@ class RequestsProvider extends ChangeNotifier {
       notifyListeners();
       return resp;
     } catch (e) {
+      debugPrint('[RequestsProvider] createRequest failed: $e');
       _isLoading = false;
       _error = e.toString();
       notifyListeners();

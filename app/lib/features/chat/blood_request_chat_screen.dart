@@ -11,13 +11,12 @@ Color getUrgencyColor(String urgency) {
   switch (urgency.toLowerCase()) {
     case 'critical':
       return Colors.red.shade700;
-    case 'high':
+    case 'urgent':
       return Colors.deepOrange;
-    case 'medium':
-      return Colors.amber.shade800;
-    case 'low':
-    default:
+    case 'planned':
       return Colors.blueGrey;
+    default:
+      return Colors.amber.shade800;
   }
 }
 
@@ -148,6 +147,27 @@ class RequestSummaryHeader extends StatelessWidget {
                     ),
                   ),
                 ),
+                // Component chip
+                if (request.component != null && request.component!.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    key: const Key('room_header_component_chip'),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.purple.shade50,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.purple.shade300),
+                    ),
+                    child: Text(
+                      request.component!,
+                      style: TextStyle(
+                        color: Colors.purple.shade800,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
                 // Fulfill action button for requester
                 if (isRequester && !isClosed) ...[
                   const SizedBox(width: 8),

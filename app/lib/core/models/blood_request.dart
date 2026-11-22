@@ -5,7 +5,7 @@ class BloodRequest {
   final String bloodGroup;
   final int units;
   final String hospital;
-  final String urgency; // 'low' | 'medium' | 'high' | 'critical'
+  final String urgency; // 'critical' | 'urgent' | 'planned' (per docs/API.md)
   final String status; // 'open' | 'fulfilled' | 'cancelled'
   final String channelId;
   final DateTime? createdAt;
@@ -15,6 +15,8 @@ class BloodRequest {
   final bool donated;
   final double lat;
   final double lng;
+  final String? component; // 'Whole blood' | 'Red cells' | 'Platelets' | 'Plasma' | 'Other'
+  final String? notes;
 
   const BloodRequest({
     required this.id,
@@ -31,6 +33,8 @@ class BloodRequest {
     this.donated = false,
     this.lat = 0.0,
     this.lng = 0.0,
+    this.component,
+    this.notes,
   });
 
   bool get isOpen => status == 'open';
@@ -58,7 +62,9 @@ class BloodRequest {
       bloodGroup: json['blood_group']?.toString() ?? 'O+',
       units: (json['units'] as num?)?.toInt() ?? 1,
       hospital: json['hospital']?.toString() ?? '',
-      urgency: json['urgency']?.toString() ?? 'medium',
+      urgency: json['urgency']?.toString() ?? 'planned',
+      component: json['component']?.toString(),
+      notes: json['notes']?.toString(),
       status: json['status']?.toString() ?? 'open',
       channelId: json['channel_id']?.toString() ?? 'req${json['id'] ?? ''}',
       createdAt: parseCreatedAt(json['created_at']),
@@ -86,6 +92,8 @@ class BloodRequest {
         'donated': donated,
         'lat': lat,
         'lng': lng,
+        if (component != null) 'component': component,
+        if (notes != null) 'notes': notes,
       };
 
   BloodRequest copyWith({
@@ -103,6 +111,8 @@ class BloodRequest {
     bool? donated,
     double? lat,
     double? lng,
+    String? component,
+    String? notes,
   }) {
     return BloodRequest(
       id: id ?? this.id,
@@ -119,6 +129,8 @@ class BloodRequest {
       donated: donated ?? this.donated,
       lat: lat ?? this.lat,
       lng: lng ?? this.lng,
+      component: component ?? this.component,
+      notes: notes ?? this.notes,
     );
   }
 }

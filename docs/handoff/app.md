@@ -1,28 +1,40 @@
 # App Handoff
-**From:** antigravity (app agent)  **To:** next agent / human  **Time:** 2026-11-22 13:50 IST
-**Branch:** main
+**From:** antigravity (app agent)  **To:** next agent / human  **Time:** 2026-11-22 14:30 IST
+**Branch:** feat/app
 
 ## Done this iteration
-- Real error surfacing on login & mock banner:
-  - Eliminated silent mock fallback when `USE_MOCK` is false; connection/login errors are surfaced in a SnackBar and the user remains on `LoginScreen`.
-  - Added visible "Demo mode (offline data)" banner on `LoginScreen` and `HomeScreen` when mock mode is active.
-- Defensive `created_at` timestamp parsing:
-  - Added `parseCreatedAt` to `BloodRequest` and `InAppNotification`; `null` or empty strings safely return `null` without throwing.
-  - Invalid date strings surface error in a SnackBar via `rootScaffoldMessengerKey`.
-- Request broadcast & immediate active requests refresh:
-  - `RequestsProvider.createRequest` and `RequesterScreen` immediately refetch `GET /requests` so the newly broadcasted request appears in "My Active Requests".
-- Urgency options:
-  - Configured segmented urgency selector to send `low|medium|high|critical`.
-- Logout with confirm dialog:
-  - Added logout button to `HomeScreen` and `ProfileScreen` with confirmation dialog.
-  - Clears stored auth token, user profile, SharedPreferences session, disconnects Nexconn chat SDK, and navigates to `LoginScreen`.
-- Widget Tests & Gate Verification:
-  - Added comprehensive widget tests for mock banner, real error snackbars on failure, defensive date parsing, broadcast refetching, urgency values, and logout confirmation.
-  - Verification gate `scripts/gate-app.sh` is 100% GREEN (85/85 tests passing, 0 analyzer errors/warnings).
+1. **Error surfacing & OTP UX:**
+   - Every failed API call logs details and surfaces the server's error message via SnackBar.
+   - Displayed "demo mode, code 123456" on OTP verification screen.
+   - Added phone normalization (`normalizePhone`) prepending `+91` to 10-digit phone numbers before sending.
+2. **Broadcast & Urgency contract fix:**
+   - Diagnosed root cause of requests not appearing: backend validates urgency against `critical|urgent|planned` (rejecting `low|medium|high` with 400).
+   - Reconciled UI to send `critical|urgent|planned` per `docs/API.md`. Added request/response debug logging.
+   - Immediately refetches `GET /requests` on broadcast; displays confirmation dialog with match counts and button to open chat room.
+3. **LocationController:**
+   - Created `LocationController` supporting sources `gps|preset|typed`.
+   - "Use Device GPS" button is always enabled; choosing GPS clears preset selection; last choice wins.
+   - Added `ACCESS_FINE_LOCATION` to `AndroidManifest.xml`.
+   - High-accuracy GPS with 15s timeout, falling back to `getLastKnownPosition`.
+   - Explicit handling and messages for services off (`openLocationSettings`), denied (retry), denied forever (`openAppSettings`), and timeout.
+   - Shows "Using GPS (±N m)" with coordinates; shows "Location not set" when unset.
+4. **Logout & Debug icon:**
+   - Added confirm logout dialog in Profile and Settings screens that clears token/user, disconnects Nexconn, resets `RequestsProvider` and `NotificationsProvider`, and returns to login.
+   - Hid debug icon on HomeScreen unless running in demo/mock mode.
+5. **Hospital Picker:**
+   - Added `getHospitals` in `ApiClient`, `HttpApiClient`, and `MockApiClient` (sorted nearest first by user location).
+   - Searchable/selectable picker with "Other (type a name)" option; selecting one sets request coordinates.
+6. **Component & Donor profile:**
+   - Added Component dropdown (`Whole blood`, `Red cells`, `Platelets`, `Plasma`, `Other`) and optional notes field.
+   - Displayed component chip in `RequestSummaryHeader` chat room header.
+   - Added "I can donate platelets/plasma" switch to donor profile.
+7. **Verification & Tests:**
+   - Added comprehensive widget and unit tests in `core_screens_test.dart`.
+   - `scripts/gate-app.sh` 100% GREEN (92/92 tests passing, 0 analyzer errors/warnings).
 
 ## State of the code
-- Gate: `scripts/gate-app.sh` PASS (85/85 tests passing, clean analyzer).
-- Working tree clean, all 5 requested items verified.
+- Gate: `scripts/gate-app.sh` PASS (92/92 tests passing, clean analyzer).
+- Working tree clean, all 6 requested items verified.
 
 ## Next action
-- Run live e2e integration against Go backend with real credentials (`scripts/gate-api.sh` + `gate-app.sh`).
+- Live end-to-end rehearsal with backend (`scripts/smoke.sh` and two-device chat test).
