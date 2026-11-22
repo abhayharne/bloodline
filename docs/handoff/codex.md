@@ -42,13 +42,17 @@ verification scripts.
   mirror returned zero results. The original 12 entries remain and the
   picker says “Sample hospitals.”
 
-## Phone checklist
+## Verified on the Motorola Edge 50 Fusion
 
-1. Use the real API base URL with `USE_MOCK=false`. Sign up with a fresh phone,
-   navigate back from Home once and confirm the registration route is gone.
-2. Edit weight or height from the Profile tab. Save, confirm the tab stays
-   visible, and verify the values survive signing out and signing back in.
-3. Broadcast a request and verify the row and room appear. The owner should
-   see “Mark fulfilled” and neither donor action.
-4. Sign in with a matching donor. Accept, open the room, verify live Nexconn
-   chat, and record a donation. Return as the requester and fulfill.
+- Installed the current debug APK over USB. The old API on port 18080 served
+  health but returned 404 for OTP and config. Used the current Go API with
+  a fresh database and live Nexconn for the final run.
+- Registration reached Home. Saving weight kept Edit Profile visible and
+  showed “Profile saved.” A fresh sign-in showed 79.0 and the API returned 79.
+- Broadcast matched one donor. The requester saw the open row and owner
+  controls. The donor saw the accept action before joining, then recorded
+  one donation and received the Donated badge.
+- The donor sent “BloodLine phone check BL7261.” After switching accounts
+  on the same phone, the requester read it in the same Nexconn room.
+- The requester fulfilled the request. The phone displayed the read-only
+  banner and the API returned fulfilled for request r2627d75159e83110.
