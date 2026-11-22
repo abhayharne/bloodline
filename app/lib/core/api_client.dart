@@ -221,7 +221,7 @@ class HttpApiClient implements ApiClient {
       'lat': lat,
       'lng': lng,
       if (phone != null) 'phone': phone,
-      if (otp != null) 'otp': otp,
+      if (otp != null) 'code': otp,
       if (age != null) 'age': age,
       if (weight != null) 'weight_kg': weight,
       if (height != null) 'height_cm': height,
@@ -481,7 +481,7 @@ class HttpApiClient implements ApiClient {
         .post(
           Uri.parse('$baseUrl/auth/verify'),
           headers: _headers(),
-          body: jsonEncode({'phone': phone, 'otp': otp}),
+          body: jsonEncode({'phone': phone, 'code': otp}),
         )
         .timeout(const Duration(seconds: 5));
 
