@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -77,6 +78,19 @@ func decodeRequests(t *testing.T, rec *httptest.ResponseRecorder) requestsRespon
 		t.Fatalf("decode: %v (body %s)", err, rec.Body.String())
 	}
 	return resp
+}
+
+func TestCreateRequestDoesNotPublishWhenRoomCreationFails(t *testing.T) {
+	api, users := setupRequestAPI(t)
+	api.chat.createErr = errors.New("chat unavailable")
+	rec := api.doWithToken(t, http.MethodPost, "/requests", requestBody, users.requesterToken)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("create status = %d, want 500", rec.Code)
+	}
+	requests, err := api.store.Requests(context.Background(), "all")
+	if err != nil || len(requests) != 0 {
+		t.Fatalf("stored requests = %v, error = %v", requests, err)
+	}
 }
 
 func TestCreateRequestCreatesRoomAndNotifiesMatches(t *testing.T) {
@@ -209,8 +223,8 @@ func TestAcceptAndFulfillRequest(t *testing.T) {
 	if err := json.Unmarshal(fulfill.Body.Bytes(), &fulfilled); err != nil {
 		t.Fatal(err)
 	}
-	if fulfilled.Request.Status != "fulfilled" {
-		t.Errorf("status = %q, want fulfilled", fulfilled.Request.Status)
+	if fulfilled.Request.Status != "fulfilled" || fulfilled.Request.FulfilledAt == nil {
+		t.Errorf("expected fulfilled request with a timestamp, got %+v", fulfilled.Request)
 	}
 	if len(api.chat.messages) != 1 || len(api.chat.frozen) != 1 {
 		t.Errorf("chat messages = %v, frozen = %v", api.chat.messages, api.chat.frozen)
@@ -235,6 +249,21 @@ func TestAcceptAndFulfillRequest(t *testing.T) {
 	}
 	if rec := api.doWithToken(t, http.MethodPost, path+"/accept", "", users.donorToken); rec.Code != http.StatusConflict {
 		t.Errorf("accept after fulfill status = %d, want 409", rec.Code)
+	}
+}
+
+func TestAcceptRequiresDonorMatch(t *testing.T) {
+	api, users := setupRequestAPI(t)
+	created := createTestRequest(t, api, users)
+	signup := api.do(t, http.MethodPost, "/auth/signup",
+		`{"phone":"+944444444444","name":"Other","role":"donor","blood_group":"AB+","lat":21.15,"lng":79.09}`)
+	if signup.Code != http.StatusCreated {
+		t.Fatalf("signup failed: %s", signup.Body.String())
+	}
+	token := decodeAuthResponse(t, signup).Token
+	rec := api.doWithToken(t, http.MethodPost, "/requests/"+created.Request.ID+"/accept", "", token)
+	if rec.Code != http.StatusForbidden || len(api.chat.joined) != 0 {
+		t.Fatalf("accept = %d, chat joins = %v", rec.Code, api.chat.joined)
 	}
 }
 

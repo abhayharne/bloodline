@@ -68,6 +68,7 @@ class _RequesterScreenState extends State<RequesterScreen> {
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       context.read<RequestsProvider>().loadRequests(status: 'all');
       _loadHospitals();
     });
@@ -85,8 +86,11 @@ class _RequesterScreenState extends State<RequesterScreen> {
           _nearbyHospitals = list;
         });
       }
-    } catch (e) {
-      debugPrint('[RequesterScreen] Failed to load hospitals: $e');
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Hospital directory unavailable. You can enter a hospital manually.')),
+      );
     }
   }
 

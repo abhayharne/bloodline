@@ -61,6 +61,7 @@ Stretch only if all else is done: AI summary pinned in room; push notifications 
 - [ ] T4.1 Seed demo data, one-tap "reset demo" script
 - [ ] T4.2 Empty/error/loading states, app icon, name, splash
 - [ ] T4.3 Bug bash against docs/DEMO_SCRIPT.md
+- [x] T4.3a (human) Review and fix confirmed API and Flutter defects
 - [ ] T4.4 (stretch) AI summary pinned in room
 
 ## P5 — Ship

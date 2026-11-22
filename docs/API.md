@@ -266,11 +266,10 @@ most 500 characters.
   "matches":{ "banks":1, "donors":4 } }
 ```
 `component` and `notes` are returned on **every** request response (create,
-feed, fulfill). Matched banks are those holding enough stock of the requested
+feed, fulfill). Matched banks are distinct banks holding enough stock of the requested
 component in a compatible group (top 2 by distance); matched donors are the
-closest compatible donors (top 10). For `whole_blood`/`red_cells`/`other` the
-live path keeps the exact-group rule (D4) and the existing red-cell
-compatibility table; for `platelets`/`plasma`/`cryo` banks are matched by
+closest compatible donors within `MATCH_RADIUS_KM` (top 10). For `whole_blood`/`red_cells`/`other` the
+live path keeps the exact-group rule (D4); for `platelets`/`plasma`/`cryo` banks are matched by
 **component stock first** and only donors with `apheresis_ok=true` are matched.
 See **Component compatibility** below. With the `reminders` flag on, the
 `isAvailable` and `isEligible` filters also apply to donors. Publishes
@@ -293,8 +292,10 @@ where `...request` includes `component` and `notes`.
 ### Component compatibility
 
 The pure rules (also covered by table-driven tests in `internal/matching`):
-- `whole_blood`, `red_cells`, `other` — the existing red-cell ABO/Rh chart
-  (`O-` may receive from all eight groups, `AB+` only from `AB+`); Rh matters.
+- `red_cells` — the ABO/Rh chart allows `AB+` recipients to receive red cells
+  from all eight groups, while `O-` recipients match only `O-`. Live
+  matching retains the exact-group rule.
+- `whole_blood`, `other` — exact group matching.
 - `plasma`, `cryo` — **reverse ABO, Rh ignored**: the patient on the left may
   receive from the groups on the right — `O`←`all` (`O` is the universal
   recipient), `A`←`A`,`AB`, `B`←`B`,`AB`, `AB`←`AB` (only `AB` plasma). This is
@@ -306,7 +307,9 @@ The pure rules (also covered by table-driven tests in `internal/matching`):
 
 ### POST /requests/{id}/accept (donor or bank)
 
-Adds the caller to the room. 200 `{"channel_id":"reqr..."}`. Idempotent; 409 if
+Adds the caller to the room. New members must be in range, and donors must
+match the group and component rules of the donor feed. Ineligible callers
+receive 403. 200 `{"channel_id":"reqr..."}`. Idempotent; 409 if
 the request is not open. Publishes `request.accepted` (the requester gets a
 notification row); a donor accept also writes a `donations` row for the request.
 
@@ -327,8 +330,7 @@ idempotent).
 Posts a system message, freezes the Nexconn room and sets status to `fulfilled`.
 200 `{"request":{...,"status":"fulfilled"}}`. Publishes `request.fulfilled`; all
 joined members get a notification row. 403 for a non-owner, 409 if not open.
-The response reflects the row read before the status write, so its `fulfilled_at`
-may still be null even though the stored row is stamped.
+The response includes the stored `fulfilled_at` timestamp.
 
 ## Dev routes (only when DEV=1, all unauthenticated)
 

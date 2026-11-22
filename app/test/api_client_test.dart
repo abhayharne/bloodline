@@ -1,3 +1,10 @@
+import 'dart:async';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:bloodline/core/models/blood_request.dart';
+import 'package:bloodline/core/providers/bank_stock_provider.dart';
+import 'package:bloodline/core/providers/requests_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bloodline/core/api_client.dart';
 import 'package:bloodline/core/features.dart';
@@ -5,6 +12,52 @@ import 'package:bloodline/core/slots.dart';
 import 'package:bloodline/core/providers/notifications_provider.dart';
 
 void main() {
+  test('stock editor reads and saves only whole blood', () async {
+    final api = HttpApiClient(httpClient: MockClient((request) async {
+      if (request.method == 'PUT') {
+        final rows = jsonDecode(request.body)['stock'] as List;
+        expect(rows, hasLength(8));
+        expect(rows.every((row) => row['component'] == 'whole_blood'), isTrue);
+        expect(rows.singleWhere((row) => row['blood_group'] == 'O+')['units'], 4);
+      }
+      return http.Response(jsonEncode({
+        'stock': [
+          {'blood_group': 'O+', 'component': 'whole_blood', 'units': 4},
+          {'blood_group': 'O+', 'component': 'plasma', 'units': 9},
+        ],
+      }), 200);
+    }));
+    final provider = BankStockProvider(apiClient: api);
+    addTearDown(provider.dispose);
+
+    await provider.loadStock();
+    expect(provider.stock.singleWhere((row) => row.bloodGroup == 'O+').units, 4);
+    expect(await provider.saveStock(), isTrue);
+    expect(provider.stock, hasLength(8));
+    expect(provider.stock.singleWhere((row) => row.bloodGroup == 'O+').units, 4);
+  });
+
+  test('reset discards an in-flight request feed from the previous session', () async {
+    final api = _PendingRequestsApi();
+    final provider = RequestsProvider(apiClient: api);
+    addTearDown(provider.dispose);
+    final load = provider.loadRequests();
+    provider.reset();
+    api.pending.complete(await MockApiClient().getRequests());
+    await load;
+    expect(provider.requests, isEmpty);
+  });
+
+  test('live hospital lookup surfaces HTTP failures', () async {
+    final api = HttpApiClient(httpClient: MockClient(
+      (_) async => http.Response('{"error":"directory unavailable"}', 503),
+    ));
+    await expectLater(
+      api.getHospitals(),
+      throwsA(isA<ApiException>().having((e) => e.statusCode, 'status', 503)),
+    );
+  });
+
   group('ApiClient Factory & Architecture', () {
     test('Factory creates MockApiClient when mockMode is true', () {
       final client = ApiClient(mockMode: true);
@@ -155,4 +208,14 @@ void main() {
       provider.dispose();
     });
   });
+}
+
+
+class _PendingRequestsApi extends MockApiClient {
+  final pending = Completer<List<BloodRequest>>();
+
+  @override
+  Future<List<BloodRequest>> getRequests({String status = 'open'}) {
+    return pending.future;
+  }
 }

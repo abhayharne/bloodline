@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"bloodline/data"
 	"bloodline/internal/events"
@@ -67,7 +69,7 @@ func (s *Service) CreateRequest(ctx context.Context, in RequestInput) (RequestRe
 		return RequestResult{}, err
 	}
 	notes := strings.TrimSpace(in.Notes)
-	if len(notes) > 500 {
+	if utf8.RuneCountInString(notes) > 500 {
 		return RequestResult{}, invalid("notes must be at most 500 characters")
 	}
 	urgency, err := normaliseUrgency(in.Urgency)
@@ -123,9 +125,6 @@ func (s *Service) CreateRequest(ctx context.Context, in RequestInput) (RequestRe
 		Component:   component,
 		Notes:       notes,
 	}
-	if err := s.store.CreateRequest(ctx, request); err != nil {
-		return RequestResult{}, err
-	}
 
 	// Whole blood/red cells/other keep the exact-group live rule (D4). Apheresis
 	// components use compatible groups, component stock and apheresis-opted-in
@@ -157,6 +156,9 @@ func (s *Service) CreateRequest(ctx context.Context, in RequestInput) (RequestRe
 		}
 		donors = applyReminderFilters(group, lat, lng, donors)
 	}
+	donors = slices.DeleteFunc(donors, func(donor store.User) bool {
+		return matching.DistanceKM(lat, lng, donor.Lat, donor.Lng) > s.matchRadius
+	})
 	rankByDistance(lat, lng, banks)
 	if apheresis {
 		sort.SliceStable(donors, func(i, j int) bool {
@@ -181,13 +183,8 @@ func (s *Service) CreateRequest(ctx context.Context, in RequestInput) (RequestRe
 	if err := s.chat.CreateGroupChannel(ctx, channelID, roomName, in.RequesterID, bankIDs); err != nil {
 		return RequestResult{}, fmt.Errorf("create room: %w", err)
 	}
-	if err := s.store.AddRequestMember(ctx, requestID, in.RequesterID, "requester"); err != nil {
+	if err := s.store.CreateRequest(ctx, request, bankIDs...); err != nil {
 		return RequestResult{}, err
-	}
-	for _, bankID := range bankIDs {
-		if err := s.store.AddRequestMember(ctx, requestID, bankID, "bank"); err != nil {
-			return RequestResult{}, err
-		}
 	}
 
 	s.Publish(ctx, events.RequestCreated, events.RequestCreatedPayload{
@@ -228,15 +225,7 @@ func (s *Service) Requests(ctx context.Context, userID, role, status string) ([]
 				continue
 			}
 		case "donor":
-			if caller.BloodGroup == nil {
-				continue
-			}
-			if isApheresisComponent(request.Component) {
-				if !caller.ApheresisOK ||
-					!matching.CompatibleForComponent(request.BloodGroup, *caller.BloodGroup, request.Component) {
-					continue
-				}
-			} else if *caller.BloodGroup != request.BloodGroup {
+			if !donorMatchesRequest(caller, request) {
 				continue
 			}
 			distance = matching.DistanceKM(caller.Lat, caller.Lng, request.Lat, request.Lng)
@@ -294,6 +283,10 @@ func (s *Service) AcceptRequest(ctx context.Context, requestID, userID string) (
 		return "", err
 	}
 	if !joined {
+		if matching.DistanceKM(user.Lat, user.Lng, request.Lat, request.Lng) > s.matchRadius ||
+			(user.Role == "donor" && !donorMatchesRequest(user, request)) {
+			return "", ErrForbidden
+		}
 		if err := s.chat.JoinGroupChannel(ctx, request.ChannelID, []string{userID}); err != nil {
 			return "", fmt.Errorf("join room: %w", err)
 		}
@@ -434,8 +427,7 @@ func (s *Service) FulfillRequest(ctx context.Context, requestID, userID string) 
 		BloodGroup:   request.BloodGroup,
 		Hospital:     request.Hospital,
 	})
-	request.Status = "fulfilled"
-	return request, nil
+	return s.store.RequestByID(ctx, requestID)
 }
 
 // applyReminderFilters runs the availability and eligibility filters that the
@@ -496,6 +488,14 @@ func userIDs(users []store.User) []string {
 	return ids
 }
 
+func donorMatchesRequest(donor store.User, request store.Request) bool {
+	group := donorGroup(donor)
+	if isApheresisComponent(request.Component) {
+		return donor.ApheresisOK && matching.CompatibleForComponent(request.BloodGroup, group, request.Component)
+	}
+	return group == request.BloodGroup
+}
+
 func donorGroup(user store.User) string {
 	if user.BloodGroup == nil {
 		return ""
@@ -506,6 +506,9 @@ func donorGroup(user store.User) string {
 func truncate(value string, max int) string {
 	if len(value) <= max {
 		return value
+	}
+	for !utf8.RuneStart(value[max]) {
+		max--
 	}
 	return value[:max]
 }

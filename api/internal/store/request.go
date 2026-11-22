@@ -25,8 +25,14 @@ type Request struct {
 	Notes       string  `json:"notes"`
 }
 
-// CreateRequest inserts a new open request.
-func (s *Store) CreateRequest(ctx context.Context, r Request) error {
+// CreateRequest inserts a new open request and its initial chat membership.
+func (s *Store) CreateRequest(ctx context.Context, r Request, bankIDs ...string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
 	createdAt := r.CreatedAt
 	if createdAt == "" {
 		createdAt = Timestamp()
@@ -37,7 +43,7 @@ func (s *Store) CreateRequest(ctx context.Context, r Request) error {
 	if component == "" {
 		component = "whole_blood"
 	}
-	_, err := s.db.ExecContext(ctx, `
+	_, err = tx.ExecContext(ctx, `
 		INSERT INTO requests (id, requester_id, blood_group, units, hospital,
 			urgency, lat, lng, status, channel_id, created_at, component, notes)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -50,7 +56,19 @@ func (s *Store) CreateRequest(ctx context.Context, r Request) error {
 		}
 		return err
 	}
-	return nil
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO request_members (request_id, user_id, role)
+		VALUES (?, ?, 'requester')`, r.ID, r.RequesterID); err != nil {
+		return err
+	}
+	for _, bankID := range bankIDs {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO request_members (request_id, user_id, role)
+			VALUES (?, ?, 'bank')`, r.ID, bankID); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // RequestByID finds a request by id.
@@ -192,7 +210,7 @@ func (s *Store) BanksWithStockFor(ctx context.Context, groups []string, componen
 	}
 	args = append(args, component, minUnits)
 	return scanUsers(s.db.QueryContext(ctx, `
-		SELECT `+qualifiedUserColumns+`
+		SELECT DISTINCT `+qualifiedUserColumns+`
 		FROM users u
 		JOIN bank_stock s ON s.bank_id = u.id
 		WHERE u.role = 'bank' AND s.blood_group IN (`+placeholders+`)

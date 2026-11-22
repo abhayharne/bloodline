@@ -11,6 +11,8 @@ class RequestsProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   Timer? _pollTimer;
+  int _session = 0;
+  int _latestLoad = 0;
 
   List<BloodRequest> get requests => _requests;
   Set<String> get donatedRequestIds => _donatedRequestIds;
@@ -24,7 +26,9 @@ class RequestsProvider extends ChangeNotifier {
   void startPolling({String status = 'open', Duration interval = const Duration(seconds: 10)}) {
     _pollTimer?.cancel();
     loadRequests(status: status, silent: true);
-    _pollTimer = Timer.periodic(interval, (_) => loadRequests(status: status, silent: true));
+    _pollTimer = Timer.periodic(interval, (_) {
+      if (!_isLoading) loadRequests(status: status, silent: true);
+    });
   }
 
   void stopPolling() {
@@ -33,6 +37,7 @@ class RequestsProvider extends ChangeNotifier {
   }
 
   Future<void> loadRequests({String status = 'open', bool silent = false}) async {
+    final load = ++_latestLoad;
     if (!silent) {
       _isLoading = true;
       _error = null;
@@ -40,11 +45,14 @@ class RequestsProvider extends ChangeNotifier {
     }
 
     try {
-      _requests = await apiClient.getRequests(status: status);
+      final requests = await apiClient.getRequests(status: status);
+      if (load != _latestLoad) return;
+      _requests = requests;
       _isLoading = false;
       _error = null;
       notifyListeners();
     } catch (e) {
+      if (load != _latestLoad) return;
       _isLoading = false;
       _error = e.toString();
       notifyListeners();
@@ -52,6 +60,8 @@ class RequestsProvider extends ChangeNotifier {
   }
 
   void reset() {
+    _session++;
+    _latestLoad++;
     stopPolling();
     _requests = [];
     _donatedRequestIds.clear();
@@ -62,6 +72,8 @@ class RequestsProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _session++;
+    _latestLoad++;
     stopPolling();
     super.dispose();
   }
@@ -76,11 +88,11 @@ class RequestsProvider extends ChangeNotifier {
     String? component,
     String? notes,
   }) async {
+    final session = _session;
+    _latestLoad++;
     _isLoading = true;
     _error = null;
     notifyListeners();
-
-    debugPrint('[RequestsProvider] createRequest: group=$bloodGroup, units=$units, hospital=$hospital, urgency=$urgency, lat=$lat, lng=$lng, component=$component, notes=$notes');
 
     try {
       final resp = await apiClient.createRequest(
@@ -93,19 +105,19 @@ class RequestsProvider extends ChangeNotifier {
         component: component,
         notes: notes,
       );
-      debugPrint('[RequestsProvider] createRequest success: id=${resp.request.id}, channel=${resp.request.channelId}, banks=${resp.matches.banks}, donors=${resp.matches.donors}');
 
+      if (session != _session) return null;
       // Refetch GET /requests and show the new request in My Active Requests immediately
       try {
         final fetched = await apiClient.getRequests(status: 'all');
-        debugPrint('[RequestsProvider] refetched ${fetched.length} requests');
+        if (session != _session) return null;
         if (fetched.any((r) => r.id == resp.request.id)) {
           _requests = fetched;
         } else {
           _requests = [resp.request, ...fetched];
         }
-      } catch (e) {
-        debugPrint('[RequestsProvider] refetch failed ($e), prepending local instance');
+      } catch (_) {
+        if (session != _session) return null;
         if (!_requests.any((r) => r.id == resp.request.id)) {
           _requests.insert(0, resp.request);
         }
@@ -114,7 +126,7 @@ class RequestsProvider extends ChangeNotifier {
       notifyListeners();
       return resp;
     } catch (e) {
-      debugPrint('[RequestsProvider] createRequest failed: $e');
+      if (session != _session) return null;
       _isLoading = false;
       _error = e.toString();
       notifyListeners();
@@ -123,8 +135,10 @@ class RequestsProvider extends ChangeNotifier {
   }
 
   Future<String?> acceptRequest(String requestId) async {
+    final session = _session;
     try {
       final channelId = await apiClient.acceptRequest(requestId);
+      if (session != _session) return null;
       final idx = _requests.indexWhere((r) => r.id == requestId);
       if (idx != -1) {
         _requests[idx] = _requests[idx].copyWith(joined: true);
@@ -132,6 +146,7 @@ class RequestsProvider extends ChangeNotifier {
       }
       return channelId;
     } catch (e) {
+      if (session != _session) return null;
       _error = e.toString();
       notifyListeners();
       return null;
@@ -139,8 +154,10 @@ class RequestsProvider extends ChangeNotifier {
   }
 
   Future<bool> fulfillRequest(String requestId) async {
+    final session = _session;
     try {
       final updated = await apiClient.fulfillRequest(requestId);
+      if (session != _session) return false;
       final idx = _requests.indexWhere((r) => r.id == requestId);
       if (idx != -1) {
         _requests[idx] = updated;
@@ -148,6 +165,7 @@ class RequestsProvider extends ChangeNotifier {
       }
       return true;
     } catch (e) {
+      if (session != _session) return false;
       _error = e.toString();
       notifyListeners();
       return false;
@@ -155,8 +173,10 @@ class RequestsProvider extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>?> recordDonation(String requestId) async {
+    final session = _session;
     try {
       final res = await apiClient.recordDonation(requestId);
+      if (session != _session) return null;
       _donatedRequestIds.add(requestId);
       final idx = _requests.indexWhere((r) => r.id == requestId);
       if (idx != -1) {
@@ -165,6 +185,7 @@ class RequestsProvider extends ChangeNotifier {
       notifyListeners();
       return res;
     } catch (e) {
+      if (session != _session) return null;
       _error = e.toString();
       notifyListeners();
       return null;

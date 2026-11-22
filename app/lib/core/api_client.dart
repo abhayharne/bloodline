@@ -329,7 +329,11 @@ class HttpApiClient implements ApiClient {
 
     final body = {
       'stock': stock
-          .map((item) => {'blood_group': item.bloodGroup, 'units': item.units})
+          .map((item) => {
+                'blood_group': item.bloodGroup,
+                'units': item.units,
+                'component': item.component,
+              })
           .toList()
     };
 
@@ -386,7 +390,6 @@ class HttpApiClient implements ApiClient {
       if (notes != null) 'notes': notes,
     };
 
-    debugPrint('[HttpApiClient] POST /requests body: ${jsonEncode(body)}');
 
     final res = await _httpClient
         .post(
@@ -396,7 +399,6 @@ class HttpApiClient implements ApiClient {
         )
         .timeout(const Duration(seconds: 5));
 
-    debugPrint('[HttpApiClient] POST /requests status=${res.statusCode} body=${res.body}');
 
     if (res.statusCode == 200 || res.statusCode == 201) {
       final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -409,24 +411,25 @@ class HttpApiClient implements ApiClient {
   Future<List<Map<String, dynamic>>> getHospitals({double? lat, double? lng}) async {
     if (mockMode) return _fallbackMock.getHospitals(lat: lat, lng: lng);
 
-    try {
-      final query = <String, String>{};
-      if (lat != null) query['lat'] = lat.toString();
-      if (lng != null) query['lng'] = lng.toString();
-      final uri = Uri.parse('$baseUrl/hospitals').replace(queryParameters: query.isNotEmpty ? query : null);
-      final res = await _httpClient.get(uri, headers: _headers()).timeout(const Duration(seconds: 4));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        if (data is Map && data['hospitals'] is List) {
-          return (data['hospitals'] as List).cast<Map<String, dynamic>>();
-        } else if (data is List) {
-          return data.cast<Map<String, dynamic>>();
-        }
-      }
-    } catch (e) {
-      debugPrint('[HttpApiClient] GET /hospitals error ($e), falling back to mock');
+    final query = <String, String>{
+      if (lat != null && lng != null) ...{
+        'lat': lat.toString(),
+        'lng': lng.toString(),
+      },
+    };
+    final uri = Uri.parse('$baseUrl/hospitals').replace(queryParameters: query);
+    final res = await _httpClient
+        .get(uri, headers: _headers())
+        .timeout(const Duration(seconds: 4));
+    if (res.statusCode != 200) {
+      throw ApiException.fromResponse(res.statusCode, res.body, 'Failed to load hospitals');
     }
-    return _fallbackMock.getHospitals(lat: lat, lng: lng);
+    final data = jsonDecode(res.body);
+    if (data is Map && data['hospitals'] is List) {
+      return (data['hospitals'] as List).cast<Map<String, dynamic>>();
+    }
+    if (data is List) return data.cast<Map<String, dynamic>>();
+    throw const FormatException('Invalid hospital directory response');
   }
 
   @override

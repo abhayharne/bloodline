@@ -45,7 +45,6 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       return;
     }
-    debugPrint('[LoginScreen] sendOtp phone=$phone');
     final auth = context.read<AuthProvider>();
     try {
       await auth.sendOtp(phone);
@@ -85,7 +84,6 @@ class _LoginScreenState extends State<LoginScreen> {
     final phone = normalizePhone(_phoneController.text.trim());
 
     try {
-      debugPrint('[LoginScreen] verifyOtp phone=$phone otp=$otp');
       final res = await authProvider.verifyOtp(phone: phone, otp: otp);
       if (!mounted) return;
 

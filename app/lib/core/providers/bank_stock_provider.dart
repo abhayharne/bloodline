@@ -34,15 +34,7 @@ class BankStockProvider extends ChangeNotifier {
 
     try {
       final fetched = await apiClient.getStock();
-      // Ensure all 8 blood groups exist
-      final map = {for (var item in fetched) item.bloodGroup: item.units};
-      _stock = kAllBloodGroups.map((grp) {
-        return BloodStockItem(
-          bloodGroup: grp,
-          units: map[grp] ?? 0,
-          updatedAt: DateTime.now(),
-        );
-      }).toList();
+      _stock = _wholeBloodStock(fetched);
 
       _isLoading = false;
       notifyListeners();
@@ -76,7 +68,7 @@ class BankStockProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _stock = await apiClient.updateStock(_stock);
+      _stock = _wholeBloodStock(await apiClient.updateStock(_stock));
       _isSaving = false;
       notifyListeners();
       return true;
@@ -86,5 +78,16 @@ class BankStockProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  List<BloodStockItem> _wholeBloodStock(List<BloodStockItem> stock) {
+    final byGroup = {
+      for (final item in stock)
+        if (item.component == 'whole_blood') item.bloodGroup: item,
+    };
+    return [
+      for (final group in kAllBloodGroups)
+        byGroup[group] ?? BloodStockItem(bloodGroup: group, units: 0),
+    ];
   }
 }

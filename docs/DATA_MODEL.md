@@ -61,14 +61,15 @@ A+, A-, B+, B-, AB+, AB-, O+, O-
 groups = [request.blood_group]                      for whole_blood/red_cells/other
 groups = compatible groups for the component        for plasma/cryo/platelets
 banks  = bank users with stock[group, component] >= units, ordered by
-         (exact group first, then distance), top 2
+         distance, top 2 distinct banks
 donors = donor users with blood_group in groups and distance <= MATCH_RADIUS_KM,
          apheresis_ok = 1 for platelets/plasma/cryo,
          ordered by (component rank, then distance), top 10
 distance = haversine(request.lat,lng ; user.lat,lng) in km
 ```
 Compatibility is component-aware (`CompatibleForComponent` in `internal/matching`):
-red cells/whole blood/other use the existing red-cell ABO/Rh chart; plasma and
+red cells use the red-cell ABO/Rh chart in the helper and exact groups in live
+matching. Whole blood and other use exact groups. Plasma and
 cryo use reverse ABO with Rh ignored; platelets prefer same ABO and put
 Rh-negative donors first for Rh-negative patients (ranked, not excluded). All
 rules are table-driven tested. The donor feed (`GET /requests`) applies the same

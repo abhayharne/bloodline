@@ -14,6 +14,7 @@ class NotificationsProvider extends ChangeNotifier {
   Timer? _pollTimer;
 
   bool _isDisposed = false;
+  int _session = 0;
 
   NotificationsProvider({required this.apiClient});
 
@@ -50,6 +51,7 @@ class NotificationsProvider extends ChangeNotifier {
       return;
     }
     if (_isFetching) return;
+    final session = _session;
     _isFetching = true;
 
     if (!silent && _notifications.isEmpty) {
@@ -60,7 +62,7 @@ class NotificationsProvider extends ChangeNotifier {
 
     try {
       final rawList = await apiClient.getNotifications();
-      if (_isDisposed) return;
+      if (_isDisposed || session != _session) return;
       _notifications = rawList.map((m) => InAppNotification.fromJson(m)).toList();
 
       // Check if there is an unread notification to show as banner
@@ -80,11 +82,13 @@ class NotificationsProvider extends ChangeNotifier {
         _activeBanner = null;
       }
     } catch (e) {
-      _error = e.toString();
+      if (session == _session && !_isDisposed) _error = e.toString();
     } finally {
-      _isFetching = false;
-      _isLoading = false;
-      notifyListeners();
+      if (session == _session && !_isDisposed) {
+        _isFetching = false;
+        _isLoading = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -98,9 +102,10 @@ class NotificationsProvider extends ChangeNotifier {
 
   Future<void> markAsRead(String id) async {
     if (_isDisposed) return;
+    final session = _session;
     try {
       await apiClient.markNotificationRead(id);
-      if (_isDisposed) return;
+      if (_isDisposed || session != _session) return;
       final idx = _notifications.indexWhere((n) => n.id == id);
       if (idx != -1) {
         _notifications[idx] = _notifications[idx].copyWith(read: true);
@@ -112,19 +117,22 @@ class NotificationsProvider extends ChangeNotifier {
       }
       notifyListeners();
     } catch (e) {
-      _error = e.toString();
+      if (session == _session && !_isDisposed) _error = e.toString();
       notifyListeners();
     }
   }
 
   Future<void> markAllAsRead() async {
+    final session = _session;
     final unreads = _notifications.where((n) => !n.read).toList();
     for (final notif in unreads) {
+      if (session != _session || _isDisposed) return;
       await markAsRead(notif.id);
     }
   }
 
   void reset() {
+    _session++;
     stopPolling();
     _notifications = [];
     _dismissedBannerIds.clear();

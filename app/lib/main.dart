@@ -83,11 +83,7 @@ void main() async {
             },
           ),
           ChangeNotifierProvider<RequestsProvider>(
-            create: (_) {
-              final reqs = RequestsProvider(apiClient: apiClient);
-              reqs.startPolling();
-              return reqs;
-            },
+            create: (_) => RequestsProvider(apiClient: apiClient),
           ),
           ChangeNotifierProvider<BankStockProvider>(
             create: (_) => BankStockProvider(apiClient: apiClient),
@@ -100,11 +96,7 @@ void main() async {
             },
           ),
           ChangeNotifierProvider<NotificationsProvider>(
-            create: (_) {
-              final notif = NotificationsProvider(apiClient: apiClient);
-              notif.startPolling();
-              return notif;
-            },
+            create: (_) => NotificationsProvider(apiClient: apiClient),
           ),
           ChangeNotifierProvider<SettingsProvider>(
             create: (_) {
@@ -120,11 +112,38 @@ void main() async {
   );
 }
 
-class BloodLineApp extends StatelessWidget {
+class BloodLineApp extends StatefulWidget {
   const BloodLineApp({super.key});
 
   @override
+  State<BloodLineApp> createState() => _BloodLineAppState();
+}
+
+class _BloodLineAppState extends State<BloodLineApp> {
+  String? _pollingToken;
+
+  void _syncPolling(AuthProvider auth) {
+    final token = auth.token;
+    if (token == _pollingToken) return;
+    _pollingToken = token;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || auth.token != token) return;
+      final requests = context.read<RequestsProvider>();
+      final notifications = context.read<NotificationsProvider>();
+      requests.reset();
+      notifications.reset();
+      if (token != null) {
+        requests.startPolling(
+          status: auth.currentUser?.role == 'requester' ? 'all' : 'open',
+        );
+        notifications.startPolling();
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    _syncPolling(context.watch<AuthProvider>());
     final settings = context.watch<SettingsProvider>();
     return MaterialApp(
       scaffoldMessengerKey: rootScaffoldMessengerKey,

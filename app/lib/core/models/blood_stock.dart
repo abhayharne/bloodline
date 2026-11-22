@@ -1,11 +1,13 @@
 class BloodStockItem {
   final String bloodGroup;
   final int units;
+  final String component;
   final DateTime? updatedAt;
 
   const BloodStockItem({
     required this.bloodGroup,
     required this.units,
+    this.component = 'whole_blood',
     this.updatedAt,
   });
 
@@ -20,6 +22,7 @@ class BloodStockItem {
 
     return BloodStockItem(
       bloodGroup: json['blood_group']?.toString() ?? '',
+      component: json['component']?.toString() ?? 'whole_blood',
       units: (json['units'] as num?)?.toInt() ?? 0,
       updatedAt: updated,
     );
@@ -28,6 +31,7 @@ class BloodStockItem {
   Map<String, dynamic> toJson() => {
         'blood_group': bloodGroup,
         'units': units,
+        'component': component,
         if (updatedAt != null) 'updated_at': updatedAt!.toIso8601String(),
       };
 
@@ -39,6 +43,7 @@ class BloodStockItem {
     return BloodStockItem(
       bloodGroup: bloodGroup ?? this.bloodGroup,
       units: units ?? this.units,
+      component: component,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }

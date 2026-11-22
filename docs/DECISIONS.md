@@ -169,3 +169,19 @@ with typed-area fallback (preset popular areas).
 
 
 
+## D17 — Review fixes across API and Flutter
+1. Red-cell ABO/Rh compatibility is keyed by recipient. The helper follows the
+   Australian Red Cross Lifeblood chart. Live red-cell matching keeps D4's
+   exact-group rule. Whole blood and other also require exact groups.
+2. Limit donor notifications to the feed radius. Check group, component and
+   distance before admitting new donors to a room, and check distance before
+   admitting a new bank. Existing room members retain access.
+3. Create the chat room before inserting the SQLite request and initial
+   membership in one transaction. A chat outage therefore cannot leave an
+   open request pointing to a missing room. A database failure after successful
+   chat creation can still leave a remote room without a request.
+4. Scope Flutter polling to the signed-in session, with all statuses for
+   requesters. Keep the eight-row bank editor scoped to whole blood and surface
+   live hospital lookup errors so users can fall back to manual entry.
+
+Reference: https://www.lifeblood.com.au/patients-recipients/blood-plasma-platelets/blood-for-transfusion/matching-blood-groups

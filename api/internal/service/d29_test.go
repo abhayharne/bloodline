@@ -168,8 +168,13 @@ func TestComponentAwareMatching(t *testing.T) {
 		ID: "uRegular", Name: "Regular Donor", Role: "donor",
 		BloodGroup: &group, Lat: 21.146, Lng: 79.089, Available: true,
 	})
+	createUser(t, env.st, store.User{
+		ID: "uDistant", Name: "Distant Donor", Role: "donor",
+		BloodGroup: &group, Lat: 22, Lng: 79.088, Available: true, ApheresisOK: true,
+	})
 	if err := env.st.UpsertBankStock(ctx, "uBankPlasma", []store.Stock{
 		{BloodGroup: group, Component: ComponentPlasma, Units: 5},
+		{BloodGroup: "AB+", Component: ComponentPlasma, Units: 5},
 	}); err != nil {
 		t.Fatal(err)
 	}

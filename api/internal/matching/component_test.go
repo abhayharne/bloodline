@@ -26,19 +26,19 @@ func TestCompatibleForComponentPlasma(t *testing.T) {
 	}
 }
 
-// TestCompatibleForComponentRedCells keeps the red-cell chart for the other
-// components (whole blood, red cells, other), including the Rh rules.
+// TestCompatibleForComponentRedCells distinguishes the red-cell chart from
+// exact matching for whole blood and other.
 func TestCompatibleForComponentRedCells(t *testing.T) {
 	tests := []struct {
 		patient, donor, component string
 		want                      bool
 	}{
 		{"O-", "O-", ComponentWholeBlood, true},
-		{"O-", "AB+", ComponentRedCells, true},
+		{"O-", "AB+", ComponentRedCells, false},
 		{"O+", "O-", ComponentWholeBlood, false},
 		{"AB+", "AB+", ComponentOther, true},
 		{"AB+", "O-", ComponentOther, false},
-		{" o+ ", "a+", ComponentRedCells, true},
+		{" a+ ", "o-", ComponentRedCells, true},
 		{"O+", "Z+", ComponentWholeBlood, false},
 	}
 	for _, tc := range tests {

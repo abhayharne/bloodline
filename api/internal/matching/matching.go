@@ -41,14 +41,14 @@ var groups = []string{"A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"}
 
 // compatibleWith maps a patient's group to the donor groups it may receive.
 var compatibleWith = map[string]map[string]bool{
-	"O-":  allGroups(),
-	"O+":  set("O+", "A+", "B+", "AB+"),
-	"A-":  set("A+", "A-", "AB+", "AB-"),
-	"A+":  set("A+", "AB+"),
-	"B-":  set("B+", "B-", "AB+", "AB-"),
-	"B+":  set("B+", "AB+"),
-	"AB-": set("AB+", "AB-"),
-	"AB+": set("AB+"),
+	"O-":  set("O-"),
+	"O+":  set("O-", "O+"),
+	"A-":  set("O-", "A-"),
+	"A+":  set("O-", "O+", "A-", "A+"),
+	"B-":  set("O-", "B-"),
+	"B+":  set("O-", "O+", "B-", "B+"),
+	"AB-": set("O-", "A-", "B-", "AB-"),
+	"AB+": allGroups(),
 }
 
 func set(values ...string) map[string]bool {
@@ -120,7 +120,7 @@ func Compatible(patientGroup, donorGroup string) bool {
 }
 
 // CompatibleForComponent reports whether donorGroup can supply component to
-// patientGroup. Red cells (and whole blood/other) use the ABO/Rh chart;
+// patientGroup. Red cells use the ABO/Rh chart; whole blood/other require an exact group;
 // plasma/cryo use reverse ABO with Rh ignored; platelets are ranked rather than
 // excluded, so any valid group is acceptable and DonorRankForComponent decides
 // the order.
@@ -134,8 +134,12 @@ func CompatibleForComponent(patientGroup, donorGroup, component string) bool {
 		return true
 	case ComponentPlasma, ComponentCryo:
 		return plasmaDonors[aboLetter(patient)][aboLetter(donor)]
-	default:
+	case ComponentRedCells:
 		return Compatible(patient, donor)
+	case ComponentWholeBlood, ComponentOther:
+		return patient == donor
+	default:
+		return false
 	}
 }
 
@@ -304,7 +308,7 @@ func DistanceKM(lat1, lng1, lat2, lng2 float64) float64 {
 	dLng := (lng2 - lng1) * toRad
 	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
 		math.Cos(lat1*toRad)*math.Cos(lat2*toRad)*math.Sin(dLng/2)*math.Sin(dLng/2)
-	return 2 * earthRadiusKM * math.Asin(math.Sqrt(a))
+	return 2 * earthRadiusKM * math.Asin(math.Sqrt(math.Min(1, a)))
 }
 
 // RankForCount returns the donor rank for a donation count. The thresholds are

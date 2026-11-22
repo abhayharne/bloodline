@@ -8,46 +8,25 @@ import (
 )
 
 func TestCompatibleChart(t *testing.T) {
-	tests := []struct {
-		patient string
-		donor   string
-		want    bool
-	}{
-		{"O-", "O-", true}, {"O-", "O+", true}, {"O-", "AB+", true},
-		{"O+", "O-", false}, {"O+", "O+", true}, {"O+", "A+", true},
-		{"O+", "B+", true}, {"O+", "AB+", true}, {"O+", "A-", false},
-		{"A-", "A-", true}, {"A-", "A+", true}, {"A-", "AB+", true}, {"A-", "AB-", true},
-		{"A-", "B+", false}, {"A+", "A+", true}, {"A+", "AB+", true},
-		{"A+", "A-", false}, {"A+", "O-", false},
-		{"B-", "B-", true}, {"B-", "B+", true}, {"B-", "AB-", true}, {"B-", "AB+", true},
-		{"B+", "B+", true}, {"B+", "AB+", true}, {"B+", "B-", false},
-		{"AB-", "AB-", true}, {"AB-", "AB+", true}, {"AB-", "O+", false},
-		{"AB+", "AB+", true}, {"AB+", "A+", false}, {"AB+", "O-", false},
-		{" o+ ", "a+", true}, {"O+", "Z+", false}, {"", "O+", false},
+	acceptable := map[string]map[string]bool{
+		"O-":  {"O-": true},
+		"O+":  {"O-": true, "O+": true},
+		"A-":  {"O-": true, "A-": true},
+		"A+":  {"O-": true, "O+": true, "A-": true, "A+": true},
+		"B-":  {"O-": true, "B-": true},
+		"B+":  {"O-": true, "O+": true, "B-": true, "B+": true},
+		"AB-": {"O-": true, "A-": true, "B-": true, "AB-": true},
+		"AB+": {"O-": true, "O+": true, "A-": true, "A+": true, "B-": true, "B+": true, "AB-": true, "AB+": true},
 	}
-	for _, tc := range tests {
-		if got := Compatible(tc.patient, tc.donor); got != tc.want {
-			t.Errorf("Compatible(%q, %q) = %v, want %v", tc.patient, tc.donor, got, tc.want)
-		}
-	}
-}
-
-func allCompatiblePairs() int {
-	total := 0
-	for patient := range compatibleWith {
+	for patient, donors := range acceptable {
 		for _, donor := range groups {
-			if Compatible(patient, donor) {
-				total++
+			if got := Compatible(patient, donor); got != donors[donor] {
+				t.Errorf("Compatible(%q, %q) = %v, want %v", patient, donor, got, donors[donor])
 			}
 		}
 	}
-	return total
-}
-
-func TestCompatibleChartCoversAllGroups(t *testing.T) {
-	// O- -> 8, O+ -> 4, A- -> 4, A+ -> 2, B- -> 4, B+ -> 2, AB- -> 2, AB+ -> 1
-	if got := allCompatiblePairs(); got != 27 {
-		t.Errorf("compatible pairs = %d, want 27", got)
+	if !Compatible(" a+ ", "o-") || Compatible("A+", "Z+") {
+		t.Fatal("compatibility should normalise inputs and reject unknown groups")
 	}
 }
 
@@ -171,12 +150,12 @@ func TestPipelineAppliesAllFilters(t *testing.T) {
 	filtered := NewPipeline(
 		ByCompatibility(), ByDistance(10), ByAvailability(), ByEligibility(),
 	).Apply(patient, donors, now)
-	if len(filtered) != 2 || filtered[0].ID != "d1" || filtered[1].ID != "d5" {
+	if len(filtered) != 3 || filtered[0].ID != "d1" || filtered[1].ID != "d2" || filtered[2].ID != "d5" {
 		ids := make([]string, 0, len(filtered))
 		for _, d := range filtered {
 			ids = append(ids, d.ID)
 		}
-		t.Fatalf("filtered ids = %v, want [d1 d5]", ids)
+		t.Fatalf("filtered ids = %v, want [d1 d2 d5]", ids)
 	}
 }
 
