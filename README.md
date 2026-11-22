@@ -3,6 +3,17 @@
 Emergency blood requests as live chat rooms. Requesters, blood banks and nearby donors
 coordinate in one channel per request; the room closes when the request is fulfilled.
 
+## Android distribution
+
+Signed APKs are prepared for direct installation through GitHub Releases.
+See [deployment and installation instructions](deploy/README.md) for the public
+API setup, private signing key, APK build and GitHub release steps.
+
+## Launch video
+
+[Watch the 22-second BloodLine launch film](brag-output/brag.mp4).
+The [editable source and share caption](brag-output/README.md) are included.
+
 ## Quick start
 ```
 git init && git add -A && git commit -m "scaffold"      # or: bash scripts/init-git.sh

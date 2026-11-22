@@ -1,29 +1,37 @@
 # Handoff
 
-**From:** Codex, human-requested BloodLine launch video
-**Scope:** `brag-output/` and project handoff/plan/decision docs. No app/API changes.
+**From:** Codex, human-requested Android downloads and GitHub publication
+**Scope:** app/ Android release configuration (antigravity ownership), release
+scripts, deploy/ and docs. No API behavior or contract change.
 
-## Done
+## Ready
 
-- Created a 22-second 1920×1080, 30fps launch film using the brag skill and Hyperframes.
-- Story: urgent request → broadcast/matching → shared bank/donor chat → fulfilled room.
-- Delivered `brag-output/brag.mp4`, `brag.jpg`, share caption, credits and editable source.
-- UI recreations follow Flutter source with clearly labeled fictional demo records.
-- Music and restrained UI effects included; attribution is in share-copy and CREDITS.
-- Poster selected from the settled chat scene at 13.7s and replaces frame zero.
-- Hyperframes lint/runtime/layout/contrast/audio: zero errors, 39/39 contrast checks pass.
-- Inspected key snapshots and decoded output; final MP4 is 22 seconds/660 frames with AAC audio.
+- Added INTERNET permission to the main Android manifest.
+- Replaced debug signing for release builds with private persistent signing.
+- Generated ignored key.properties and keystores/bloodline-release.jks locally.
+- Added signing generator and public-HTTPS-validated APK packaging script.
+- Added portable Go container with persistent SQLite disk requirements.
+- Documented installation, demo OTP and GitHub release assets in deploy/README.md.
+- README links the release instructions and completed launch video.
+- App gate passed: 107 tests; analyzer has existing informational issues.
+- GitHub CLI is authenticated; origin/main is an ancestor of local HEAD.
+
+## In progress
+
+- Native signed release build is running for compilation/signing validation.
+- Final APK needs a public API address; human was asked for hosting or temporary tunnel.
+- GitHub source push and downloadable release are still pending.
 
 ## Next action
 
-- Review/share the film, retaining the music credit in `brag-output/share-copy.txt`.
-- Editable preview: http://localhost:3017/#project/composition (background server).
-- Resume the earlier live two-device rehearsal (T3.1/T4.3) if continuing app work.
+- Finish native build verification (apksigner and merged INTERNET permission).
+- Obtain hosting choice, deploy/verify API, rebuild with API_BASE.
+- Commit/push source, upload APK/checksum and launch video to GitHub Release.
+- Add verified direct-download link to README.
 
 ## Notes
 
-- This is a launch film with reconstructed UI, not the T5.2 backup screen recording.
-- Render with the installed Hyperframes launcher; steps are in `brag-output/README.md`.
-- Chrome cache and optional NumPy helper live under `/tmp`; rebuild if cleared.
-- App limitations from the previous handoff remain: mock OTP/demo login and possible
-  orphaned remote room after a SQLite insert failure.
+- Back up app/android/key.properties and app/android/keystores/ securely.
+- These private signing files, .env, databases and dist/ must never be committed.
+- A prior debug APK needs uninstalling before this differently signed release.
+- The public build is a hackathon demo with mock OTP 123456.

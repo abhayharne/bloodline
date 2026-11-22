@@ -2,5 +2,6 @@ composition/.hyperframes/
 composition/.waveform-cache/
 composition/.thumbnails/
 composition/node_modules/
+composition/renders/
 work-*/
 *.poster.mp4

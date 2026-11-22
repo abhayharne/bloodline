@@ -1,4 +1,9 @@
 .env
+app/android/key.properties
+app/android/keystores/
+*.jks
+*.keystore
+dist/
 *.db
 *.sqlite
 api/bin/

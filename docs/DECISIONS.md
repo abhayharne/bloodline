@@ -213,3 +213,11 @@ Reference: https://www.lifeblood.com.au/patients-recipients/blood-plasma-platele
 - Recreate request and chat UI at video-readable sizes with explicit demo labels. Exclude phone screenshots, production records, request IDs and contact details.
 - Use a 22-second landscape film, bundled music with attribution and CC0 effects. No narration, ungrounded performance or medical outcome promises.
 - Cache rendering dependencies in `/tmp/bloodline-hyperframes-cache` because home storage was nearly full. Final assets remain in the repository.
+
+## D20 — Distribute Android builds through GitHub Releases
+
+- The human requested direct app downloads and GitHub publication. Publish a signed universal APK and SHA-256 checksum as release assets, keeping generated builds out of source control.
+- Release APKs use a persistent private key, never the debug key. Keep key.properties and keystores gitignored and require signing configuration for release tasks.
+- Put Internet permission in the main Android manifest so release builds can reach the API and Nexconn.
+- Embed a public HTTPS API address at build time and verify health/config before packaging. Backend hosting and GitHub authentication must be established before publishing a working download.
+- Provide a portable Go container with persistent SQLite storage; do not upload .env, databases or server secrets.

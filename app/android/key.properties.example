@@ -1,0 +1,6 @@
+# Copy to key.properties only if supplying an existing release key.
+# Keep the real file and keystore private and backed up.
+storePassword=REPLACE_WITH_PRIVATE_PASSWORD
+keyPassword=REPLACE_WITH_PRIVATE_PASSWORD
+keyAlias=bloodline
+storeFile=keystores/bloodline-release.jks
