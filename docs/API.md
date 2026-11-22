@@ -64,9 +64,10 @@ Phone syntax: 7-15 digits, optional leading `+`; spaces, parentheses and hyphens
 are stripped before validation.
 
 Both `POST /auth/verify` and `POST /auth/signup` accept the one-time code in
-either the `code` or `otp` field (aliases for the same value). If both are
-supplied, `code` wins. Signup treats a supplied code as optional for legacy
-clients, but a wrong value is rejected with 401 `invalid otp`.
+either the `code` or `otp` field: **either field alone is sufficient** on both
+endpoints. They are aliases for the same value; if both are supplied, `code`
+wins. Signup treats a supplied code as optional for legacy clients, but a wrong
+value is rejected with 401 `invalid otp`.
 
 ### POST /auth/otp/send
 
@@ -107,8 +108,9 @@ for requester and donor and must be **omitted** for bank; `phone` unique; `sex`
 is `male|female|other`; `age` is 0-120 (0/absent = unknown); `weight_kg` and
 `height_cm` must not be negative; `last_donated_at` is an RFC3339 timestamp or a
 `YYYY-MM-DD` date; `available` defaults to `true`; an explicit `consent: false`
-is rejected and `consent: true` records `consent_at`. `otp`/`code` is optional
-but, when present, must equal `DEMO_OTP` (401 otherwise).
+is rejected and `consent: true` records `consent_at`. `otp` or `code` (either
+alone is sufficient, `code` wins if both are present) is optional, but when
+present it must equal `DEMO_OTP` (401 otherwise).
 
 201:
 ```json

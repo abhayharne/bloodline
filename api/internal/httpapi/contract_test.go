@@ -58,9 +58,11 @@ func TestAuthAcceptsOTPAndCodeAliases(t *testing.T) {
 		body string
 		want int
 	}{
-		{"bad otp", `{"phone":"+919876543211","otp":"000000","name":"Bad","role":"donor","blood_group":"O+"}`, http.StatusUnauthorized},
-		{"bad code", `{"phone":"+919876543211","code":"000000","name":"Bad","role":"donor","blood_group":"O+"}`, http.StatusUnauthorized},
-		{"good code wins", `{"phone":"+919876543211","code":"135790","otp":"000000","name":"Imran","role":"donor","blood_group":"O+"}`, http.StatusCreated},
+		{"otp only", `{"phone":"+919876543211","otp":"135790","name":"Priya","role":"donor","blood_group":"O+"}`, http.StatusCreated},
+		{"code only", `{"phone":"+919876543212","code":"135790","name":"Ravi","role":"donor","blood_group":"O+"}`, http.StatusCreated},
+		{"bad otp", `{"phone":"+919876543213","otp":"000000","name":"Bad","role":"donor","blood_group":"O+"}`, http.StatusUnauthorized},
+		{"bad code", `{"phone":"+919876543214","code":"000000","name":"Bad","role":"donor","blood_group":"O+"}`, http.StatusUnauthorized},
+		{"good code wins", `{"phone":"+919876543215","code":"135790","otp":"000000","name":"Imran","role":"donor","blood_group":"O+"}`, http.StatusCreated},
 	} {
 		t.Run("signup "+tc.name, func(t *testing.T) {
 			rec := api.do(t, http.MethodPost, "/auth/signup", tc.body)

@@ -108,8 +108,9 @@ expect 200 "$code" "config"
 jq_ok '.demo_mode == true and (.features | type == "array")' "config body"
 
 # Signup and verify both accept either `otp` or `code` (code wins when both are
-# present). Signup keeps accepting legacy clients that omit it, but validates a
-# supplied value.
+# present). This flow signs up requester/donor via `otp` and the bank via `code`,
+# so both aliases are exercised on both endpoints. Signup still accepts legacy
+# clients that omit the field, but validates a supplied value.
 requester_phone="+919900000001"
 donor_phone="+919900000002"
 bank_phone="+919900000003"
@@ -129,8 +130,8 @@ jq_ok '(.user.id | test("^u[0-9a-f]+$")) and .user.available == true' "donor pro
 donor_token="$(jq -r '.token' "$resp")"
 donor_id="$(jq -r '.user.id' "$resp")"
 
-code="$(req POST /auth/signup "{\"phone\":\"${bank_phone}\",\"otp\":\"123456\",\"name\":\"Smoke Bank\",\"role\":\"bank\",\"lat\":21.14,\"lng\":79.08,\"consent\":true}")"
-expect 201 "$code" "bank signup"
+code="$(req POST /auth/signup "{\"phone\":\"${bank_phone}\",\"code\":\"123456\",\"name\":\"Smoke Bank\",\"role\":\"bank\",\"lat\":21.14,\"lng\":79.08,\"consent\":true}")"
+expect 201 "$code" "bank signup via code"
 jq_ok '(.user.id | test("^u[0-9a-f]+$")) and .user.blood_group == null' "bank profile"
 bank_token="$(jq -r '.token' "$resp")"
 
