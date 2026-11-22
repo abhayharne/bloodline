@@ -1,21 +1,22 @@
 # Handoff
-**From:** opencode (api, human-assigned contract fixes) **To:** next api session **Time:** 2026-11-22 13:56
-**Branch:** feat/api **Last commit:** `3275f19` `[opencode] canonical urgency, RFC3339 created_at, OTP aliases`
+**From:** opencode (api, OTP alias follow-up) **To:** next api session **Time:** 2026-11-22 14:05
+**Branch:** feat/api **Last commit:** `3472f4e` `[opencode] cover both OTP field aliases on verify and signup`
 
 ## Done
-- Docs updated first: `docs/API.md`, `docs/DATA_MODEL.md`, `docs/decisions-api.md` (D28), plus A15 in `docs/tasks-api.md`.
-- Urgency is now canonical `low|medium|high|critical`. Service normalises `planned→low`, `med→medium`, `urgent→high` (case/whitespace insensitive); schema CHECK and seed use canonical values; `GET /requests` sorts by priority, then `created_at DESC`, then rowid. Boot migrates legacy `requests` tables in one transaction with FKs off.
-- Every `created_at` (users including `/me`, requests, notifications, donations/`donated_at`) is RFC3339 UTC `Z`. New rows write `store.Timestamp()` / `strftime('%Y-%m-%dT%H:%M:%SZ','now')`; reads normalise legacy SQLite values and use `1970-01-01T00:00:00Z` for empty/unparseable ones. `User.CreatedAt` is now exposed in JSON.
-- `/auth/verify` and `/auth/signup` accept either `code` or `otp`; `code` wins when both are supplied. Signup still permits a missing code but validates a supplied one (401 `invalid otp`).
-- Tests added for timestamp normalisation, feed ordering, legacy `requests` migration, OTP aliases and wire timestamps; smoke now asserts aliases, ordering and `Z` timestamps.
-- Entry and final `scripts/gate-api.sh` PASS: build, vet, `go test -race -count=1 ./...`, smoke with `FEATURES=` and `FEATURES=ranks,reminders`.
+- Re-read AGENTS.md, this handoff, `docs/PLAN.md` and `docs/API.md`, and checked `git status` / `git log -10 --oneline` before editing.
+- Confirmed the handlers already accept both fields from `3275f19`: `POST /auth/verify` and `POST /auth/signup` read `code` or `otp`, `code` wins when both are present, and signup rejects a wrong supplied value with 401.
+- Docs first: `docs/API.md` now states explicitly that **either field alone is sufficient** on both endpoints, for signup as well as verify.
+- Closed the remaining test gap: `api/internal/httpapi/contract_test.go` now covers verify via `otp`, via `code`, both fields, and wrong values; signup via `otp` only, `code` only, both fields, and wrong values.
+- `scripts/smoke.sh` signs up requester/donor via `otp` and the bank via `code`, so the e2e flow exercises both aliases on signup; verify still exercises both aliases.
+- Final `scripts/gate-api.sh` PASS: build, vet, `go test -race -count=1 ./...`, smoke with `FEATURES=` and `FEATURES=ranks,reminders`.
 
 ## State
-- All tasks A0-A15 are `[x]`. The only working-tree item is the pre-existing untracked empty `api/data/hospitals.json`; it was not touched or committed.
-- No `app/`, `.env`, `AGENTS.md` or `docs/PLAN.md` edits. No pushes. The earlier duplicate `loop.sh` processes are no longer running; a long-lived `go run ./cmd/server` (PID 279991) predates this session and was left alone.
+- Tasks A0-A15 remain `[x]`; no new task letter was needed for this coverage follow-up.
+- Only working-tree item is the pre-existing untracked empty `api/data/hospitals.json`; it was not touched. No `app/`, `.env`, `AGENTS.md` or `docs/PLAN.md` edits; no pushes.
+- A long-lived `go run ./cmd/server` (PID 279991) predates this session and was left running; no `loop.sh` / `opencode run` process is active.
 
 ## Next action
-- None from the task list. Wait for the human to assign new work. If asked to verify D28, re-run `scripts/gate-api.sh` and read `docs/API.md` alongside `docs/decisions-api.md`.
+- None. Wait for the human to assign new work. If asked to re-verify this contract, run `scripts/gate-api.sh` and inspect `TestAuthAcceptsOTPAndCodeAliases`.
 
 ## Blockers
 - None.
