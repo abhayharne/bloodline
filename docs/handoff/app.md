@@ -1,40 +1,27 @@
 # App Handoff
-**From:** antigravity (app agent)  **To:** next agent / human  **Time:** 2026-11-22 14:30 IST
+**From:** antigravity (app agent)  **To:** next agent / human  **Time:** 2026-11-22 14:45 IST
 **Branch:** feat/app
 
 ## Done this iteration
-1. **Error surfacing & OTP UX:**
-   - Every failed API call logs details and surfaces the server's error message via SnackBar.
-   - Displayed "demo mode, code 123456" on OTP verification screen.
-   - Added phone normalization (`normalizePhone`) prepending `+91` to 10-digit phone numbers before sending.
-2. **Broadcast & Urgency contract fix:**
-   - Diagnosed root cause of requests not appearing: backend validates urgency against `critical|urgent|planned` (rejecting `low|medium|high` with 400).
-   - Reconciled UI to send `critical|urgent|planned` per `docs/API.md`. Added request/response debug logging.
-   - Immediately refetches `GET /requests` on broadcast; displays confirmation dialog with match counts and button to open chat room.
-3. **LocationController:**
-   - Created `LocationController` supporting sources `gps|preset|typed`.
-   - "Use Device GPS" button is always enabled; choosing GPS clears preset selection; last choice wins.
-   - Added `ACCESS_FINE_LOCATION` to `AndroidManifest.xml`.
-   - High-accuracy GPS with 15s timeout, falling back to `getLastKnownPosition`.
-   - Explicit handling and messages for services off (`openLocationSettings`), denied (retry), denied forever (`openAppSettings`), and timeout.
-   - Shows "Using GPS (±N m)" with coordinates; shows "Location not set" when unset.
-4. **Logout & Debug icon:**
-   - Added confirm logout dialog in Profile and Settings screens that clears token/user, disconnects Nexconn, resets `RequestsProvider` and `NotificationsProvider`, and returns to login.
-   - Hid debug icon on HomeScreen unless running in demo/mock mode.
-5. **Hospital Picker:**
-   - Added `getHospitals` in `ApiClient`, `HttpApiClient`, and `MockApiClient` (sorted nearest first by user location).
-   - Searchable/selectable picker with "Other (type a name)" option; selecting one sets request coordinates.
-6. **Component & Donor profile:**
-   - Added Component dropdown (`Whole blood`, `Red cells`, `Platelets`, `Plasma`, `Other`) and optional notes field.
-   - Displayed component chip in `RequestSummaryHeader` chat room header.
-   - Added "I can donate platelets/plasma" switch to donor profile.
-7. **Verification & Tests:**
-   - Added comprehensive widget and unit tests in `core_screens_test.dart`.
-   - `scripts/gate-app.sh` 100% GREEN (92/92 tests passing, 0 analyzer errors/warnings).
+1. **Location Pin Sharing in Chat (T2.7):**
+   - Added `chat_share_location_button` in `BloodRequestChatScreen` AppBar actions.
+   - Built bottom sheet picker supporting Hospital Location (coordinates from request) and Current Device GPS (high-accuracy/last-known with profile fallback).
+   - Integrated `MessageInputExtensionPlugin.location` in `ChatPageConfig` for in-chat input bar extension panel.
+   - Dispatches `LocationMessageParams` through Nexconn Chat SDK and surfaces `location_pin_shared_snackbar`.
+   - Tapping any `LocationMessage` bubble displays modal coordinates dialog (`location_details_dialog`).
+2. **Live Feed Synchronization (T2.9):**
+   - Added periodic polling (`startPolling`, `stopPolling`, `isPolling`) with silent loading to `RequestsProvider`.
+   - Wired polling at 10s interval in `main.dart` alongside `NotificationsProvider`.
+   - Marked T2.7 and T2.9 as complete in `docs/PLAN.md`.
+3. **Verification & Tests:**
+   - Added widget and unit tests for location pin sharing (hospital & GPS) and `RequestsProvider` polling in `core_screens_test.dart`.
+   - `scripts/gate-app.sh` 100% GREEN (95/95 tests passing, 0 analyzer errors/warnings).
+   - `scripts/gate-api.sh` and `scripts/smoke.sh` 100% GREEN.
 
 ## State of the code
-- Gate: `scripts/gate-app.sh` PASS (92/92 tests passing, clean analyzer).
-- Working tree clean, all 6 requested items verified.
+- All P2 App tasks in `docs/PLAN.md` (T2.1-T2.9) are DONE (`[x]`).
+- Verification gates passing: `scripts/gate-app.sh` PASS (95 tests), `scripts/gate-api.sh` PASS.
+- Working tree clean.
 
 ## Next action
-- Live end-to-end rehearsal with backend (`scripts/smoke.sh` and two-device chat test).
+- Phase P3 / P4: Two-device integration rehearsal and live demo test with backend (`scripts/smoke.sh`).

@@ -48,9 +48,9 @@ Stretch only if all else is done: AI summary pinned in room; push notifications 
 - [x] T2.4 Donor: feed of matching open requests + "I can help" (calls accept, opens chat)
 - [x] T2.5 Bank: stock editor (8 groups) + open requests list + open chat
 - [x] T2.6 Chat: wire `ChannelPage` (inbox) and `ChatPage` with custom header showing request summary chip (group, units, hospital, status)
-- [ ] T2.7 Location pin message in chat (send current location / hospital location)
+- [x] T2.7 Location pin message in chat (send current location / hospital location)
 - [x] T2.8 Fulfill button for requester; closed rooms show read-only banner
-- [ ] T2.9 Notification: in-app banner when new matching request arrives (poll `GET /requests` every 10s as fallback; push if time)
+- [x] T2.9 Notification: in-app banner when new matching request arrives (poll `GET /requests` every 10s as fallback; push if time)
 
 ## P3 — Integration
 - [ ] T3.1 Run API on laptop, phones on same Wi-Fi (or tunnel), full flow on 2 phones

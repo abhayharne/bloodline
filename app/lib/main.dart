@@ -83,7 +83,11 @@ void main() async {
             },
           ),
           ChangeNotifierProvider<RequestsProvider>(
-            create: (_) => RequestsProvider(apiClient: apiClient),
+            create: (_) {
+              final reqs = RequestsProvider(apiClient: apiClient);
+              reqs.startPolling();
+              return reqs;
+            },
           ),
           ChangeNotifierProvider<BankStockProvider>(
             create: (_) => BankStockProvider(apiClient: apiClient),

@@ -163,4 +163,9 @@ with typed-area fallback (preset popular areas).
 5. Component dropdown & notes: Added component dropdown (`Whole blood`, `Red cells`, `Platelets`, `Plasma`, `Other`) and optional notes field to the requester form. Room header displays component chip in live chat. Donor profile gets "I can donate platelets/plasma" capability toggle.
 6. Unified logout with provider reset: `confirmAndLogout` dialog in Profile and Settings screens clears auth tokens, user profile, SharedPreferences, disconnects Nexconn, resets `RequestsProvider` and `NotificationsProvider`, and navigates to login. Debug screen launcher is hidden unless running in demo/mock mode.
 
+## D16 — Location Pin Sharing in Chat and Live Requests Polling
+1. Location pin message in chat (T2.7): Added `chat_share_location_button` to `BloodRequestChatScreen` AppBar actions and integrated `MessageInputExtensionPlugin.location` with `ChatPageConfig`. Users can share either the hospital location or current device GPS coordinates (with graceful fallback to profile coordinates). Messages are sent as `LocationMessageParams` through Nexconn Chat and surfaced via `location_pin_shared_snackbar`. Tapping any `LocationMessage` bubble presents coordinates and POI metadata in a modal details dialog.
+2. Live feed synchronization (T2.9): Added periodic polling (`startPolling`, `stopPolling`, `isPolling`) to `RequestsProvider`, initialized in `main.dart` at a 10s interval matching `NotificationsProvider`. Uses silent background loading to refresh open requests without UI loading flicker or unhandled timer leaks in widget tests.
+
+
 

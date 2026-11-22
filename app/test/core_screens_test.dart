@@ -860,6 +860,120 @@ void main() {
 
     expect(find.byKey(const Key('home_debug_button')), findsOneWidget);
   });
+
+  test('RequestsProvider startPolling periodically refreshes requests and stopPolling cancels timer', () async {
+    final apiClient = MockApiClient();
+    final provider = RequestsProvider(apiClient: apiClient);
+
+    expect(provider.isPolling, isFalse);
+
+    provider.startPolling(status: 'open', interval: const Duration(milliseconds: 50));
+    expect(provider.isPolling, isTrue);
+
+    await Future.delayed(const Duration(milliseconds: 120));
+    expect(provider.requests.isNotEmpty, isTrue);
+
+    provider.stopPolling();
+    expect(provider.isPolling, isFalse);
+
+    provider.reset();
+    expect(provider.requests.isEmpty, isTrue);
+    expect(provider.isPolling, isFalse);
+  });
+
+  testWidgets('BloodRequestChatScreen provides location pin sharing button and sends hospital pin', (tester) async {
+    final apiClient = MockApiClient();
+    final auth = AuthProvider(apiClient: apiClient);
+    final requestsProvider = RequestsProvider(apiClient: apiClient);
+
+    await auth.login(name: 'Asha Donor', role: 'donor');
+
+    final testRequest = BloodRequest(
+      id: 'req_loc_test',
+      bloodGroup: 'O-',
+      units: 2,
+      hospital: 'Orange City Hospital',
+      urgency: 'critical',
+      status: 'open',
+      channelId: 'req_loc_test',
+      lat: 21.1458,
+      lng: 79.0882,
+      requesterName: 'Ravi Requester',
+      component: 'Whole blood',
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: auth),
+          ChangeNotifierProvider.value(value: requestsProvider),
+        ],
+        child: MaterialApp(
+          home: BloodRequestChatScreen(request: testRequest),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final shareBtn = find.byKey(const Key('chat_share_location_button'));
+    expect(shareBtn, findsOneWidget);
+
+    await tester.tap(shareBtn);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('share_hospital_location_tile')), findsOneWidget);
+    expect(find.byKey(const Key('share_gps_location_tile')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('share_hospital_location_tile')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('location_pin_shared_snackbar')), findsOneWidget);
+    expect(find.textContaining('Location pin shared: Orange City Hospital'), findsOneWidget);
+  });
+
+  testWidgets('BloodRequestChatScreen provides location pin sharing for GPS location', (tester) async {
+    final apiClient = MockApiClient();
+    final auth = AuthProvider(apiClient: apiClient);
+    final requestsProvider = RequestsProvider(apiClient: apiClient);
+
+    await auth.login(name: 'Asha Donor', role: 'donor');
+
+    final testRequest = BloodRequest(
+      id: 'req_loc_gps',
+      bloodGroup: 'A+',
+      units: 1,
+      hospital: 'Apex Trauma Center',
+      urgency: 'urgent',
+      status: 'open',
+      channelId: 'req_loc_gps',
+      lat: 21.1500,
+      lng: 79.0900,
+      requesterName: 'Suresh',
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: auth),
+          ChangeNotifierProvider.value(value: requestsProvider),
+        ],
+        child: MaterialApp(
+          home: BloodRequestChatScreen(request: testRequest),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('chat_share_location_button')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('share_gps_location_tile')));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('location_pin_shared_snackbar')), findsOneWidget);
+    expect(find.textContaining('Location pin shared: Current Location'), findsOneWidget);
+  });
 }
 
 class _RecordingApiClient extends MockApiClient {

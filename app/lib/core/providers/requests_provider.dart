@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/blood_request.dart';
 import '../models/blood_request_response.dart';
@@ -9,23 +10,39 @@ class RequestsProvider extends ChangeNotifier {
   final Set<String> _donatedRequestIds = {};
   bool _isLoading = false;
   String? _error;
+  Timer? _pollTimer;
 
   List<BloodRequest> get requests => _requests;
   Set<String> get donatedRequestIds => _donatedRequestIds;
   bool isDonated(String requestId) => _donatedRequestIds.contains(requestId);
   bool get isLoading => _isLoading;
+  bool get isPolling => _pollTimer != null && _pollTimer!.isActive;
   String? get error => _error;
 
   RequestsProvider({required this.apiClient});
 
-  Future<void> loadRequests({String status = 'open'}) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
+  void startPolling({String status = 'open', Duration interval = const Duration(seconds: 10)}) {
+    _pollTimer?.cancel();
+    loadRequests(status: status, silent: true);
+    _pollTimer = Timer.periodic(interval, (_) => loadRequests(status: status, silent: true));
+  }
+
+  void stopPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+  }
+
+  Future<void> loadRequests({String status = 'open', bool silent = false}) async {
+    if (!silent) {
+      _isLoading = true;
+      _error = null;
+      notifyListeners();
+    }
 
     try {
       _requests = await apiClient.getRequests(status: status);
       _isLoading = false;
+      _error = null;
       notifyListeners();
     } catch (e) {
       _isLoading = false;
@@ -35,11 +52,18 @@ class RequestsProvider extends ChangeNotifier {
   }
 
   void reset() {
+    stopPolling();
     _requests = [];
     _donatedRequestIds.clear();
     _isLoading = false;
     _error = null;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    stopPolling();
+    super.dispose();
   }
 
   Future<BloodRequestResponse?> createRequest({

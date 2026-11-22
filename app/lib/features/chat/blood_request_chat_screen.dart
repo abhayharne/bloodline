@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import 'package:ai_nexconn_chat_plugin/ai_nexconn_chat_plugin.dart';
 import 'package:ai_nexconn_chatui_plugin/ai_nexconn_chatui_plugin.dart';
@@ -399,6 +400,202 @@ class _BloodRequestChatScreenState extends State<BloodRequestChatScreen> {
     }
   }
 
+  Future<_LocationPinChoice?> _showShareLocationSheet() async {
+    final auth = context.read<AuthProvider>();
+    final user = auth.currentUser;
+
+    return showModalBottomSheet<_LocationPinChoice>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Text(
+                  'Share Location Pin',
+                  style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const Divider(),
+              ListTile(
+                key: const Key('share_hospital_location_tile'),
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(Icons.local_hospital, color: Colors.red.shade700),
+                ),
+                title: Text(_currentRequest.hospital),
+                subtitle: Text(
+                  'Hospital coordinates (${_currentRequest.lat.toStringAsFixed(4)}, ${_currentRequest.lng.toStringAsFixed(4)})',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.pop(
+                    ctx,
+                    _LocationPinChoice(
+                      lat: _currentRequest.lat,
+                      lng: _currentRequest.lng,
+                      title: _currentRequest.hospital,
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                key: const Key('share_gps_location_tile'),
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(Icons.my_location, color: Colors.blue.shade700),
+                ),
+                title: const Text('My Current Location (GPS)'),
+                subtitle: Text(
+                  user != null
+                      ? 'Using position (${user.lat.toStringAsFixed(4)}, ${user.lng.toStringAsFixed(4)})'
+                      : 'Fetch current device GPS coordinates',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                onTap: () async {
+                  double lat = user?.lat ?? 21.1458;
+                  double lng = user?.lng ?? 79.0882;
+                  try {
+                    final pos = await Geolocator.getLastKnownPosition()
+                        .timeout(const Duration(milliseconds: 200), onTimeout: () => null);
+                    if (pos != null) {
+                      lat = pos.latitude;
+                      lng = pos.longitude;
+                    }
+                  } catch (_) {}
+                  if (!ctx.mounted) return;
+                  Navigator.pop(
+                    ctx,
+                    _LocationPinChoice(
+                      lat: lat,
+                      lng: lng,
+                      title: 'Current Location (${user?.name ?? "Member"})',
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleShareLocationFromAppBar() async {
+    final choice = await _showShareLocationSheet();
+    if (choice == null || !mounted) return;
+    await _sendLocationPin(
+      lat: choice.lat,
+      lng: choice.lng,
+      title: choice.title,
+    );
+  }
+
+  Future<void> _sendLocationPin({
+    required double lat,
+    required double lng,
+    required String title,
+  }) async {
+    try {
+      if (NCEngine.isInitialized) {
+        final channel = BaseChannel(ChannelType.group, _currentRequest.channelId);
+        final params = LocationMessageParams(
+          latitude: lat,
+          longitude: lng,
+          poiName: title,
+          thumbnailPath: '',
+        );
+        await channel.sendMessage(SendMessageParams(messageParams: params));
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          key: const Key('location_pin_shared_snackbar'),
+          content: Text(
+            'Location pin shared: $title (${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)})',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to share location: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<MessageInputLocationDraft?> _resolveLocationDraft(BuildContext ctx) async {
+    final choice = await _showShareLocationSheet();
+    if (choice == null) return null;
+    return MessageInputLocationDraft(
+      longitude: choice.lng,
+      latitude: choice.lat,
+      poiName: choice.title,
+      thumbnailPath: '',
+    );
+  }
+
+  void _showLocationDetails(LocationMessage msg) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        key: const Key('location_details_dialog'),
+        title: Row(
+          children: [
+            Icon(Icons.location_on, color: Colors.red.shade700),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                msg.poiName?.isNotEmpty == true ? msg.poiName! : 'Location Pin',
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Latitude: ${msg.latitude ?? 0.0}'),
+            const SizedBox(height: 4),
+            Text('Longitude: ${msg.longitude ?? 0.0}'),
+            const SizedBox(height: 12),
+            const Text(
+              'Coordinates shared in this blood coordination room.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -414,6 +611,13 @@ class _BloodRequestChatScreenState extends State<BloodRequestChatScreen> {
       appBar: AppBar(
         title: Text(_currentRequest.hospital),
         actions: [
+          if (!isClosed)
+            IconButton(
+              key: const Key('chat_share_location_button'),
+              icon: const Icon(Icons.share_location),
+              tooltip: 'Share location pin',
+              onPressed: _handleShareLocationFromAppBar,
+            ),
           if (isRequester && _currentRequest.isOpen)
             TextButton.icon(
               onPressed: _isFulfilling ? null : _confirmAndFulfill,
@@ -481,6 +685,21 @@ class _BloodRequestChatScreenState extends State<BloodRequestChatScreen> {
                   ignoring: isClosed,
                   child: ChatPage(
                     channel: channel,
+                    config: ChatPageConfig(
+                      inputConfig: MessageInputConfig(
+                        extensionPlugins: [
+                          ...defaultMessageInputExtensionPlugins,
+                          MessageInputExtensionPlugin.location(
+                            locationResolver: (c, plugin) => _resolveLocationDraft(c),
+                          ),
+                        ],
+                      ),
+                    ),
+                    onMessageTap: (msg) {
+                      if (msg is LocationMessage) {
+                        _showLocationDetails(msg);
+                      }
+                    },
                   ),
                 );
               },
@@ -490,4 +709,16 @@ class _BloodRequestChatScreenState extends State<BloodRequestChatScreen> {
       ),
     );
   }
+}
+
+class _LocationPinChoice {
+  final double lat;
+  final double lng;
+  final String title;
+
+  const _LocationPinChoice({
+    required this.lat,
+    required this.lng,
+    required this.title,
+  });
 }
