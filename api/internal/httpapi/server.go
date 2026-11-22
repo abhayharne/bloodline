@@ -25,6 +25,7 @@ type Server struct {
 	svc       *service.Service
 	jwt       *auth.Issuer
 	dev       bool
+	devKey    string
 	reminders ReminderRunner
 }
 
@@ -35,6 +36,11 @@ type ServerOption func(*Server)
 // production; main only passes it when DEV=1.
 func WithDevRoutes() ServerOption {
 	return func(s *Server) { s.dev = true }
+}
+
+// WithDevKey sets the private reset key; an empty key never authorizes a reset.
+func WithDevKey(key string) ServerOption {
+	return func(s *Server) { s.devKey = key }
 }
 
 // WithReminderRunner injects the eligibility scan used by POST /dev/run-reminders.

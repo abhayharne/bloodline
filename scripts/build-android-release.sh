@@ -33,7 +33,8 @@ if [[ ! -f "$repo_root/app/android/key.properties" ]]; then
   exit 1
 fi
 cd "$repo_root/app"
-flutter build apk --release --dart-define="API_BASE=$api_base"
+flutter build apk --release --dart-define="API_BASE=$api_base" \
+  --dart-define=NEXCONN_APP_KEY=qf3d5gbjqvm5h
 mkdir -p "$repo_root/dist"
 cp build/app/outputs/flutter-apk/app-release.apk "$repo_root/dist/bloodline.apk"
 cd "$repo_root/dist"

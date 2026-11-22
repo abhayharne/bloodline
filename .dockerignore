@@ -1,0 +1,11 @@
+**
+!api/
+!api/**
+!deploy/
+!deploy/Dockerfile
+**/.env
+**/.env.*
+**/*.db
+**/*.sqlite
+**/*.sqlite-*
+**/bin/

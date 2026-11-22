@@ -39,7 +39,9 @@ Secrets are read from the environment / `.env` only and never appear in a respon
 | `DEMO_OTP` | `123456` | Fixed mock OTP accepted by `/auth/verify` |
 | `MATCH_RADIUS_KM` | `10` | Positive float; radius for the donor/bank feed |
 | `FEATURES` | empty | Comma-separated, lowercased, de-duplicated flags (`ranks`, `reminders`) |
-| `DEV` | unset | `1` registers the unauthenticated `/dev/*` routes |
+| `DEV` | unset | `1` registers dev routes; requires `DEV_KEY` |
+| `DEV_KEY` | required when `DEV=1` | Private key for `X-Dev-Key` on `POST /dev/reset` |
+| `SEED_ON_EMPTY` | unset | `1` seeds fictional demo accounts and stock once, only if all mutable tables are empty; never overwrites existing data |
 | `NEXCONN_FAKE` | unset | `1` uses the in-memory stateful fake chat client (offline) |
 | `NEXCONN_MOCK` | unset | `1` uses the no-op chat client (offline); fake wins if both set |
 | `NEXCONN_APP_KEY`, `NEXCONN_APP_SECRET`, `NEXCONN_API_BASE`, `NEXCONN_API_BASE_BACKUP` | required | Real Nexconn credentials/base URLs; not required in fake/mock mode |
@@ -332,9 +334,9 @@ Posts a system message, freezes the Nexconn room and sets status to `fulfilled`.
 joined members get a notification row. 403 for a non-owner, 409 if not open.
 The response includes the stored `fulfilled_at` timestamp.
 
-## Dev routes (only when DEV=1, all unauthenticated)
+## Dev routes (only when DEV=1)
 
-- `POST /dev/reset` -> `{"status":"ok","seeded":true}` — reloads the demo seed
+- `POST /dev/reset` requires `X-Dev-Key: <DEV_KEY>`; missing, wrong, or unconfigured keys return 403 without changing data. Success -> `{"status":"ok","seeded":true}` — reloads the demo seed
   (5 donors, 2 banks with stock, 1 open request, all with phones).
 - `POST /dev/run-reminders` -> `{"status":"ok","sent":N}` — runs one
   `eligible_again` eligibility scan; `sent` is the number of reminders written
@@ -375,3 +377,7 @@ tolerate them until the code is reconciled:
   beyond the addendum's minimal shape.
 - `GET /config` exposes `features:[]` by default; there is no `notifications`
   default flag.
+
+### Startup demo seed
+
+`SEED_ON_EMPTY=1` checks users, bank stock, requests, room memberships, donations and notifications in one transaction. Only an entirely empty database receives the eight fictional accounts and stock. Startup omits the static seed request because a real live request must create its own Nexconn room through `POST /requests`. Restarting never resets existing data. `DEV=0` remains compatible with startup seeding.

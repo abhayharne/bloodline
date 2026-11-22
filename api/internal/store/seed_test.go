@@ -84,3 +84,57 @@ func TestReseedIsRepeatableAndClearsTransientRows(t *testing.T) {
 		t.Errorf("after reseed: donations %d notifications %d requests %d", donations, notifications, requests)
 	}
 }
+
+func TestSeedOnEmptyNeverResetsExistingData(t *testing.T) {
+	st, err := Open(filepath.Join(t.TempDir(), "boot.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	ctx := context.Background()
+	seeded, err := st.SeedOnEmpty(ctx)
+	if err != nil || !seeded {
+		t.Fatalf("first seed=%v err=%v", seeded, err)
+	}
+	var users, requests int
+	if err := st.db.QueryRowContext(ctx, "SELECT (SELECT COUNT(*) FROM users),(SELECT COUNT(*) FROM requests)").Scan(&users, &requests); err != nil {
+		t.Fatal(err)
+	}
+	if users != 8 || requests != 0 {
+		t.Fatalf("users=%d requests=%d", users, requests)
+	}
+	if _, err := st.db.ExecContext(ctx, "UPDATE users SET name='Preserved' WHERE id='ureq1'"); err != nil {
+		t.Fatal(err)
+	}
+	seeded, err = st.SeedOnEmpty(ctx)
+	if err != nil || seeded {
+		t.Fatalf("second seed=%v err=%v", seeded, err)
+	}
+	u, err := st.UserByPhone(ctx, "+919999900001")
+	if err != nil || u.Name != "Preserved" {
+		t.Fatalf("existing data changed: %v", err)
+	}
+}
+func TestSeedOnEmptyPreservesPartialDatabase(t *testing.T) {
+	st, err := Open(filepath.Join(t.TempDir(), "partial.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	ctx := context.Background()
+	_, err = st.db.ExecContext(ctx, "INSERT INTO users(id,name,role) VALUES('upartial','Keep','requester')")
+	if err != nil {
+		t.Fatal(err)
+	}
+	seeded, err := st.SeedOnEmpty(ctx)
+	if err != nil || seeded {
+		t.Fatalf("partial seed=%v err=%v", seeded, err)
+	}
+	var count int
+	if err := st.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM users").Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("partial DB overwritten: %d users", count)
+	}
+}

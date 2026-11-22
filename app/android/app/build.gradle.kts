@@ -71,4 +71,6 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    // Nexconn's Tika dependency references StAX, which Android does not bundle.
+    implementation("javax.xml.stream:stax-api:1.0-2")
 }

@@ -10,11 +10,11 @@ A portable container is in `deploy/Dockerfile`. Build from the repository root:
 
 ```sh
 docker build -f deploy/Dockerfile -t bloodline-api .
-docker run --env-file .env -e DEV=0 -e NEXCONN_FAKE=0 -e NEXCONN_MOCK=0 \
+docker run --env-file .env -e PORT=8080 -e DEV=0 -e NEXCONN_FAKE=0 -e NEXCONN_MOCK=0 \
   -v bloodline-data:/data -p 8080:8080 bloodline-api
 ```
 
-For managed hosting, configure:
+Copy the variable names in [ENV.example](ENV.example) into the hosting environment, supplying secrets privately. For managed hosting, configure:
 
 - Build context: repository root; Dockerfile: `deploy/Dockerfile`.
 - Persistent disk: `/data`, writable by UID/GID 65532.
@@ -23,6 +23,8 @@ For managed hosting, configure:
 - Nexconn configuration: `NEXCONN_APP_KEY`, `NEXCONN_API_BASE`,
   `NEXCONN_API_BASE_BACKUP` from the existing private environment.
 - `DEV=0`, `NEXCONN_FAKE=0`, `NEXCONN_MOCK=0`.
+- `SEED_ON_EMPTY=1` initializes fictional accounts and stock once. Existing data survives restarts; live requests create real rooms through the API.
+- On a private development server only, `DEV=1` also requires a private `DEV_KEY`; resets require the matching `X-Dev-Key` header.
 - HTTPS ingress and health-check route `/health`.
 
 Do not upload `.env`, SQLite data, signing files or secrets to the repository.
@@ -69,3 +71,18 @@ On an Android phone, open that link, download the APK, allow installation from
 the browser if prompted, then install BloodLine. If an earlier debug build is
 installed, uninstall it before installing the differently signed release
 (uninstalling removes its local session/settings).
+
+## Temporary public demo
+
+Build the server at `dist/public-demo/server`, install official cloudflared at
+`/tmp/bloodline-deploy-tools/cloudflared-linux-amd64`, then run
+`python3 scripts/start-public-demo.py`. This launcher never opens .env; the
+server's configuration loader uses it privately. Safe environment overrides
+force real Nexconn, demo OTP 123456, startup seeding, and all dev routes off.
+It uses a separate demo database under ignored `dist/public-demo/`.
+
+The API and tunnel PIDs are saved in `dist/public-demo/api.pid` and
+`tunnel.pid`; logs remain private there. Stop those two owned processes to
+end the public demo. A quick tunnel is temporary: it needs this computer awake
+and online, and a restart usually changes the public URL. This is not permanent
+hosting. Use only fictional demo information.

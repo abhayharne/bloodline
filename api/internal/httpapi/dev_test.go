@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"testing"
 	"time"
@@ -47,7 +48,7 @@ func TestDevResetRouteIsDevOnly(t *testing.T) {
 }
 
 func TestDevResetLoadsSeedAndClearsPriorData(t *testing.T) {
-	api := newDevTestAPI(t, WithDevRoutes())
+	api := newDevTestAPI(t, WithDevRoutes(), WithDevKey("test-dev-key"))
 
 	signup := api.do(t, http.MethodPost, "/auth/signup",
 		`{"name":"Temp","role":"donor","blood_group":"O+","phone":"+919999900009"}`)
@@ -57,7 +58,10 @@ func TestDevResetLoadsSeedAndClearsPriorData(t *testing.T) {
 
 	// Reset twice to prove idempotence.
 	for i := 0; i < 2; i++ {
-		rec := api.do(t, http.MethodPost, "/dev/reset", "")
+		request := httptest.NewRequest(http.MethodPost, "/dev/reset", nil)
+		request.Header.Set("X-Dev-Key", "test-dev-key")
+		rec := httptest.NewRecorder()
+		api.handler.ServeHTTP(rec, request)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("reset #%d status = %d, want 200 (body %s)", i+1, rec.Code, rec.Body.String())
 		}
@@ -125,5 +129,26 @@ func TestDevRunRemindersWithoutRunnerIsNotFound(t *testing.T) {
 	rec := api.do(t, http.MethodPost, "/dev/run-reminders", "")
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404 without a reminders runner", rec.Code)
+	}
+}
+
+func TestDevResetRejectsMissingWrongAndUnconfiguredKey(t *testing.T) {
+	for _, tc := range []struct{ name, configured, supplied string }{
+		{"missing", "private-test-key", ""}, {"wrong", "private-test-key", "wrong"},
+		{"unconfigured", "", ""}, {"unconfigured supplied", "", "anything"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			api := newDevTestAPI(t, WithDevRoutes(), WithDevKey(tc.configured))
+			req := httptest.NewRequest(http.MethodPost, "/dev/reset", nil)
+			req.Header.Set("X-Dev-Key", tc.supplied)
+			rec := httptest.NewRecorder()
+			api.handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("status=%d want 403", rec.Code)
+			}
+			if _, err := api.store.UserByPhone(context.Background(), "+919999900002"); !errors.Is(err, store.ErrNotFound) {
+				t.Fatalf("rejected reset changed data: %v", err)
+			}
+		})
 	}
 }

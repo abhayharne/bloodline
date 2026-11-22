@@ -40,6 +40,15 @@ func run() error {
 		return err
 	}
 	defer st.Close()
+	if cfg.SeedOnEmpty {
+		seeded, err := st.SeedOnEmpty(context.Background())
+		if err != nil {
+			return err
+		}
+		if seeded {
+			log.Print("Initialized fictional demo accounts and stock in empty database")
+		}
+	}
 
 	chat, err := newChatClient(cfg)
 	if err != nil {
@@ -74,7 +83,7 @@ func run() error {
 		service.WithMatchRadius(cfg.MatchRadiusKM),
 		service.WithBus(bus),
 	)
-	opts := append(devRoutes(cfg.Dev), httpapi.WithReminderRunner(reminderRunner))
+	opts := append(devRoutes(cfg.Dev), httpapi.WithReminderRunner(reminderRunner), httpapi.WithDevKey(cfg.DevKey))
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
 		Handler:           httpapi.New(svc, issuer, opts...),

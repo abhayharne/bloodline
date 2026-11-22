@@ -26,7 +26,9 @@ type Config struct {
 	NexconnMock          bool
 	NexconnFake          bool
 	// Dev enables dev-only routes such as POST /dev/reset. Never set in prod.
-	Dev bool
+	Dev         bool
+	DevKey      string
+	SeedOnEmpty bool
 }
 
 // Load reads configuration from the process environment and validates it.
@@ -45,6 +47,8 @@ func Load() (Config, error) {
 		NexconnMock:          os.Getenv("NEXCONN_MOCK") == "1",
 		NexconnFake:          os.Getenv("NEXCONN_FAKE") == "1",
 		Dev:                  os.Getenv("DEV") == "1",
+		DevKey:               os.Getenv("DEV_KEY"),
+		SeedOnEmpty:          os.Getenv("SEED_ON_EMPTY") == "1",
 	}
 
 	radiusRaw := getenv("MATCH_RADIUS_KM", "10")
@@ -62,6 +66,9 @@ func Load() (Config, error) {
 
 func (c Config) validate() error {
 	var missing []string
+	if c.Dev && strings.TrimSpace(c.DevKey) == "" {
+		missing = append(missing, "DEV_KEY")
+	}
 	if c.JWTSecret == "" {
 		missing = append(missing, "JWT_SECRET")
 	}

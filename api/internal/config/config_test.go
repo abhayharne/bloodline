@@ -6,6 +6,8 @@ import (
 )
 
 func setRequiredEnv(t *testing.T) {
+	t.Setenv("DEV_KEY", "test-dev-key")
+	t.Setenv("SEED_ON_EMPTY", "")
 	t.Helper()
 	t.Setenv("JWT_SECRET", "test-secret")
 	t.Setenv("NEXCONN_APP_KEY", "test-key")
@@ -181,5 +183,20 @@ func TestLoadRejectsBadPort(t *testing.T) {
 
 	if _, err := Load(); err == nil {
 		t.Fatal("Load succeeded, want PORT error")
+	}
+}
+
+func TestDevRequiresKeyAndSeedFlagIsIndependent(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("DEV", "1")
+	t.Setenv("DEV_KEY", "")
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "DEV_KEY") {
+		t.Fatal("DEV must require key")
+	}
+	t.Setenv("DEV", "0")
+	t.Setenv("SEED_ON_EMPTY", "1")
+	cfg, err := Load()
+	if err != nil || !cfg.SeedOnEmpty || cfg.Dev {
+		t.Fatalf("independent seed config failed: %v", err)
 	}
 }
