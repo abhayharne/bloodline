@@ -105,8 +105,10 @@ class _HomeScreenState extends State<HomeScreen> {
         break;
     }
 
-    return Scaffold(
-      appBar: AppBar(
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        appBar: AppBar(
         title: Row(
           children: [
             Container(
@@ -227,6 +229,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }

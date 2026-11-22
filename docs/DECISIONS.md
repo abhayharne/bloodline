@@ -167,6 +167,11 @@ with typed-area fallback (preset popular areas).
 1. Location pin message in chat (T2.7): Added `chat_share_location_button` to `BloodRequestChatScreen` AppBar actions and integrated `MessageInputExtensionPlugin.location` with `ChatPageConfig`. Users can share either the hospital location or current device GPS coordinates (with graceful fallback to profile coordinates). Messages are sent as `LocationMessageParams` through Nexconn Chat and surfaced via `location_pin_shared_snackbar`. Tapping any `LocationMessage` bubble presents coordinates and POI metadata in a modal details dialog.
 2. Live feed synchronization (T2.9): Added periodic polling (`startPolling`, `stopPolling`, `isPolling`) to `RequestsProvider`, initialized in `main.dart` at a 10s interval matching `NotificationsProvider`. Uses silent background loading to refresh open requests without UI loading flicker or unhandled timer leaks in widget tests.
 
+## D17 — Safe Navigation Stack, Fallback Routes, and Profile Screen Save Handling
+1. Safe Profile Save handling: ProfileScreen in edit mode is embedded as a tab inside HomeScreen. Unconditional `Navigator.pop(context)` attempted to pop the root route, causing the screen to go black. In edit mode, ProfileScreen now refreshes user data via `fetchMe()`, displays a 'Profile saved' SnackBar, checks if embedded in HomeScreen (`context.findAncestorWidgetOfExactType<HomeScreen>()`), and only calls `Navigator.of(context).pop()` if running as a standalone route where `canPop()` is true.
+2. Clean back stack on registration: In registration mode (`Complete Profile`, `isNewUser == true`), completing the profile now uses `pushAndRemoveUntil` to navigate to `HomeScreen`, clearing the back stack. Login and quick-login similarly use `pushAndRemoveUntil`.
+3. Root MaterialApp fallback route & PopScope protection: Added `onGenerateRoute` and `onUnknownRoute` handlers returning `RootGate()` so unmatched or stray routes gracefully fallback to the home gate instead of a blank screen. Root shell and HomeScreen are wrapped with `PopScope(canPop: false)` to prevent accidental pops.
+
 
 
 ## D17 — Review fixes across API and Flutter
