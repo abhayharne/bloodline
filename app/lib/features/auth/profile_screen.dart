@@ -6,6 +6,7 @@ import '../../core/providers/auth_provider.dart';
 import '../../core/providers/config_provider.dart';
 import '../home/home_screen.dart';
 import '../settings/settings_screen.dart';
+import 'login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String? initialPhone;
@@ -222,6 +223,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       } else {
         Navigator.pop(context);
+      }
+    }
+  }
+
+  Future<void> _confirmLogout(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirm Logout'),
+        content: const Text(
+          'Are you sure you want to log out? This will disconnect chat and return to the login screen.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Log Out'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && context.mounted) {
+      await context.read<AuthProvider>().logout();
+      if (context.mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (route) => false,
+        );
       }
     }
   }
@@ -594,6 +628,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   },
                   icon: const Icon(Icons.accessibility_new),
                   label: const Text('Settings & Accessibility'),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  key: const Key('profile_logout_button'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                  ),
+                  onPressed: () => _confirmLogout(context),
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Log Out'),
                 ),
               ],
               const SizedBox(height: 24),

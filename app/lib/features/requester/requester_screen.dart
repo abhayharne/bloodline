@@ -51,8 +51,8 @@ class _RequesterScreenState extends State<RequesterScreen> {
     final requestsProvider = context.read<RequestsProvider>();
 
     final user = auth.currentUser;
-    final lat = user?.lat != 0.0 ? user!.lat : 21.1458;
-    final lng = user?.lng != 0.0 ? user!.lng : 79.0882;
+    final lat = (user != null && user.lat != 0.0) ? user.lat : 21.1458;
+    final lng = (user != null && user.lng != 0.0) ? user.lng : 79.0882;
 
     final resp = await requestsProvider.createRequest(
       bloodGroup: _selectedGroup,
@@ -65,6 +65,8 @@ class _RequesterScreenState extends State<RequesterScreen> {
 
     if (!mounted) return;
     if (resp != null) {
+      await requestsProvider.loadRequests(status: 'all');
+      if (!mounted) return;
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -266,7 +268,7 @@ class _RequesterScreenState extends State<RequesterScreen> {
                     SegmentedButton<String>(
                       segments: const [
                         ButtonSegment(value: 'low', label: Text('Low')),
-                        ButtonSegment(value: 'medium', label: Text('Med')),
+                        ButtonSegment(value: 'medium', label: Text('Medium')),
                         ButtonSegment(value: 'high', label: Text('High')),
                         ButtonSegment(value: 'critical', label: Text('Critical')),
                       ],

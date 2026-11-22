@@ -161,5 +161,21 @@ void main() {
       expect(config.enableAiSummary, isTrue);
       expect(config.defaultMatchRadiusKm, 15.0);
     });
+
+    test('Defensively parses created_at: null and empty do not throw, returns null', () {
+      expect(BloodRequest.parseCreatedAt(null), isNull);
+      expect(BloodRequest.parseCreatedAt(''), isNull);
+      expect(BloodRequest.parseCreatedAt('   '), isNull);
+
+      final reqNull = BloodRequest.fromJson({'id': 'r1', 'created_at': null});
+      expect(reqNull.createdAt, isNull);
+
+      final reqEmpty = BloodRequest.fromJson({'id': 'r2', 'created_at': ''});
+      expect(reqEmpty.createdAt, isNull);
+
+      final reqValid = BloodRequest.fromJson({'id': 'r3', 'created_at': '2026-11-22T10:00:00Z'});
+      expect(reqValid.createdAt, isNotNull);
+      expect(reqValid.createdAt!.year, 2026);
+    });
   });
 }

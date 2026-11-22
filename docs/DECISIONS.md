@@ -148,3 +148,10 @@ Authentication uses phone number with 6-digit mock OTP (default 123456) and quic
 Profile form captures name, age, weight, height, sex, previous donation history, and location via device GPS
 with typed-area fallback (preset popular areas).
 
+## D14 — Error Handling, Defensive Timestamps, and Explicit Demo/Logout Semantics
+1. Real error surfacing: Never silently fall back to mock data when USE_MOCK is false. Connection and login errors are displayed via SnackBar while remaining on the LoginScreen. A prominent "Demo mode (offline data)" banner displays when mockMode is active.
+2. Defensive timestamp parsing: null or empty created_at never throws; invalid date strings surface in a SnackBar via rootScaffoldMessengerKey.
+3. Request broadcast: Upon creating a request, GET /requests is immediately refetched and active requests list updates.
+4. Urgency enum: Segmented button sends low|medium|high|critical.
+5. Logout with confirmation dialog: Clears tokens, user profile, SharedPreferences, disconnects Nexconn chat, and navigates to login.
+

@@ -1,3 +1,5 @@
+import '../scaffold_messenger.dart';
+
 class InAppNotification {
   final String id;
   final String type;
@@ -15,15 +17,27 @@ class InAppNotification {
     this.read = false,
   });
 
+  /// Defensively parse created_at: null or empty must not throw;
+  /// surfaces any other parse error in a SnackBar.
+  static DateTime? parseCreatedAt(dynamic raw) {
+    if (raw == null) return null;
+    final str = raw.toString().trim();
+    if (str.isEmpty) return null;
+    final parsed = DateTime.tryParse(str);
+    if (parsed == null) {
+      showParseErrorSnackBar(str);
+      return null;
+    }
+    return parsed;
+  }
+
   factory InAppNotification.fromJson(Map<String, dynamic> json) {
     return InAppNotification(
       id: json['id'] as String? ?? '',
       type: json['type'] as String? ?? '',
       title: json['title'] as String? ?? '',
       body: json['body'] as String? ?? '',
-      createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'].toString())
-          : null,
+      createdAt: parseCreatedAt(json['created_at']),
       read: json['read'] as bool? ?? false,
     );
   }

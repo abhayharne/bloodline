@@ -49,12 +49,14 @@ class _LoginScreenState extends State<LoginScreen> {
           backgroundColor: Colors.teal,
         ),
       );
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _otpSent = true;
-        _isDemo = true;
-      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to send OTP: $e'),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
     }
   }
 
@@ -120,6 +122,13 @@ class _LoginScreenState extends State<LoginScreen> {
         context,
         MaterialPageRoute(builder: (_) => const HomeScreen()),
       );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(authProvider.error ?? 'Login failed'),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
     }
   }
 
@@ -134,6 +143,34 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (authProvider.apiClient.mockMode) ...[
+                Container(
+                  key: const Key('demo_mode_banner'),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.amber.shade600),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, size: 20, color: Colors.amber.shade900),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Demo mode (offline data)',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.amber.shade900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 20),
               // App logo / Title
               Center(

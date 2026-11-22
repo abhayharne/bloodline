@@ -9,6 +9,7 @@ import '../donor/donor_screen.dart';
 import '../bank/bank_screen.dart';
 import '../chat/channel_inbox_screen.dart';
 import '../auth/profile_screen.dart';
+import '../auth/login_screen.dart';
 import '../debug/debug_screen.dart';
 import '../notifications/notification_banner.dart';
 import '../notifications/notifications_screen.dart';
@@ -23,6 +24,39 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentTabIndex = 0;
+
+  Future<void> _confirmLogout(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirm Logout'),
+        content: const Text(
+          'Are you sure you want to log out? This will disconnect chat and return to the login screen.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Log Out'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && context.mounted) {
+      await context.read<AuthProvider>().logout();
+      if (context.mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (route) => false,
+        );
+      }
+    }
+  }
 
   Widget _buildRoleDashboard(String role) {
     switch (role) {
@@ -50,6 +84,27 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (auth.apiClient.mockMode) ...[
+            Container(
+              key: const Key('demo_mode_banner_home'),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: Colors.amber.shade100,
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: Colors.amber.shade900),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Demo mode (offline data)',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.amber.shade900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           // In-app notification banner (server-driven copy)
           const NotificationBanner(),
 
@@ -171,6 +226,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 MaterialPageRoute(builder: (_) => const DebugScreen()),
               );
             },
+          ),
+          // Logout button
+          IconButton(
+            key: const Key('home_logout_button'),
+            icon: const Icon(Icons.logout),
+            tooltip: 'Logout',
+            onPressed: () => _confirmLogout(context),
           ),
         ],
       ),

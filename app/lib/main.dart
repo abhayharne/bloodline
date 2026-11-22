@@ -6,6 +6,7 @@ import 'package:ai_nexconn_chatui_plugin/ai_nexconn_chatui_plugin.dart';
 import 'core/config.dart';
 import 'core/api_client.dart';
 import 'core/features.dart';
+import 'core/scaffold_messenger.dart';
 import 'core/nexconn_service.dart';
 import 'core/providers/auth_provider.dart';
 import 'core/providers/requests_provider.dart';
@@ -122,6 +123,7 @@ class BloodLineApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
     return MaterialApp(
+      scaffoldMessengerKey: rootScaffoldMessengerKey,
       title: 'BloodLine',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(

@@ -1,27 +1,28 @@
 # App Handoff
-**From:** agy (app agent)  **To:** next agent / human  **Time:** 2026-11-22 04:48 IST
+**From:** antigravity (app agent)  **To:** next agent / human  **Time:** 2026-11-22 13:50 IST
 **Branch:** main
 
 ## Done this iteration
-- Task B12 Final pass:
-  - Replaced test placeholder in `app/test/widget_test.dart` with `BloodLineApp` root gate widget test.
-  - Added widget tests for `ChannelInboxScreen` and `DebugScreen` in `app/test/core_screens_test.dart` (77/77 tests passing, gate clean, 100% of all 11 application screens covered with mock client).
-  - Enhanced `app/README.md` with clear instructions for running against real Go backend and Nexconn Singapore Chat SDK using `--dart-define=API_BASE=...` and `--dart-define=NEXCONN_APP_KEY=...`.
-  - Documented platform host address mapping (`10.0.2.2:8080` for Android emulator, `localhost:8080` for iOS simulator/desktop, and local Wi-Fi IP `192.168.x.x:8080` for physical devices), offline mock mode (`USE_MOCK=true`), and cleartext HTTP.
-  - Recorded decision D-APP-9 in `docs/decisions-app.md`.
-  - All tasks B0 through B12 in `docs/tasks-app.md` are completed (B11 marked `[!]` for voice-to-text hardware/platform requirement).
+- Real error surfacing on login & mock banner:
+  - Eliminated silent mock fallback when `USE_MOCK` is false; connection/login errors are surfaced in a SnackBar and the user remains on `LoginScreen`.
+  - Added visible "Demo mode (offline data)" banner on `LoginScreen` and `HomeScreen` when mock mode is active.
+- Defensive `created_at` timestamp parsing:
+  - Added `parseCreatedAt` to `BloodRequest` and `InAppNotification`; `null` or empty strings safely return `null` without throwing.
+  - Invalid date strings surface error in a SnackBar via `rootScaffoldMessengerKey`.
+- Request broadcast & immediate active requests refresh:
+  - `RequestsProvider.createRequest` and `RequesterScreen` immediately refetch `GET /requests` so the newly broadcasted request appears in "My Active Requests".
+- Urgency options:
+  - Configured segmented urgency selector to send `low|medium|high|critical`.
+- Logout with confirm dialog:
+  - Added logout button to `HomeScreen` and `ProfileScreen` with confirmation dialog.
+  - Clears stored auth token, user profile, SharedPreferences session, disconnects Nexconn chat SDK, and navigates to `LoginScreen`.
+- Widget Tests & Gate Verification:
+  - Added comprehensive widget tests for mock banner, real error snackbars on failure, defensive date parsing, broadcast refetching, urgency values, and logout confirmation.
+  - Verification gate `scripts/gate-app.sh` is 100% GREEN (85/85 tests passing, 0 analyzer errors/warnings).
 
 ## State of the code
-- Gate: `scripts/gate-app.sh` PASS (`flutter analyze` clean, 0 errors/warnings, 77/77 tests passing).
-- Complete Flutter app architecture ready: Auth & signup with donor consent, Requester flow, Donor feed & accept, Blood Bank 8-group stock manager, Chat inbox/rooms with summary header, Fulfill & donation recording, 10s notification polling & in-app banner, feature ranks, feature reminders, and large-font accessibility toggle.
+- Gate: `scripts/gate-app.sh` PASS (85/85 tests passing, clean analyzer).
+- Working tree clean, all 5 requested items verified.
 
 ## Next action
-- All scheduled app tasks (B0–B12) are complete!
-- Morning handover: Human or physical device operator should perform physical device verification listed below.
-
-## Blockers / Human notes (Real Device Morning Checklist)
-1. **Real Android/iOS builds**: Execute `flutter build apk` / `flutter build ios` to verify vendored `ai_nexconn_chatui_plugin` Kotlin/CocoaPods linking.
-2. **Nexconn Live Chat**: Test live WebSocket connection to Singapore DC (`AreaCode.sg`) with real credentials and multi-device real-time message sync.
-3. **Hardware GPS Sensor**: Test real GPS location detection (`geolocator`) and runtime location permission dialog on a physical smartphone.
-4. **Voice-to-Text Microphone (B11)**: If voice-to-text accessibility is desired, add platform speech permission manifest entries (`RECORD_AUDIO`, `Info.plist`) and test with physical microphone hardware.
-5. **LAN Network Connectivity**: Verify physical phone connects to Go backend at `http://192.168.x.x:8080` over Wi-Fi.
+- Run live e2e integration against Go backend with real credentials (`scripts/gate-api.sh` + `gate-app.sh`).

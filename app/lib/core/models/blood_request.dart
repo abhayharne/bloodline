@@ -1,3 +1,5 @@
+import '../scaffold_messenger.dart';
+
 class BloodRequest {
   final String id;
   final String bloodGroup;
@@ -35,15 +37,22 @@ class BloodRequest {
   bool get isFulfilled => status == 'fulfilled';
   bool get isCancelled => status == 'cancelled';
 
+  /// Defensively parse created_at: null or empty must not throw;
+  /// surfaces any other parse error in a SnackBar.
+  static DateTime? parseCreatedAt(dynamic raw) {
+    if (raw == null) return null;
+    final str = raw.toString().trim();
+    if (str.isEmpty) return null;
+    final parsed = DateTime.tryParse(str);
+    if (parsed == null) {
+      showParseErrorSnackBar(str);
+      return null;
+    }
+    return parsed;
+  }
+
   /// Factory constructor that safely ignores unknown fields
   factory BloodRequest.fromJson(Map<String, dynamic> json) {
-    DateTime? created;
-    if (json['created_at'] != null) {
-      try {
-        created = DateTime.parse(json['created_at'].toString());
-      } catch (_) {}
-    }
-
     return BloodRequest(
       id: json['id']?.toString() ?? '',
       bloodGroup: json['blood_group']?.toString() ?? 'O+',
@@ -52,7 +61,7 @@ class BloodRequest {
       urgency: json['urgency']?.toString() ?? 'medium',
       status: json['status']?.toString() ?? 'open',
       channelId: json['channel_id']?.toString() ?? 'req${json['id'] ?? ''}',
-      createdAt: created,
+      createdAt: parseCreatedAt(json['created_at']),
       distanceKm: (json['distance_km'] as num?)?.toDouble(),
       requesterName: json['requester_name']?.toString(),
       joined: json['joined'] == true,

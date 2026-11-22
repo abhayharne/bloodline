@@ -55,8 +55,19 @@ class RequestsProvider extends ChangeNotifier {
         lat: lat,
         lng: lng,
       );
-      // Prepend to current list
-      _requests.insert(0, resp.request);
+      // Refetch GET /requests and show the new request in My Active Requests immediately
+      try {
+        final fetched = await apiClient.getRequests(status: 'all');
+        if (fetched.any((r) => r.id == resp.request.id)) {
+          _requests = fetched;
+        } else {
+          _requests = [resp.request, ...fetched];
+        }
+      } catch (_) {
+        if (!_requests.any((r) => r.id == resp.request.id)) {
+          _requests.insert(0, resp.request);
+        }
+      }
       _isLoading = false;
       notifyListeners();
       return resp;
