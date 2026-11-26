@@ -84,3 +84,4 @@ Stretch only if all else is done: AI summary pinned in room; push notifications 
 ## Human-requested launch video
 - [x] T5.5 (human/Codex) Create BloodLine launch video using the installed brag skill; render, inspect and deliver MP4, poster and editable composition.
 - [~] T5.6 (human/Codex) Prepare a signed Android APK against a public API, publish GitHub download assets, and document installation.
+- [x] T5.7 (human/Codex) Review the GitHub repository, refresh the README and add a repository description.

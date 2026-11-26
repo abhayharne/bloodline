@@ -230,3 +230,10 @@ Reference: https://www.lifeblood.com.au/patients-recipients/blood-plasma-platele
 - Run a separate demo database through a Cloudflare quick tunnel with DEV=0, NEXCONN_FAKE=0 and NEXCONN_MOCK=0. Only the server configuration loader reads .env; the release tooling never opens it.
 - The human explicitly requested GitHub publication. Preserve overnight hooks but override hooksPath for the authorized commit/push: the existing pre-commit hook reads .env and the pre-push hook blocks every push. Require redacted GitLeaks history/staged-source scans instead.
 - Keep Android signing material private. Move generated build artifacts to /tmp to resolve disk exhaustion; do not commit the app/build symlink.
+
+## D22 — README describes the shipped demo and verified GitHub availability
+
+- The human requested repository review, a README refresh and a GitHub description.
+- Replace scaffold commands with existing-project setup, separate fake API mode from live messaging, and document demo OTP, sample hospitals and keyed development resets.
+- GitHub has no published release as of 2026-11-26; link build instructions rather than an unavailable APK download. Label the launch artwork as recreated screens with fictional data.
+- Disk exhaustion blocked the sandbox. Move regenerable Go and Flutter caches to /tmp; retain the Flutter cache through an ignored app/.dart_tool symlink. Source, databases and signing material remain untouched.
