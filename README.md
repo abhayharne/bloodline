@@ -6,7 +6,11 @@ BloodLine connects requesters, nearby donors and blood banks so they can coordin
 an urgent blood request in one place. Built for a one-day hackathon with Flutter,
 Go, SQLite and the Nexconn Chat SDK.
 
-[Launch film](brag-output/brag.mp4) · [API reference](docs/API.md) · [Deployment guide](deploy/README.md)
+[Download Android APK](https://github.com/abhayharne/bloodline/releases/latest/download/bloodline.apk) · [Release notes](https://github.com/abhayharne/bloodline/releases/latest) · [Launch film](brag-output/brag.mp4) · [API reference](docs/API.md) · [Deployment guide](deploy/README.md)
+
+Install the APK on Android 7.0 or later, allow installation from your browser when
+prompted, and open BloodLine. Use fictional details and demo code **123456**;
+no SMS is sent. The first connection can take up to 90 seconds.
 
 [![BloodLine launch film preview](brag-output/brag.jpg)](brag-output/brag.mp4)
 
@@ -43,14 +47,17 @@ The request, chat and fulfillment flow has been checked on a physical Android
 phone with live Nexconn. Automated checks cover the Go API, Flutter widgets
 and Dart-to-Go HTTP integration.
 
-Android signing and release scripts are included, but no GitHub Release is
-published yet. Follow the [Android build and deployment guide](deploy/README.md)
-to prepare an installable APK and its API service.
+The signed Android APK and its SHA-256 checksum are available in
+[GitHub Releases](https://github.com/abhayharne/bloodline/releases/latest).
+Registration, profile saving, donor acceptance, message delivery, donation
+recording and fulfillment have been tested on the release APK with the live API.
 
-The demo API is prepared for Modal with a persistent SQLite volume and one
-container that scales to zero when idle. The app waits up to 90 seconds for a cold
-service. Modal's included compute credits are limited; set a $0 spend limit to
-keep the demo within those credits. See the [deployment guide](deploy/README.md).
+The [live API health endpoint](https://abhayharne--bloodline-api.ap-south.modal.run/health)
+runs on Modal with a persistent SQLite volume and one container that scales to
+zero when idle. Saved data was verified across container replacement and
+redeployment. The demo has a $0 workspace spend limit and may pause when included
+compute credits run out. See the [deployment guide](deploy/README.md) to build or
+host your own copy.
 
 ## Architecture
 
