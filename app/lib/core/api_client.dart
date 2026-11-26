@@ -200,6 +200,10 @@ class _LoggingClient extends http.BaseClient {
 /// Real HTTP implementation of [ApiClient] that connects to the BloodLine REST API.
 /// If [mockMode] is toggled to true at runtime, it falls back to an in-memory mock.
 class HttpApiClient implements ApiClient {
+  // Live room operations include multiple Nexconn calls and can exceed 5 seconds.
+  // Wait for their response without replaying a state-changing request.
+  static const _chatOperationTimeout = Duration(seconds: 30);
+
   @override
   String baseUrl;
 
@@ -321,7 +325,7 @@ class HttpApiClient implements ApiClient {
           headers: _headers(),
           body: jsonEncode(body),
         )
-        .timeout(const Duration(seconds: 5));
+        .timeout(_chatOperationTimeout);
 
     if (res.statusCode == 200 || res.statusCode == 201) {
       final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -356,7 +360,7 @@ class HttpApiClient implements ApiClient {
           headers: _headers(),
           body: jsonEncode(body),
         )
-        .timeout(const Duration(seconds: 5));
+        .timeout(_chatOperationTimeout);
 
     if (res.statusCode == 200) {
       final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -460,7 +464,7 @@ class HttpApiClient implements ApiClient {
           headers: _headers(),
           body: jsonEncode(body),
         )
-        .timeout(const Duration(seconds: 5));
+        .timeout(_chatOperationTimeout);
 
 
     if (res.statusCode == 200 || res.statusCode == 201) {
@@ -525,7 +529,7 @@ class HttpApiClient implements ApiClient {
           Uri.parse('$baseUrl/requests/$requestId/accept'),
           headers: _headers(),
         )
-        .timeout(const Duration(seconds: 5));
+        .timeout(_chatOperationTimeout);
 
     if (res.statusCode == 200) {
       final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -543,7 +547,7 @@ class HttpApiClient implements ApiClient {
           Uri.parse('$baseUrl/requests/$requestId/fulfill'),
           headers: _headers(),
         )
-        .timeout(const Duration(seconds: 5));
+        .timeout(_chatOperationTimeout);
 
     if (res.statusCode == 200) {
       final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -564,7 +568,7 @@ class HttpApiClient implements ApiClient {
           Uri.parse('$baseUrl/requests/$requestId/cancel'),
           headers: _headers(),
         )
-        .timeout(const Duration(seconds: 5));
+        .timeout(_chatOperationTimeout);
 
     if (res.statusCode == 200) {
       final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -604,7 +608,7 @@ class HttpApiClient implements ApiClient {
           headers: _headers(),
           body: jsonEncode({'phone': phone, 'code': otp}),
         )
-        .timeout(const Duration(seconds: 5));
+        .timeout(_chatOperationTimeout);
 
     if (res.statusCode == 200) {
       final data = jsonDecode(res.body) as Map<String, dynamic>;

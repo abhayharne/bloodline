@@ -13,6 +13,53 @@ import 'package:bloodline/core/slots.dart';
 import 'package:bloodline/core/providers/notifications_provider.dart';
 
 void main() {
+  testWidgets('slow live room operations complete without replaying writes', (tester) async {
+    final paths = <String>[];
+    final api = HttpApiClient(httpClient: MockClient((request) async {
+      paths.add(request.url.path);
+      await Future<void>.delayed(const Duration(seconds: 9));
+      if (request.url.path.endsWith('/accept')) {
+        return http.Response('{"channel_id":"reqrslow"}', 200);
+      }
+      return http.Response(jsonEncode({
+        'request': {
+          'id': 'rslow', 'requester_id': 'urequester', 'blood_group': 'O-',
+          'units': 2, 'hospital': 'Sample Hospital', 'urgency': 'critical',
+          'status': request.url.path.endsWith('/fulfill') ? 'fulfilled' : 'open',
+          'channel_id': 'reqrslow', 'created_at': '2026-11-26T12:00:00Z',
+        },
+        'matches': {'banks': 0, 'donors': 2},
+      }), request.url.path == '/requests' ? 201 : 200);
+    }));
+
+    Future<T> waitForSlowResponse<T>(Future<T> pending) async {
+      T? value;
+      Object? failure;
+      var completed = false;
+      unawaited(pending.then<void>((result) {
+        value = result;
+        completed = true;
+      }, onError: (Object error) {
+        failure = error;
+        completed = true;
+      }));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 6));
+      expect(completed, isFalse, reason: 'Do not report a failure while the real server is still completing the operation.');
+      await tester.pump(const Duration(seconds: 4));
+      expect(failure, isNull);
+      expect(completed, isTrue);
+      return value as T;
+    }
+
+    final created = await waitForSlowResponse(api.createRequest(
+      bloodGroup: 'O-', units: 2, hospital: 'Sample Hospital', urgency: 'critical', lat: 21, lng: 79,
+    ));
+    expect(created.request.id, 'rslow');
+    expect(await waitForSlowResponse(api.acceptRequest('rslow')), 'reqrslow');
+    expect((await waitForSlowResponse(api.fulfillRequest('rslow'))).isFulfilled, isTrue);
+    expect(paths, ['/requests', '/requests/rslow/accept', '/requests/rslow/fulfill']);
+  });
   test('stock editor reads and saves only whole blood', () async {
     final api = HttpApiClient(httpClient: MockClient((request) async {
       if (request.method == 'PUT') {
