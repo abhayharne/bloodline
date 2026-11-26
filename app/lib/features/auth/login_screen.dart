@@ -454,8 +454,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       size: 16,
                       color: Colors.red,
                     ),
-                    label: const Text('Asha (Donor O+)'),
-                    onPressed: () => _quickLogin('Asha', 'donor', 'O+'),
+                    label: const Text('Asha (Donor O-)'),
+                    onPressed: () => _quickLogin('Asha', 'donor', 'O-'),
                   ),
                   ActionChip(
                     avatar: const Icon(
@@ -472,9 +472,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       size: 16,
                       color: Colors.blue,
                     ),
-                    label: const Text('City Hospital Bank'),
+                    label: const Text('City Blood Bank'),
                     onPressed: () =>
-                        _quickLogin('City Hospital Bank', 'bank', 'all'),
+                        _quickLogin('City Blood Bank', 'bank', 'all'),
                   ),
                 ],
               ),

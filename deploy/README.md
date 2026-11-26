@@ -25,14 +25,15 @@ scripts/deploy-modal.sh
 ```
 
 The script builds a stripped Linux binary under ignored `dist/modal/` and uploads
-only that executable into a small Python image. It never opens `.env` or uploads
-the repository, SQLite files, Android signing material or local runtime logs.
+that executable and the deployment module into a small Python image. It never
+opens `.env` or uploads SQLite files, Android signing material or runtime logs.
 The deployment fixes DEV/FAKE/MOCK at `0`, uses live Singapore Nexconn and seeds
 fictional accounts and stock only on an empty database.
 
 The API uses a single container, a persistent v2 Modal Volume named
 `bloodline-data`, and up to 32 concurrent HTTP requests. SQLite still serializes
-its database connection. The container scales to zero after inactivity; Modal
+its database connection. A 15-minute idle window keeps the API awake while users
+fill forms, after which it scales to zero. Modal
 periodically commits the volume and commits it on normal shutdown. This is demo
 storage, not a replicated database or a guarantee against abrupt-crash data loss.
 

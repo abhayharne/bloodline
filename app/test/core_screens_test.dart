@@ -532,14 +532,44 @@ void main() {
     await tester.pumpAndSettle();
 
     // Tap quick login chip with failing backend
-    await tester.ensureVisible(find.text('Asha (Donor O+)'));
-    await tester.tap(find.text('Asha (Donor O+)'));
+    await tester.ensureVisible(find.text('Asha (Donor O-)'));
+    await tester.tap(find.text('Asha (Donor O-)'));
     await tester.pumpAndSettle();
 
     // Verify error SnackBar is displayed and stays on LoginScreen
     expect(find.textContaining('Backend unreachable'), findsOneWidget);
     expect(auth.isAuthenticated, isFalse);
     expect(find.text('BloodLine'), findsOneWidget);
+  });
+
+  testWidgets('Bank demo shortcut signs into the seeded bank through the HTTP contract', (tester) async {
+    const bank = {'id': 'ubank1', 'name': 'City Blood Bank', 'role': 'bank', 'lat': 21.148, 'lng': 79.085};
+    final client = HttpApiClient(httpClient: MockClient((request) async {
+      if (request.url.path == '/auth/login') {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        if (body['name'] != bank['name'] || body['role'] != 'bank') {
+          return http.Response('{"error":"user not found"}', 404);
+        }
+        return http.Response(jsonEncode({'user': bank, 'token': 'mock_bank_jwt', 'nexconn_token': 'mock_bank_chat'}), 200);
+      }
+      if (request.url.path == '/me') {
+        return http.Response(jsonEncode({'user': bank}), 200);
+      }
+      if (request.url.path == '/banks/me/stock') return http.Response('{"stock":[]}', 200);
+      if (request.url.path == '/requests') return http.Response('{"requests":[]}', 200);
+      return http.Response('{"error":"not found"}', 404);
+    }));
+    final auth = AuthProvider(apiClient: client);
+    await tester.pumpWidget(createTestApp(const LoginScreen(), authProvider: auth));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('City Blood Bank'));
+    await tester.tap(find.text('City Blood Bank'));
+    await tester.pumpAndSettle();
+    expect(auth.isAuthenticated, isTrue);
+    expect(auth.currentUser?.id, 'ubank1');
+    expect(auth.currentUser?.role, 'bank');
+    expect(find.byType(HomeScreen), findsOneWidget);
+    expect(find.text('Blood Inventory Stock'), findsOneWidget);
   });
 
   testWidgets('created_at defensive parsing surfaces parse error in a SnackBar on invalid date', (tester) async {
