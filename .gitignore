@@ -11,6 +11,7 @@ app/build/
 app/build
 app/.dart_tool/
 app/.dart_tool
+app/android/.kotlin/
 .idea/
 .vscode/
 .DS_Store
