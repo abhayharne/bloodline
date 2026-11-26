@@ -1,6 +1,8 @@
-# API addendum v2 (shared contract for BOTH agents; additive to docs/API.md)
-Where this conflicts with docs/API.md, THIS FILE WINS. All ids alphanumeric only (no `_` or `-`). Unknown JSON fields must be ignored by clients.
-The API agent folds this into docs/API.md, DATA_MODEL.md and schema.sql in task A0.
+# API v2 design reference
+
+This document records the v2 API design. See [API.md](API.md) for the implemented
+contract and known deviations from this reference. All IDs are alphanumeric
+(no `_` or `-`). Clients must ignore unknown JSON fields.
 
 ## Auth (replaces /auth/signup and /auth/login from API.md)
 Demo OTP: env `DEMO_OTP` (default `123456`). Any phone number is accepted. Responses include `"demo":true`.
