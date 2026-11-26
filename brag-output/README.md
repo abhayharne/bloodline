@@ -6,7 +6,6 @@
 - `brag.jpg`: thumbnail selected from the settled chat scene at 13.7s.
 - `share-copy.txt`: caption with required music attribution.
 - `composition/`: editable Hyperframes source; four scenes, local audio assets.
-- `brag-plan.md`, `composition-brief.md`: creative direction and factual grounding.
 - `CREDITS.txt`: credits and fictional demo-data note.
 
 The screens are source-grounded, video-sized recreations. This is a launch film rather than a screen recording. All hospital, message and match-count examples are fictional. App and API code are unchanged.
@@ -15,11 +14,11 @@ The screens are source-grounded, video-sized recreations. This is a launch film 
 
 Local Studio: http://localhost:3017/#project/composition
 
-From `composition/`, use the installed Hyperframes launcher (adjust the path for another installation):
+From `composition/`, use the pinned npm scripts (Node.js and npm required):
 
 ```sh
-HYPERFRAMES_CACHE_DIR=/tmp/bloodline-hyperframes-cache node /home/_abhay_/.agents/skills/hyperframes/scripts/plugin-cli.mjs --cli-version 0.9.81 check --json
-HYPERFRAMES_CACHE_DIR=/tmp/bloodline-hyperframes-cache node /home/_abhay_/.agents/skills/hyperframes/scripts/plugin-cli.mjs --cli-version 0.9.81 render --quality delivery --workers 1 --output ../brag.mp4
+npm run check
+npm run render -- --quality delivery --workers 1 --output ../brag.mp4
 ```
 
 Then run `python3 finalize.py` from this folder. FFmpeg and FFprobe required. The `/tmp` cache is rebuildable.

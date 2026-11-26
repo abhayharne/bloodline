@@ -2,10 +2,14 @@
 library;
 
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:bloodline/core/api_client.dart';
 import 'package:bloodline/core/models/user.dart';
+import 'package:bloodline/core/providers/auth_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   late Directory sandbox;
@@ -49,6 +53,7 @@ void main() {
         'JWT_SECRET': 'local-http-e2e-only',
         'NEXCONN_FAKE': '1',
         'DEV': '1',
+        'DEV_KEY': 'http-e2e-reset-only',
         'DEMO_OTP': '123456',
         'MATCH_RADIUS_KM': '10',
         'FEATURES': '',
@@ -184,4 +189,45 @@ void main() {
     );
     expect((await requester.getRequests()).single.id, created.request.id);
   }, skip: skipReason);
+
+  test(
+    'a real database reset clears the saved session and permits registration',
+    () async {
+      const phone = '+919900100004';
+      final api = HttpApiClient(baseUrl: baseUrl);
+      final account = await api.signup(
+        name: 'Reset demo donor',
+        role: 'donor',
+        phone: phone,
+        bloodGroup: 'O+',
+        lat: 21,
+        lng: 79,
+      );
+      SharedPreferences.setMockInitialValues({
+        'bloodline_user_v1': jsonEncode(account.user.toJson()),
+        'bloodline_jwt_token_v1': account.token,
+      });
+      final reset = await http.post(
+        Uri.parse('$baseUrl/dev/reset'),
+        headers: {'X-Dev-Key': 'http-e2e-reset-only'},
+      );
+      expect(reset.statusCode, 200);
+      final auth = AuthProvider(apiClient: api);
+      addTearDown(auth.dispose);
+      await auth.init();
+      expect(auth.isAuthenticated, isFalse);
+      expect(auth.sessionNotice, contains('register again'));
+      final replacement = await api.signup(
+        name: 'Reset demo donor',
+        role: 'donor',
+        phone: phone,
+        bloodGroup: 'O+',
+        lat: 21,
+        lng: 79,
+      );
+      expect(replacement.user.id, isNot(account.user.id));
+      expect((await api.getMe())['user']['id'], replacement.user.id);
+    },
+    skip: skipReason,
+  );
 }

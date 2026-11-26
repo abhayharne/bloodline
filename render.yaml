@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: bloodline-api
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: main
+    dockerfilePath: ./deploy/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: "off"
+    envVars:
+      - key: DB_PATH
+        value: /data/bloodline.db
+      - key: JWT_SECRET
+        generateValue: true
+      - key: NEXCONN_APP_KEY
+        sync: false
+      - key: NEXCONN_APP_SECRET
+        sync: false
+      - key: NEXCONN_API_BASE
+        value: https://api.sg-light-api.com
+      - key: NEXCONN_API_BASE_BACKUP
+        value: https://api-b.sg-light-api.com
+      - key: DEMO_OTP
+        value: "123456"
+      - key: MATCH_RADIUS_KM
+        value: "10"
+      - key: FEATURES
+        value: ""
+      - key: SEED_ON_EMPTY
+        value: "1"
+      - key: DEV
+        value: "0"
+      - key: NEXCONN_FAKE
+        value: "0"
+      - key: NEXCONN_MOCK
+        value: "0"

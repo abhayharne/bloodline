@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../models/user.dart';
 import '../models/user_derived.dart';
 import '../models/auth_response.dart';
@@ -16,6 +18,8 @@ class AuthProvider extends ChangeNotifier {
   String? _nexconnToken;
   bool _isLoading = false;
   String? _error;
+  bool _isRestoring = false;
+  String? _sessionNotice;
 
   User? get currentUser => _currentUser;
   UserDerived? get derived => _derived;
@@ -24,6 +28,8 @@ class AuthProvider extends ChangeNotifier {
   bool get isAuthenticated => _currentUser != null && _token != null;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  bool get isRestoring => _isRestoring;
+  String? get sessionNotice => _sessionNotice;
 
   AuthProvider({required this.apiClient});
 
@@ -38,6 +44,8 @@ class AuthProvider extends ChangeNotifier {
   static const _kNexconnTokenPrefKey = 'bloodline_nexconn_token_v1';
 
   Future<void> init() async {
+    _isRestoring = true;
+    notifyListeners();
     try {
       final prefs = await SharedPreferences.getInstance();
       final userJson = prefs.getString(_kUserPrefKey);
@@ -45,20 +53,26 @@ class AuthProvider extends ChangeNotifier {
       final nexconnToken = prefs.getString(_kNexconnTokenPrefKey);
 
       if (userJson != null && token != null) {
-        _currentUser = User.fromJson(jsonDecode(userJson) as Map<String, dynamic>);
+        _currentUser = User.fromJson(
+          jsonDecode(userJson) as Map<String, dynamic>,
+        );
         _token = token;
         _nexconnToken = nexconnToken;
         apiClient.authToken = token;
 
-        if (nexconnToken != null && nexconnToken.isNotEmpty) {
-          _connectChat(nexconnToken);
-        }
-        notifyListeners();
         // Fetch derived profile & rank
         await fetchMe();
+        if (_token == token &&
+            nexconnToken != null &&
+            nexconnToken.isNotEmpty) {
+          _connectChat(nexconnToken);
+        }
       }
     } catch (e) {
       debugPrint('[AuthProvider] init session restoration error: $e');
+    } finally {
+      _isRestoring = false;
+      notifyListeners();
     }
   }
 
@@ -188,7 +202,9 @@ class AuthProvider extends ChangeNotifier {
       'lng': updatedUser.lng,
       if (updatedUser.weight != null) 'weight_kg': updatedUser.weight,
       if (updatedUser.height != null) 'height_cm': updatedUser.height,
-      'last_donated_at': updatedUser.lastDonationDate?.toIso8601String().split('T').first ?? '',
+      'last_donated_at':
+          updatedUser.lastDonationDate?.toIso8601String().split('T').first ??
+          '',
       'apheresis_ok': updatedUser.canDonatePlatelets,
     });
     final derived = response['derived'];
@@ -206,8 +222,8 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> fetchMe() async {
+    final token = _token;
     try {
-      final token = _token;
       final res = await apiClient.getMe();
       if (token != _token) return;
       final data = res['user'];
@@ -216,15 +232,29 @@ class AuthProvider extends ChangeNotifier {
         final current = _currentUser;
         if (current == null) {
           _currentUser = serverUser;
-        } else if (!apiClient.mockMode && current.id == serverUser.id &&
+        } else if (!apiClient.mockMode &&
+            current.id == serverUser.id &&
             current.role != serverUser.role) {
           await updateProfile(current.copyWith(role: serverUser.role));
         }
       }
       if (res['derived'] != null && res['derived'] is Map) {
-        _derived = UserDerived.fromJson(Map<String, dynamic>.from(res['derived'] as Map));
+        _derived = UserDerived.fromJson(
+          Map<String, dynamic>.from(res['derived'] as Map),
+        );
       }
       notifyListeners();
+    } on ApiException catch (e) {
+      if (token != _token) return;
+      if (e.statusCode == 401 || e.statusCode == 404) {
+        await logout();
+        _sessionNotice = e.statusCode == 404
+            ? 'The demo has reset. Please register again using fictional details.'
+            : 'Your session has expired. Please sign in again.';
+        notifyListeners();
+      } else {
+        debugPrint('[AuthProvider] fetchMe error: $e');
+      }
     } catch (e) {
       debugPrint('[AuthProvider] fetchMe error: $e');
     }
@@ -240,6 +270,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    _sessionNotice = null;
     _currentUser = null;
     _derived = null;
     _token = null;
@@ -256,6 +287,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> _saveSession(AuthResponse resp) async {
+    _sessionNotice = null;
     _currentUser = resp.user;
     _token = resp.token;
     _nexconnToken = resp.nexconnToken;
@@ -272,10 +304,17 @@ class AuthProvider extends ChangeNotifier {
   }
 
   void _connectChat(String token) {
-    unawaited(NexconnService.instance.connect(token).then<void>((_) {},
-      onError: (Object error, StackTrace stack) {
-        debugPrint('[AuthProvider] Chat connection failed: ${error.runtimeType}');
-      },
-    ));
+    unawaited(
+      NexconnService.instance
+          .connect(token)
+          .then<void>(
+            (_) {},
+            onError: (Object error, StackTrace stack) {
+              debugPrint(
+                '[AuthProvider] Chat connection failed: ${error.runtimeType}',
+              );
+            },
+          ),
+    );
   }
 }

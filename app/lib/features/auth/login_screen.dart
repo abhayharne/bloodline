@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
+
 import '../../core/providers/auth_provider.dart';
 import 'profile_screen.dart';
 import '../home/home_screen.dart';
@@ -152,10 +153,28 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (authProvider.sessionNotice != null) ...[
+                Text(
+                  authProvider.sessionNotice!,
+                  key: const Key('session_notice'),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 16),
+              ],
+              const Text(
+                'Public demo · Code 123456 · No SMS is sent.\n'
+                'Use fictional details. Accounts and requests may reset when the demo sleeps or restarts.',
+                key: Key('public_demo_notice'),
+                style: TextStyle(fontSize: 14, color: Colors.black87),
+              ),
+              const SizedBox(height: 16),
               if (authProvider.apiClient.mockMode) ...[
                 Container(
                   key: const Key('demo_mode_banner'),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
                     color: Colors.amber.shade100,
@@ -164,7 +183,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.warning_amber_rounded, size: 20, color: Colors.amber.shade900),
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        size: 20,
+                        color: Colors.amber.shade900,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -309,7 +332,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                         margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
                           color: Colors.amber.shade100,
@@ -318,7 +344,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         child: const Row(
                           children: [
-                            Icon(Icons.info_outline, size: 18, color: Colors.orange),
+                            Icon(
+                              Icons.info_outline,
+                              size: 18,
+                              color: Colors.orange,
+                            ),
                             SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -419,19 +449,32 @@ class _LoginScreenState extends State<LoginScreen> {
                 runSpacing: 8,
                 children: [
                   ActionChip(
-                    avatar: const Icon(Icons.person, size: 16, color: Colors.red),
+                    avatar: const Icon(
+                      Icons.person,
+                      size: 16,
+                      color: Colors.red,
+                    ),
                     label: const Text('Asha (Donor O+)'),
                     onPressed: () => _quickLogin('Asha', 'donor', 'O+'),
                   ),
                   ActionChip(
-                    avatar: const Icon(Icons.emergency, size: 16, color: Colors.orange),
+                    avatar: const Icon(
+                      Icons.emergency,
+                      size: 16,
+                      color: Colors.orange,
+                    ),
                     label: const Text('Ravi (Requester O-)'),
                     onPressed: () => _quickLogin('Ravi', 'requester', 'O-'),
                   ),
                   ActionChip(
-                    avatar: const Icon(Icons.local_hospital, size: 16, color: Colors.blue),
+                    avatar: const Icon(
+                      Icons.local_hospital,
+                      size: 16,
+                      color: Colors.blue,
+                    ),
                     label: const Text('City Hospital Bank'),
-                    onPressed: () => _quickLogin('City Hospital Bank', 'bank', 'all'),
+                    onPressed: () =>
+                        _quickLogin('City Hospital Bank', 'bank', 'all'),
                   ),
                 ],
               ),

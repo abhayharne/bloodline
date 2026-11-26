@@ -40,14 +40,17 @@ default), without SMS delivery or real identity verification. The hospital picke
 contains sample entries. Use fictional information when trying the demo.
 
 The request, chat and fulfillment flow has been checked on a physical Android
-phone with live Nexconn. The [verification handoff](docs/handoff/codex.md) records
-the checks and their limits. Automated checks cover the Go API, Flutter widgets
+phone with live Nexconn. Automated checks cover the Go API, Flutter widgets
 and Dart-to-Go HTTP integration.
 
 Android signing and release scripts are included, but no GitHub Release is
 published yet. Follow the [Android build and deployment guide](deploy/README.md)
-to prepare an installable APK and its API service. Temporary demo tunnels require
-the host computer to remain online.
+to prepare an installable APK and its API service.
+
+[Deploy the free demo API on Render](https://render.com/deploy?repo=https://github.com/abhayharne/bloodline).
+The free service sleeps after inactivity; the app waits up to 90 seconds for it
+to wake. Demo accounts and requests may reset when the service sleeps, restarts
+or redeploys. Free-tier quotas can temporarily suspend the service.
 
 ## Architecture
 
@@ -163,8 +166,5 @@ Flutter and Go must be on `PATH`.
 | [API contract](docs/API.md) | Endpoints, authentication and configuration |
 | [Data model](docs/DATA_MODEL.md) | Tables, compatibility and matching rules |
 | [Demo script](docs/DEMO_SCRIPT.md) / [pitch](docs/PITCH.md) | Presentation material |
-| [Plan](docs/PLAN.md) / [decisions](docs/DECISIONS.md) | Scope, task status and design decisions |
 
-For agent-assisted development, read [AGENTS.md](AGENTS.md) and the relevant
-[handoff](docs/handoff/) before changing code. Keep `.env`, databases, signing
-keys and private runtime logs out of Git.
+Keep `.env`, databases, signing keys and private runtime logs out of Git.

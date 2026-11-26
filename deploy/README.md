@@ -4,6 +4,45 @@ The Android APK and the API are separate deployments. GitHub Releases hosts the
 APK; a public HTTPS service runs the Go API with a persistent SQLite disk.
 A laptop-only URL or emulator localhost cannot serve downloaded apps remotely.
 
+## Free public demo on Render
+
+[Deploy the API on Render](https://render.com/deploy?repo=https://github.com/abhayharne/bloodline)
+using the root `render.yaml` Blueprint. Sign in, connect this repository, and keep
+the service on the **Free** instance in Singapore. No paid disk or database is
+required. The container creates its SQLite database under `/data`.
+
+During Blueprint creation, enter the Nexconn app key and secret privately in
+Render's prompts. The client APK must use the same project app key. Render
+generates `JWT_SECRET`; the Singapore endpoints and demo settings are prefilled.
+Never paste secrets into issues, release notes or source files.
+
+The Blueprint disables automatic deploys so documentation commits do not reset the
+demo. Deploy API updates manually after checks pass. Keep `DEV`, `NEXCONN_FAKE`
+and `NEXCONN_MOCK` at `0`. Copy the assigned HTTPS service URL after the initial
+deployment and verify `/health` and `/config` before building the APK.
+
+Render's free tier sleeps after 15 idle minutes and discards local files on sleep,
+restart and redeploy. Accounts, requests and stock may reset; startup seeds only
+fictional profiles and stock. Chat rooms are hosted separately by Nexconn, but old
+rooms are no longer linked to an account after the SQLite data resets. The app
+waits up to 90 seconds for a cold service and offers a retry if unavailable.
+Free-tier quotas can also suspend availability. See
+[Render's documented limits](https://render.com/docs/free).
+
+To publish a verified build:
+
+```sh
+scripts/build-android-release.sh https://YOUR-SERVICE.onrender.com
+gh release create v1.0.0 dist/bloodline.apk dist/SHA256SUMS \
+  --title 'BloodLine 1.0.0 — public Android demo' \
+  --notes-file deploy/RELEASE_NOTES.md
+```
+
+Before publication, install the signed APK on a physical Android phone over mobile
+data and verify registration, profile save, request creation, donor acceptance,
+live chat and fulfillment. Confirm `/dev/reset` returns 404. Recheck login after
+a service restart. Attach only the APK and checksum, not private build state.
+
 ## API
 
 A portable container is in `deploy/Dockerfile`. Build from the repository root:

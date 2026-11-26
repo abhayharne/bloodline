@@ -92,6 +92,7 @@ void main() {
     expect(find.text('Get Mock OTP'), findsOneWidget);
 
     // Tap Get Mock OTP
+    await tester.ensureVisible(find.text('Get Mock OTP'));
     await tester.tap(find.text('Get Mock OTP'));
     await tester.pumpAndSettle();
 
@@ -185,6 +186,7 @@ void main() {
     await tester.pumpWidget(createTestApp(const LoginScreen(), authProvider: auth));
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.text('Get Mock OTP'));
     await tester.tap(find.text('Get Mock OTP'));
     await tester.pumpAndSettle();
 
@@ -241,6 +243,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Tap Get Mock OTP
+    await tester.ensureVisible(find.text('Get Mock OTP'));
     await tester.tap(find.text('Get Mock OTP'));
     await tester.pumpAndSettle();
 
@@ -517,6 +520,7 @@ void main() {
     expect(find.byKey(const Key('demo_mode_banner')), findsNothing);
 
     // Tap Get Mock OTP with failing backend
+    await tester.ensureVisible(find.text('Get Mock OTP'));
     await tester.tap(find.text('Get Mock OTP'));
     await tester.pumpAndSettle();
 
@@ -778,6 +782,7 @@ void main() {
     await tester.enterText(phoneField, '9876543210');
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.text('Get Mock OTP'));
     await tester.tap(find.text('Get Mock OTP'));
     await tester.pumpAndSettle();
 
@@ -1118,6 +1123,7 @@ void main() {
     await tester.pumpWidget(createTestApp(const LoginScreen(), authProvider: auth));
     await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextField, 'Phone Number'), '9900000088');
+    await tester.ensureVisible(find.text('Get Mock OTP'));
     await tester.tap(find.text('Get Mock OTP'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).last, '123456');

@@ -31,6 +31,7 @@ import 'features/reminders/register.dart';
 import 'features/settings/register.dart';
 
 import 'features/auth/login_screen.dart';
+import 'features/auth/connection_gate.dart';
 import 'features/home/home_screen.dart';
 
 void main() {
@@ -51,6 +52,15 @@ void _reportUnhandledError(Object error, StackTrace stack) {
 
 Future<void> _startApp() async {
   final apiClient = ApiClient();
+  runApp(
+    ConnectionGate(
+      apiClient: apiClient,
+      prepareApp: () => _buildApp(apiClient),
+    ),
+  );
+}
+
+Future<Widget> _buildApp(ApiClient apiClient) async {
   final features = await Features.load(apiClient);
 
   // Initialize features (registers extension slots if any)
@@ -72,10 +82,7 @@ Future<void> _startApp() async {
     defaultValue: ConfigConstants.defaultAppKey,
   );
 
-  final initParams = InitParams(
-    appKey: appKey,
-    areaCode: AreaCode.sg,
-  );
+  final initParams = InitParams(appKey: appKey, areaCode: AreaCode.sg);
 
   final engineProvider = EngineProvider();
   await engineProvider.initialize(initParams);
@@ -86,45 +93,43 @@ Future<void> _startApp() async {
     areaCode: AreaCode.sg,
   );
 
-  runApp(
-    NexconnChatUIProviders(
-      engineProvider: engineProvider,
-      child: MultiProvider(
-        providers: [
-          Provider<ApiClient>.value(value: apiClient),
-          ChangeNotifierProvider<AuthProvider>(
-            create: (_) {
-              final auth = AuthProvider(apiClient: apiClient);
-              auth.init();
-              return auth;
-            },
-          ),
-          ChangeNotifierProvider<RequestsProvider>(
-            create: (_) => RequestsProvider(apiClient: apiClient),
-          ),
-          ChangeNotifierProvider<BankStockProvider>(
-            create: (_) => BankStockProvider(apiClient: apiClient),
-          ),
-          ChangeNotifierProvider<ConfigProvider>(
-            create: (_) {
-              final cfg = ConfigProvider(apiClient: apiClient);
-              cfg.fetchConfig();
-              return cfg;
-            },
-          ),
-          ChangeNotifierProvider<NotificationsProvider>(
-            create: (_) => NotificationsProvider(apiClient: apiClient),
-          ),
-          ChangeNotifierProvider<SettingsProvider>(
-            create: (_) {
-              final settings = SettingsProvider();
-              settings.load();
-              return settings;
-            },
-          ),
-        ],
-        child: const BloodLineApp(),
-      ),
+  return NexconnChatUIProviders(
+    engineProvider: engineProvider,
+    child: MultiProvider(
+      providers: [
+        Provider<ApiClient>.value(value: apiClient),
+        ChangeNotifierProvider<AuthProvider>(
+          create: (_) {
+            final auth = AuthProvider(apiClient: apiClient);
+            auth.init();
+            return auth;
+          },
+        ),
+        ChangeNotifierProvider<RequestsProvider>(
+          create: (_) => RequestsProvider(apiClient: apiClient),
+        ),
+        ChangeNotifierProvider<BankStockProvider>(
+          create: (_) => BankStockProvider(apiClient: apiClient),
+        ),
+        ChangeNotifierProvider<ConfigProvider>(
+          create: (_) {
+            final cfg = ConfigProvider(apiClient: apiClient);
+            cfg.fetchConfig();
+            return cfg;
+          },
+        ),
+        ChangeNotifierProvider<NotificationsProvider>(
+          create: (_) => NotificationsProvider(apiClient: apiClient),
+        ),
+        ChangeNotifierProvider<SettingsProvider>(
+          create: (_) {
+            final settings = SettingsProvider();
+            settings.load();
+            return settings;
+          },
+        ),
+      ],
+      child: const BloodLineApp(),
     ),
   );
 }
@@ -147,15 +152,14 @@ class _BloodLineAppState extends State<BloodLineApp> {
     _pollingToken = token;
     _pollingRole = role;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || auth.token != token || auth.currentUser?.role != role) return;
+      if (!mounted || auth.token != token || auth.currentUser?.role != role)
+        return;
       final requests = context.read<RequestsProvider>();
       final notifications = context.read<NotificationsProvider>();
       requests.reset();
       notifications.reset();
       if (token != null) {
-        requests.startPolling(
-          status: role == 'requester' ? 'all' : 'open',
-        );
+        requests.startPolling(status: role == 'requester' ? 'all' : 'open');
         notifications.startPolling();
       }
     });
@@ -175,14 +179,15 @@ class _BloodLineAppState extends State<BloodLineApp> {
         brightness: Brightness.light,
         cardTheme: CardThemeData(
           elevation: 1,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       ),
       builder: (context, child) {
         return MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            textScaler: settings.textScaler,
-          ),
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: settings.textScaler),
           child: child ?? const SizedBox.shrink(),
         );
       },
@@ -210,10 +215,18 @@ class RootGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    final child = auth.isAuthenticated ? const HomeScreen() : const LoginScreen();
-    return PopScope(
-      canPop: false,
-      child: child,
-    );
+    if (auth.isRestoring) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(
+            semanticsLabel: 'Restoring your session',
+          ),
+        ),
+      );
+    }
+    final child = auth.isAuthenticated
+        ? const HomeScreen()
+        : const LoginScreen();
+    return PopScope(canPop: false, child: child);
   }
 }

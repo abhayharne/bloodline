@@ -237,7 +237,9 @@ class HttpApiClient implements ApiClient {
       final res = await _httpClient
           .get(Uri.parse('$baseUrl/health'))
           .timeout(const Duration(seconds: 3));
-      return res.statusCode == 200;
+      if (res.statusCode != 200) return false;
+      final body = jsonDecode(res.body);
+      return body is Map<String, dynamic> && body['status'] == 'ok';
     } catch (_) {
       return false;
     }
