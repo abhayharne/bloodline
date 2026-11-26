@@ -4,44 +4,63 @@ The Android APK and the API are separate deployments. GitHub Releases hosts the
 APK; a public HTTPS service runs the Go API with a persistent SQLite disk.
 A laptop-only URL or emulator localhost cannot serve downloaded apps remotely.
 
-## Free public demo on Render
+## Public demo on Modal
 
-[Deploy the API on Render](https://render.com/deploy?repo=https://github.com/abhayharne/bloodline)
-using the root `render.yaml` Blueprint. Sign in, connect this repository, and keep
-the service on the **Free** instance in Singapore. No paid disk or database is
-required. The container creates its SQLite database under `/data`.
+Install the Modal CLI and sign in with `modal setup`. In the Modal dashboard,
+create a Secret named **bloodline-api** containing only:
 
-During Blueprint creation, enter the Nexconn app key and secret privately in
-Render's prompts. The client APK must use the same project app key. Render
-generates `JWT_SECRET`; the Singapore endpoints and demo settings are prefilled.
-Never paste secrets into issues, release notes or source files.
+- `JWT_SECRET`: a generated private random signing secret, retained across deploys.
+- `NEXCONN_APP_KEY`: the existing Nexconn project app key, also used by the APK.
+- `NEXCONN_APP_SECRET`: that project's private server secret.
 
-The Blueprint disables automatic deploys so documentation commits do not reset the
-demo. Deploy API updates manually after checks pass. Keep `DEV`, `NEXCONN_FAKE`
-and `NEXCONN_MOCK` at `0`. Copy the assigned HTTPS service URL after the initial
-deployment and verify `/health` and `/config` before building the APK.
+Set the workspace's **spend limit to $0** under Usage & Billing before deploying.
+Modal's Starter plan includes monthly compute credits; it is not unlimited free
+hosting. With this spend limit, the demo can stop when applicable credits run out.
+See [Modal pricing](https://modal.com/pricing) and [budget controls](https://modal.com/docs/guide/budgets).
 
-Render's free tier sleeps after 15 idle minutes and discards local files on sleep,
-restart and redeploy. Accounts, requests and stock may reset; startup seeds only
-fictional profiles and stock. Chat rooms are hosted separately by Nexconn, but old
-rooms are no longer linked to an account after the SQLite data resets. The app
-waits up to 90 seconds for a cold service and offers a retry if unavailable.
-Free-tier quotas can also suspend availability. See
-[Render's documented limits](https://render.com/docs/free).
-
-To publish a verified build:
+From the repository root, with Go and Modal on PATH:
 
 ```sh
-scripts/build-android-release.sh https://YOUR-SERVICE.onrender.com
+scripts/deploy-modal.sh
+```
+
+The script builds a stripped Linux binary under ignored `dist/modal/` and uploads
+only that executable into a small Python image. It never opens `.env` or uploads
+the repository, SQLite files, Android signing material or local runtime logs.
+The deployment fixes DEV/FAKE/MOCK at `0`, uses live Singapore Nexconn and seeds
+fictional accounts and stock only on an empty database.
+
+The API uses a single container, a persistent v2 Modal Volume named
+`bloodline-data`, and up to 32 concurrent HTTP requests. SQLite still serializes
+its database connection. The container scales to zero after inactivity; Modal
+periodically commits the volume and commits it on normal shutdown. This is demo
+storage, not a replicated database or a guarantee against abrupt-crash data loss.
+
+**Always deploy with the script's `--strategy=recreate` setting.** It prevents
+old and new versions from writing the same SQLite file concurrently. Redeploys
+can briefly interrupt requests. Do not start a second deployment against this
+volume. Stopping the app retains its volume; deleting the volume deletes its data.
+
+The command prints the public HTTPS URL. Verify `/health`, `/config` and a 404
+for `/dev/reset`, then build the APK with the same Nexconn app key:
+
+```sh
+scripts/build-android-release.sh https://YOUR-WORKSPACE--bloodline-api.modal.run
+```
+
+Set `NEXCONN_APP_KEY` when invoking the build script if using a different project
+from the default. The final signed APK must be built with the actual assigned URL,
+not a guessed hostname. On a phone over mobile data, verify registration, profile
+save, requester broadcast, donor acceptance, chat and fulfillment before release.
+Also verify that saved data survives a container restart.
+
+Publish the verified APK and checksum:
+
+```sh
 gh release create v1.0.0 dist/bloodline.apk dist/SHA256SUMS \
   --title 'BloodLine 1.0.0 — public Android demo' \
   --notes-file deploy/RELEASE_NOTES.md
 ```
-
-Before publication, install the signed APK on a physical Android phone over mobile
-data and verify registration, profile save, request creation, donor acceptance,
-live chat and fulfillment. Confirm `/dev/reset` returns 404. Recheck login after
-a service restart. Attach only the APK and checksum, not private build state.
 
 ## API
 

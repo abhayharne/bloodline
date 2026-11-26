@@ -163,7 +163,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ],
               const Text(
                 'Public demo · Code 123456 · No SMS is sent.\n'
-                'Use fictional details. Accounts and requests may reset when the demo sleeps or restarts.',
+                'Use fictional details. This is a shared demo; accounts and requests may be reset.',
                 key: Key('public_demo_notice'),
                 style: TextStyle(fontSize: 14, color: Colors.black87),
               ),

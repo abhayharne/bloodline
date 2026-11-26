@@ -16,11 +16,11 @@ Verify the download using `SHA256SUMS` attached to this release.
 
 ## Demo availability
 
-The API runs on Render's free tier and live conversations use Nexconn. The first
-connection after inactivity can take up to 90 seconds. Free hosting may pause the
-service when quotas are exhausted.
+The API runs on Modal and live conversations use Nexconn. The first connection
+after inactivity can take up to 90 seconds. The demo may pause when its included
+compute credits are exhausted.
 
-Accounts, requests and stock can reset when the API sleeps, restarts or redeploys.
+SQLite data is stored on a persistent volume, but this shared demo may be reset.
 Register again if your account no longer exists. Use fictional information; this
 build does not send SMS or verify donor identities and is not a service for real
 emergency coordination. Sample hospitals are included for demonstration.

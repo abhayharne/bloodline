@@ -47,10 +47,10 @@ Android signing and release scripts are included, but no GitHub Release is
 published yet. Follow the [Android build and deployment guide](deploy/README.md)
 to prepare an installable APK and its API service.
 
-[Deploy the free demo API on Render](https://render.com/deploy?repo=https://github.com/abhayharne/bloodline).
-The free service sleeps after inactivity; the app waits up to 90 seconds for it
-to wake. Demo accounts and requests may reset when the service sleeps, restarts
-or redeploys. Free-tier quotas can temporarily suspend the service.
+The demo API is prepared for Modal with a persistent SQLite volume and one
+container that scales to zero when idle. The app waits up to 90 seconds for a cold
+service. Modal's included compute credits are limited; set a $0 spend limit to
+keep the demo within those credits. See the [deployment guide](deploy/README.md).
 
 ## Architecture
 
@@ -70,7 +70,7 @@ user chat token and uses the Singapore SDK region (`AreaCode.sg`).
 | Mobile | Flutter / Dart, Provider, Nexconn Chat SDK and Chat UI |
 | API | Go 1.22+, standard-library `net/http`, JWT authentication |
 | Storage | SQLite via `modernc.org/sqlite`; migrations run on startup |
-| Distribution | Signed Android APK tooling; containerized API with persistent storage |
+| Distribution | Signed Android APK; Modal API with persistent SQLite storage |
 
 ## Run locally
 
